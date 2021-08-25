@@ -2,9 +2,10 @@
 name = "ike"
 version = "0.0.0"
 edition = "2018"
+description = "Small game engine with a simple editor"
 resolver = "2"
 repository = "https://github.com/ChangeCaps/ike"
-licence = "MIT"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

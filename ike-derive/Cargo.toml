@@ -2,6 +2,7 @@
 name = "ike-derive"
 version = "0.0.0"
 edition = "2018"
+description = "Provides derive implementations for ike"
 resolver = "2"
 repository = "https://github.com/ChangeCaps/ike"
 license = "MIT"
