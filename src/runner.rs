@@ -1,0 +1,182 @@
+use glam::{UVec2, Vec2};
+use winit::{
+    event::{ElementState, Event, KeyboardInput, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::{Fullscreen, WindowBuilder},
+};
+
+use crate::{prelude::App, renderer::RenderCtx, state::{StartCtx, State, UpdateCtx}, view::Views, window::Window};
+
+async unsafe fn wgpu_init(window: &winit::window::Window) -> anyhow::Result<RenderCtx> {
+    let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
+
+    let surface = unsafe { instance.create_surface(window) };
+
+    let adapter = instance
+        .request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            compatible_surface: Some(&surface),
+        })
+        .await
+        .unwrap();
+
+    let (device, queue) = adapter
+        .request_device(
+            &wgpu::DeviceDescriptor {
+                label: Some("main device"),
+                features: wgpu::Features::empty(),
+                limits: wgpu::Limits::default(),
+            },
+            None,
+        )
+        .await?;
+
+    let size = window.inner_size();
+
+    let config = wgpu::SurfaceConfiguration {
+        width: size.width,
+        height: size.height,
+        format: surface.get_preferred_format(&adapter).unwrap(),
+        present_mode: wgpu::PresentMode::Fifo,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+    };
+
+    surface.configure(&device, &config);
+
+    Ok(RenderCtx {
+        device,
+        queue,
+        surface,
+        config,
+    })
+}
+
+impl<S: State> App<S> {
+    #[inline]
+    pub fn run(mut self, mut state: S) -> ! {
+        let event_loop = EventLoop::new();
+        let winit_window = WindowBuilder::new().build(&event_loop).unwrap();
+
+        let mut render_ctx = pollster::block_on(unsafe { wgpu_init(&winit_window) }).unwrap();
+
+        let mut key_input = Default::default();
+        let mut mouse_input = Default::default();
+        let mut mouse = Default::default();
+        let mut char_input = Vec::new();
+        let mut window = Window::default();
+
+        let mut start_ctx = StartCtx {
+            window: &mut window,
+        };
+
+        state.start(&mut start_ctx);
+
+        let mut last_frame = std::time::Instant::now();
+
+        event_loop.run(move |event, _, control_flow| match event {
+            Event::RedrawRequested(_) => {
+                let now = std::time::Instant::now();
+
+                let delta_time = (now - last_frame).as_secs_f32();
+                last_frame = now;
+
+                let target = render_ctx.surface.get_current_frame().unwrap();
+
+                let target_view = target
+                    .output
+                    .texture
+                    .create_view(&wgpu::TextureViewDescriptor::default());
+
+                let mut views = Views {
+                    target: Some(target_view),
+                    width: render_ctx.config.width,
+                    height: render_ctx.config.height,
+                    format: render_ctx.config.format,
+                    target_id: None,
+                    views: Default::default(),
+                };
+
+                window.size = UVec2::new(render_ctx.config.width, render_ctx.config.height);
+                window.maximized = winit_window.is_maximized();
+
+                let mut update_ctx = UpdateCtx {
+                    delta_time,
+                    window: &mut window,
+                    key_input: &key_input,
+                    mouse_input: &mouse_input,
+                    mouse: &mouse,
+                    char_input: &char_input,
+                };
+
+                state.update(&mut update_ctx);
+                state.render(&mut views);
+
+                key_input.update();
+                mouse_input.update();
+                char_input.clear();
+                mouse.prev_position = mouse.position;
+
+                if window.fullscreen { 
+                    winit_window.set_fullscreen(Some(Fullscreen::Borderless(None)));
+                } else {
+                    winit_window.set_fullscreen(None);
+                }
+                
+                winit_window.set_maximized(window.maximized);
+                winit_window.set_cursor_visible(window.cursor_visible);
+                winit_window.set_cursor_grab(window.cursor_grab).unwrap();
+
+                for view in views.views.values() {
+                    self.renderer.render_view(&render_ctx, view, &mut state);
+                }
+            }
+            Event::MainEventsCleared => {
+                winit_window.request_redraw();
+            }
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::CloseRequested => {
+                    *control_flow = ControlFlow::Exit;
+                }
+                WindowEvent::Resized(new_size) => {
+                    render_ctx.config.width = new_size.width;
+                    render_ctx.config.height = new_size.height;
+                    render_ctx
+                        .surface
+                        .configure(&render_ctx.device, &render_ctx.config);
+                }
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            virtual_keycode: Some(key),
+                            state,
+                            ..
+                        },
+                    ..
+                } => match state {
+                    ElementState::Pressed => {
+                        key_input.press(key);
+                    }
+                    ElementState::Released => {
+                        key_input.release(key);
+                    }
+                },
+                WindowEvent::MouseInput { state, button, .. } => match state {
+                    ElementState::Pressed => {
+                        mouse_input.press(button);
+                    }
+                    ElementState::Released => {
+                        mouse_input.release(button);
+                    }
+                },
+                WindowEvent::CursorMoved { position, .. } => {
+                    mouse.position = Vec2::new(position.x as f32, position.y as f32);
+                }
+                WindowEvent::ReceivedCharacter(c) => {
+                    char_input.push(c);
+                }
+                _ => {}
+            },
+            _ => {}
+        })
+    }
+}
