@@ -5,7 +5,13 @@ use winit::{
     window::{Fullscreen, WindowBuilder},
 };
 
-use crate::{prelude::App, renderer::RenderCtx, state::{StartCtx, State, UpdateCtx}, view::Views, window::Window};
+use crate::{
+    prelude::App,
+    renderer::RenderCtx,
+    state::{StartCtx, State, UpdateCtx},
+    view::Views,
+    window::Window,
+};
 
 async unsafe fn wgpu_init(window: &winit::window::Window) -> anyhow::Result<RenderCtx> {
     let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
@@ -65,11 +71,15 @@ impl<S: State> App<S> {
         let mut char_input = Vec::new();
         let mut window = Window::default();
 
+        window.pre_update(&winit_window);
+
         let mut start_ctx = StartCtx {
             window: &mut window,
         };
 
         state.start(&mut start_ctx);
+
+        window.post_update(&winit_window);
 
         let mut last_frame = std::time::Instant::now();
 
@@ -96,8 +106,7 @@ impl<S: State> App<S> {
                     views: Default::default(),
                 };
 
-                window.size = UVec2::new(render_ctx.config.width, render_ctx.config.height);
-                window.maximized = winit_window.is_maximized();
+                window.pre_update(&winit_window);
 
                 let mut update_ctx = UpdateCtx {
                     delta_time,
@@ -111,20 +120,12 @@ impl<S: State> App<S> {
                 state.update(&mut update_ctx);
                 state.render(&mut views);
 
+                window.post_update(&winit_window);
+
                 key_input.update();
                 mouse_input.update();
                 char_input.clear();
                 mouse.prev_position = mouse.position;
-
-                if window.fullscreen { 
-                    winit_window.set_fullscreen(Some(Fullscreen::Borderless(None)));
-                } else {
-                    winit_window.set_fullscreen(None);
-                }
-                
-                winit_window.set_maximized(window.maximized);
-                winit_window.set_cursor_visible(window.cursor_visible);
-                winit_window.set_cursor_grab(window.cursor_grab).unwrap();
 
                 for view in views.views.values() {
                     self.renderer.render_view(&render_ctx, view, &mut state);

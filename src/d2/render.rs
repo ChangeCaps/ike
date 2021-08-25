@@ -142,7 +142,32 @@ impl<'a> Render2dCtx<'a> {
             view,
         };
 
-        self.sprites.draw(sprite)
+        self.sprites.draw(sprite);
+    }
+
+    #[inline]
+    pub fn draw_texture_depth(
+        &mut self,
+        texture: &mut Texture,
+        transform: &Transform2d,
+        depth: f32,
+    ) {
+        let view = texture
+            .texture(self.render_ctx)
+            .create_view(&Default::default());
+
+        let sprite = Sprite {
+            transform: transform.matrix(),
+            width: texture.width,
+            height: texture.height,
+            depth,
+            min: Vec2::ZERO,
+            max: Vec2::ONE,
+            texture_id: texture.id,
+            view,
+        };
+
+        self.sprites.draw(sprite);
     }
 
     #[inline]

@@ -31,7 +31,7 @@ pub mod prelude {
     pub use crate::id::Id;
     pub use crate::input;
     pub use crate::renderer::{RenderCtx, RenderNode};
-    pub use crate::state::{State, UpdateCtx};
+    pub use crate::state::{StartCtx, State, UpdateCtx};
     #[cfg(feature = "image")]
     pub use crate::texture::Texture;
     pub use crate::ui_panel::UiPanel;
