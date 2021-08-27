@@ -9,16 +9,16 @@ pub struct Window {
 }
 
 impl Default for Window {
-	#[inline]
-	fn default() -> Self {
-		Self {
-			size: UVec2::new(0, 0),
-			fullscreen: false,
-			maximized: false,
-			cursor_visible: true,
-			cursor_grab: false,
-		}
-	}
+    #[inline]
+    fn default() -> Self {
+        Self {
+            size: UVec2::new(0, 0),
+            fullscreen: false,
+            maximized: false,
+            cursor_visible: true,
+            cursor_grab: false,
+        }
+    }
 }
 
 impl Window {
@@ -40,5 +40,5 @@ impl Window {
         window.set_maximized(self.maximized);
         window.set_cursor_visible(self.cursor_visible);
         window.set_cursor_grab(self.cursor_grab).unwrap();
-    } 
+    }
 }

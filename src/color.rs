@@ -28,10 +28,34 @@ impl Color {
     }
 }
 
+impl Into<[u8; 4]> for Color {
+    #[inline]
+    fn into(self) -> [u8; 4] {
+        [
+            (self.r * 255.0).round() as u8,
+            (self.g * 255.0).round() as u8,
+            (self.b * 255.0).round() as u8,
+            (self.a * 255.0).round() as u8,
+        ]
+    }
+}
+
 impl Into<[f32; 4]> for Color {
     #[inline]
     fn into(self) -> [f32; 4] {
         [self.r, self.g, self.b, self.a]
+    }
+}
+
+impl From<[u8; 4]> for Color {
+    #[inline]
+    fn from([r, g, b, a]: [u8; 4]) -> Self {
+        Self::rgba(
+            r as f32 / 255.0,
+            g as f32 / 255.0,
+            b as f32 / 255.0,
+            a as f32 / 255.0,
+        )
     }
 }
 
