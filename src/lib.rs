@@ -25,22 +25,26 @@ pub use wgpu;
 
 pub mod prelude {
     pub use crate::app::App;
-    pub use crate::camera::OrthographicProjection;
+    pub use crate::camera::{OrthographicProjection, PerspectiveProjection, Camera};
     pub use crate::color::Color;
     pub use crate::export_app;
-    pub use crate::id::Id;
+    pub use crate::id::{Id, HasId};
     pub use crate::input;
     pub use crate::panels::{
         inspector_panel::{Inspect, InspectCtx, Inspectable, InspectorPanel},
         view_panel::MainViewPanel,
     };
-    pub use crate::renderer::{MainPass, PassNode, RenderCtx, RenderPass};
+    pub use crate::renderer::{MainPass, PassNode, PassNodeCtx, RenderCtx, RenderPass, SampleCount};
     pub use crate::state::{StartCtx, State, UpdateCtx};
     #[cfg(feature = "image")]
     pub use crate::texture::Texture;
     pub use crate::ui_panel::UiPanel;
     pub use crate::view::{View, Views};
     pub use crate::window::Window;
+    #[cfg(feature = "2d")]
+    pub use crate::d2::transform2d::Transform2d;
+    #[cfg(feature = "3d")]
+    pub use crate::d3::transform3d::Transform3d;
     pub use glam::{swizzles::*, *};
     pub use wgpu;
     pub use winit::event::{MouseButton, VirtualKeyCode as Key};
