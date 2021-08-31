@@ -1,6 +1,6 @@
 [package]
 name = "ike"
-version = "0.0.0"
+version = "0.0.1"
 edition = "2018"
 description = "Small game engine with a simple editor"
 resolver = "2"
@@ -19,7 +19,8 @@ glam = "^0.17"
 pollster = "0.2.4"
 wgpu = "^0.10"
 winit = { version = "^0.25", features = ["serde"] }
-ike-derive = { version = "0.0.0", path = "ike-derive" }
+ike-derive = { version = "0.0.1", path = "ike-derive" }
+ike-wgpu = { version = "0.0.1", path = "ike-wgpu" }
 image = { version = "^0.23", optional = true }
 bytemuck = { version = "^1.7", features = ["derive"] }
 
