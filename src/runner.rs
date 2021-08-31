@@ -1,8 +1,8 @@
-use glam::{UVec2, Vec2};
+use glam::Vec2;
 use winit::{
     event::{ElementState, Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::{Fullscreen, WindowBuilder},
+    window::WindowBuilder,
 };
 
 use crate::{

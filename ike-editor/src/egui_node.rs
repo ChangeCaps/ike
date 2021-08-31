@@ -205,6 +205,7 @@ pub struct EguiNode {
     size_bind_group: Option<wgpu::BindGroup>,
     egui_texture: Option<wgpu::Texture>,
     egui_texture_bind_group: Option<wgpu::BindGroup>,
+    buffers: Vec<(wgpu::Buffer, wgpu::Buffer)>,
     texture_bind_groups: HashMap<u64, wgpu::BindGroup>,
     pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
 }
@@ -275,12 +276,16 @@ fn texture_bind_group(ctx: &RenderCtx, view: &wgpu::TextureView) -> wgpu::BindGr
     bind_group
 }
 
-impl RenderNode<EditorState> for EguiNode {
-    fn run(&mut self, ctx: &RenderCtx, view: &View, state: &mut EditorState) {
+impl PassNode<EditorState> for EguiNode {
+    fn run<'a>(
+        &'a mut self,
+        ctx: &mut ike::renderer::PassNodeCtx<'_, 'a>,
+        state: &mut EditorState,
+    ) {
         let target = state
             .textures
             .entry(self.main_view)
-            .or_insert_with(|| create_main_texture(ctx));
+            .or_insert_with(|| create_main_texture(ctx.render_ctx));
 
         let mut views = Views {
             target: Some(target.create_view(&Default::default())),
@@ -293,7 +298,7 @@ impl RenderNode<EditorState> for EguiNode {
 
         state.raw_input.screen_rect = Some(Rect::from_min_size(
             Pos2::ZERO,
-            ike::egui::Vec2::new(view.width as f32, view.height as f32),
+            ike::egui::Vec2::new(ctx.view.width as f32, ctx.view.height as f32),
         ));
 
         // get ui from app
@@ -303,8 +308,8 @@ impl RenderNode<EditorState> for EguiNode {
 
         if let Some(ref mut app) = state.app {
             app.render(&mut views);
-            app.render_views(ctx, &views);
-            app.show_editor(&mut views, &state.egui_ctx, ctx);
+            app.render_views(ctx.render_ctx, &views);
+            app.show_editor(&mut views, &state.egui_ctx, ctx.render_ctx);
         }
 
         let (_output, shapes) = state.egui_ctx.end_frame();
@@ -319,8 +324,8 @@ impl RenderNode<EditorState> for EguiNode {
                 .flat_map(|pixel| [pixel.r(), pixel.g(), pixel.b(), pixel.a()])
                 .collect::<Vec<_>>();
 
-            let texture = ctx.device.create_texture_with_data(
-                &ctx.queue,
+            let texture = ctx.render_ctx.device.create_texture_with_data(
+                &ctx.render_ctx.queue,
                 &wgpu::TextureDescriptor {
                     label: Some("egui_texture"),
                     size: wgpu::Extent3d {
@@ -339,7 +344,7 @@ impl RenderNode<EditorState> for EguiNode {
 
             let view = texture.create_view(&Default::default());
 
-            let bind_group = texture_bind_group(ctx, &view);
+            let bind_group = texture_bind_group(ctx.render_ctx, &view);
 
             self.egui_texture = Some(texture);
             self.egui_texture_bind_group = Some(bind_group);
@@ -347,51 +352,56 @@ impl RenderNode<EditorState> for EguiNode {
 
         // create size buffer
         if let Some(ref buffer) = self.size_buffer {
-            ctx.queue.write_buffer(
+            ctx.render_ctx.queue.write_buffer(
                 buffer,
                 0,
-                cast_slice(&[view.width as f32, view.height as f32]),
+                cast_slice(&[ctx.view.width as f32, ctx.view.height as f32]),
             );
         } else {
-            let buffer = ctx
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("size_buffer"),
-                    contents: cast_slice(&[view.width as f32, view.height as f32]),
-                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
-                });
+            let buffer =
+                ctx.render_ctx
+                    .device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("size_buffer"),
+                        contents: cast_slice(&[ctx.view.width as f32, ctx.view.height as f32]),
+                        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
+                    });
 
-            let layout = ctx
+            let layout =
+                ctx.render_ctx
+                    .device
+                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: Some("egui_bind_group_layout"),
+                        entries: &[wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        }],
+                    });
+
+            let bind_group = ctx
+                .render_ctx
                 .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("egui_bind_group_layout"),
-                    entries: &[wgpu::BindGroupLayoutEntry {
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("egui_size_bind_group"),
+                    layout: &layout,
+                    entries: &[wgpu::BindGroupEntry {
                         binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
+                        resource: buffer.as_entire_binding(),
                     }],
                 });
-
-            let bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("egui_size_bind_group"),
-                layout: &layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: buffer.as_entire_binding(),
-                }],
-            });
 
             self.size_buffer = Some(buffer);
             self.size_bind_group = Some(bind_group);
         }
 
         // prepare buffers
-        let mut buffers = Vec::new();
+        self.buffers.clear();
 
         for ClippedMesh(_rect, mesh) in &meshes {
             let mut vertices = Vec::new();
@@ -406,23 +416,25 @@ impl RenderNode<EditorState> for EguiNode {
                 });
             }
 
-            let vertex_buffer = ctx
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("egui_vertex_buffer"),
-                    contents: cast_slice(&vertices),
-                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
-                });
+            let vertex_buffer =
+                ctx.render_ctx
+                    .device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("egui_vertex_buffer"),
+                        contents: cast_slice(&vertices),
+                        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
+                    });
 
-            let index_buffer = ctx
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("egui_index_buffer"),
-                    contents: cast_slice(&mesh.indices),
-                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::INDEX,
-                });
+            let index_buffer =
+                ctx.render_ctx
+                    .device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("egui_index_buffer"),
+                        contents: cast_slice(&mesh.indices),
+                        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::INDEX,
+                    });
 
-            buffers.push((vertex_buffer, index_buffer));
+            self.buffers.push((vertex_buffer, index_buffer));
 
             // prepare texture bind_groups
             if let TextureId::User(ref id) = mesh.texture_id {
@@ -435,7 +447,7 @@ impl RenderNode<EditorState> for EguiNode {
                         view
                     };
 
-                    let bind_group = texture_bind_group(ctx, &view);
+                    let bind_group = texture_bind_group(ctx.render_ctx, &view);
                     self.texture_bind_groups.insert(*id, bind_group);
                 }
             }
@@ -444,33 +456,15 @@ impl RenderNode<EditorState> for EguiNode {
         // prepare pipeline
         let pipeline = self
             .pipelines
-            .entry(view.format)
-            .or_insert_with(|| pipeline(ctx, view.format));
+            .entry(ctx.view.format)
+            .or_insert_with(|| pipeline(ctx.render_ctx, ctx.view.format));
 
-        let mut encoder = ctx
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("egui_pass_encoder"),
-            });
+        ctx.render_pass.set_pipeline(pipeline);
 
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("egui_pass"),
-            color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &view.target,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: true,
-                },
-            }],
-            depth_stencil_attachment: None,
-        });
+        ctx.render_pass
+            .set_bind_group(0, self.size_bind_group.as_ref().unwrap(), &[]);
 
-        render_pass.set_pipeline(pipeline);
-
-        render_pass.set_bind_group(0, self.size_bind_group.as_ref().unwrap(), &[]);
-
-        let mut buffers = buffers.iter();
+        let mut buffers = self.buffers.iter();
 
         for ClippedMesh(_rect, mesh) in meshes {
             // TODO(changecaps): set scissor rect
@@ -478,16 +472,22 @@ impl RenderNode<EditorState> for EguiNode {
             // retrieve prepared buffers
             let (vertex_buffer, index_buffer) = buffers.next().unwrap();
 
-            render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-            render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            ctx.render_pass
+                .set_vertex_buffer(0, vertex_buffer.slice(..));
+            ctx.render_pass
+                .set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
             // set texture bind group
             match mesh.texture_id {
                 TextureId::User(id) => {
-                    render_pass.set_bind_group(1, self.texture_bind_groups.get(&id).unwrap(), &[]);
+                    ctx.render_pass.set_bind_group(
+                        1,
+                        self.texture_bind_groups.get(&id).unwrap(),
+                        &[],
+                    );
                 }
                 TextureId::Egui => {
-                    render_pass.set_bind_group(
+                    ctx.render_pass.set_bind_group(
                         1,
                         self.egui_texture_bind_group.as_ref().unwrap(),
                         &[],
@@ -496,11 +496,8 @@ impl RenderNode<EditorState> for EguiNode {
             }
 
             // draw
-            render_pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
+            ctx.render_pass
+                .draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
         }
-
-        drop(render_pass);
-
-        ctx.queue.submit(std::iter::once(encoder.finish()));
     }
 }

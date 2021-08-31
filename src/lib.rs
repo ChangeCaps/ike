@@ -30,7 +30,11 @@ pub mod prelude {
     pub use crate::export_app;
     pub use crate::id::Id;
     pub use crate::input;
-    pub use crate::renderer::{RenderCtx, RenderNode};
+    pub use crate::panels::{
+        inspector_panel::{Inspect, InspectCtx, Inspectable, InspectorPanel},
+        view_panel::MainViewPanel,
+    };
+    pub use crate::renderer::{MainPass, PassNode, RenderCtx, RenderPass};
     pub use crate::state::{StartCtx, State, UpdateCtx};
     #[cfg(feature = "image")]
     pub use crate::texture::Texture;

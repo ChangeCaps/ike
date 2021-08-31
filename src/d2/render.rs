@@ -3,11 +3,9 @@ use super::{
     transform2d::Transform2d,
 };
 use crate::{
-    color::Color,
     id::Id,
-    renderer::{RenderCtx, RenderNode},
+    renderer::{PassNode, PassNodeCtx, RenderCtx, SampleCount},
     texture::Texture,
-    view::View,
 };
 use bytemuck::{cast_slice, Pod, Zeroable};
 use glam::Vec2;
@@ -196,194 +194,51 @@ pub trait Render2d {
     fn render(&mut self, ctx: &mut Render2dCtx);
 }
 
-pub struct Node2d {
-    clear_color: Color,
-    sample_count: u32,
-    width: u32,
-    height: u32,
-    depth_texture: Option<wgpu::TextureView>,
-    ms_texture: Option<wgpu::TextureView>,
+pub struct SpriteNode2d {
+    buffers: Vec<wgpu::Buffer>,
     bind_groups: HashMap<Id, wgpu::BindGroup>,
     pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
 }
 
-impl Default for Node2d {
+impl Default for SpriteNode2d {
     #[inline]
     fn default() -> Self {
         Self {
-            clear_color: Color::BLACK,
-            sample_count: 1,
-            width: 0,
-            height: 0,
-            depth_texture: None,
-            ms_texture: None,
+            buffers: Vec::new(),
             bind_groups: Default::default(),
             pipelines: Default::default(),
         }
     }
 }
 
-impl Node2d {
+impl SpriteNode2d {
     #[inline]
-    pub fn new(clear_color: Color, sample_count: u32) -> Self {
-        Self {
-            clear_color,
-            sample_count,
-            ..Default::default()
-        }
+    pub fn new() -> Self {
+        Default::default()
     }
 }
 
-impl<S: Render2d> RenderNode<S> for Node2d {
+impl<S: Render2d> PassNode<S> for SpriteNode2d {
     #[inline]
-    fn run(&mut self, ctx: &RenderCtx, view: &View, state: &mut S) {
-        let depth = if let Some(ref mut depth) = self.depth_texture {
-            if self.width != view.width || self.height != view.height {
-                let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
-                    label: Some("2d_pass_depth"),
-                    size: wgpu::Extent3d {
-                        width: view.width,
-                        height: view.height,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: self.sample_count,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Depth24Plus,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                });
-
-                let texture_view = texture.create_view(&Default::default());
-
-                if self.sample_count > 1 {
-                    let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
-                        label: Some("2d_pass_ms"),
-                        size: wgpu::Extent3d {
-                            width: view.width,
-                            height: view.height,
-                            depth_or_array_layers: 1,
-                        },
-                        mip_level_count: 1,
-                        sample_count: self.sample_count,
-                        dimension: wgpu::TextureDimension::D2,
-                        format: view.format,
-                        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                    });
-
-                    let texture_view = texture.create_view(&Default::default());
-
-                    self.ms_texture = Some(texture_view);
-                }
-
-                self.width = view.width;
-                self.height = view.height;
-
-                *depth = texture_view;
-            }
-
-            depth
-        } else {
-            let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("2d_pass_depth"),
-                size: wgpu::Extent3d {
-                    width: view.width,
-                    height: view.height,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: self.sample_count,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Depth24Plus,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            });
-
-            let texture_view = texture.create_view(&Default::default());
-
-            self.depth_texture = Some(texture_view);
-
-            if self.sample_count > 1 {
-                let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
-                    label: Some("2d_pass_ms"),
-                    size: wgpu::Extent3d {
-                        width: view.width,
-                        height: view.height,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: self.sample_count,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: view.format,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                });
-
-                let texture_view = texture.create_view(&Default::default());
-
-                self.ms_texture = Some(texture_view);
-            }
-
-            self.width = view.width;
-            self.height = view.height;
-
-            self.depth_texture.as_mut().unwrap()
-        };
-
-        let sample_count = self.sample_count;
+    fn run<'a>(&'a mut self, ctx: &mut PassNodeCtx<'_, 'a>, state: &mut S) {
+        let sample_count = ctx.data.get::<SampleCount>().unwrap().0;
         let pipeline = self
             .pipelines
-            .entry(view.format)
-            .or_insert_with(|| crate_pipeline(ctx, view.format, sample_count));
+            .entry(ctx.view.format)
+            .or_insert_with(|| crate_pipeline(ctx.render_ctx, ctx.view.format, sample_count));
 
         let mut sprites = Sprites::default();
 
         let mut render_ctx = Render2dCtx {
             sprites: &mut sprites,
-            render_ctx: ctx,
+            render_ctx: ctx.render_ctx,
         };
 
         state.render(&mut render_ctx);
 
-        let mut encoder = ctx
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("2d_pass_encoder"),
-            });
+        self.buffers.clear();
 
-        let mut buffers = Vec::new();
-
-        let color_attachment = if self.sample_count > 1 {
-            wgpu::RenderPassColorAttachment {
-                view: self.ms_texture.as_ref().unwrap(),
-                resolve_target: Some(&view.target),
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(self.clear_color.into()),
-                    store: true,
-                },
-            }
-        } else {
-            wgpu::RenderPassColorAttachment {
-                view: &view.target,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(self.clear_color.into()),
-                    store: true,
-                },
-            }
-        };
-
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("2d_pass"),
-            color_attachments: &[color_attachment],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: depth,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
-                }),
-                stencil_ops: None,
-            }),
-        });
-
-        render_pass.set_pipeline(pipeline);
+        ctx.render_pass.set_pipeline(pipeline);
 
         for (id, sprites) in &sprites.batches {
             let mut vertices = Vec::with_capacity(sprites.len());
@@ -402,10 +257,10 @@ impl<S: Render2d> RenderNode<S> for Node2d {
                 let br = sprite.transform.transform_point2(br);
                 let tr = sprite.transform.transform_point2(tr);
 
-                let bl = view.view_proj.transform_point3(bl.extend(sprite.depth));
-                let tl = view.view_proj.transform_point3(tl.extend(sprite.depth));
-                let br = view.view_proj.transform_point3(br.extend(sprite.depth));
-                let tr = view.view_proj.transform_point3(tr.extend(sprite.depth));
+                let bl = ctx.view.view_proj.transform_point3(bl.extend(sprite.depth));
+                let tl = ctx.view.view_proj.transform_point3(tl.extend(sprite.depth));
+                let br = ctx.view.view_proj.transform_point3(br.extend(sprite.depth));
+                let tr = ctx.view.view_proj.transform_point3(tr.extend(sprite.depth));
 
                 vertices.push(Vertex2d {
                     position: bl.into(),
@@ -439,82 +294,85 @@ impl<S: Render2d> RenderNode<S> for Node2d {
                 });
             }
 
-            let vertex_buffer = ctx
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("sprite_batch_vertex"),
-                    contents: cast_slice(&vertices),
-                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
-                });
+            let vertex_buffer =
+                ctx.render_ctx
+                    .device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("sprite_batch_vertex"),
+                        contents: cast_slice(&vertices),
+                        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
+                    });
 
-            buffers.push(vertex_buffer);
+            self.buffers.push(vertex_buffer);
 
             if !self.bind_groups.contains_key(id) {
                 let sampler = ctx
+                    .render_ctx
                     .device
                     .create_sampler(&wgpu::SamplerDescriptor::default());
 
-                let layout =
-                    ctx.device
-                        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                            label: Some("2d_pass_layout"),
-                            entries: &[
-                                wgpu::BindGroupLayoutEntry {
-                                    binding: 0,
-                                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                                    ty: wgpu::BindingType::Texture {
-                                        sample_type: wgpu::TextureSampleType::Float {
-                                            filterable: true,
-                                        },
-                                        view_dimension: wgpu::TextureViewDimension::D2,
-                                        multisampled: false,
+                let layout = ctx.render_ctx.device.create_bind_group_layout(
+                    &wgpu::BindGroupLayoutDescriptor {
+                        label: Some("2d_pass_layout"),
+                        entries: &[
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 0,
+                                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
                                     },
-                                    count: None,
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    multisampled: false,
                                 },
-                                wgpu::BindGroupLayoutEntry {
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 1,
+                                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                                ty: wgpu::BindingType::Sampler {
+                                    filtering: true,
+                                    comparison: false,
+                                },
+                                count: None,
+                            },
+                        ],
+                    },
+                );
+
+                let bind_group =
+                    ctx.render_ctx
+                        .device
+                        .create_bind_group(&wgpu::BindGroupDescriptor {
+                            label: Some("2d_pass_bind_group"),
+                            layout: &layout,
+                            entries: &[
+                                wgpu::BindGroupEntry {
+                                    binding: 0,
+                                    resource: wgpu::BindingResource::TextureView(
+                                        &sprites.first().unwrap().view,
+                                    ),
+                                },
+                                wgpu::BindGroupEntry {
                                     binding: 1,
-                                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                                    ty: wgpu::BindingType::Sampler {
-                                        filtering: true,
-                                        comparison: false,
-                                    },
-                                    count: None,
+                                    resource: wgpu::BindingResource::Sampler(&sampler),
                                 },
                             ],
                         });
-
-                let bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("2d_pass_bind_group"),
-                    layout: &layout,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::TextureView(
-                                &sprites.first().unwrap().view,
-                            ),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::Sampler(&sampler),
-                        },
-                    ],
-                });
 
                 self.bind_groups.insert(*id, bind_group);
             }
         }
 
-        let mut buffers = buffers.iter();
+        let mut buffers = self.buffers.iter();
 
         for (id, sprites) in sprites.batches {
-            render_pass.set_bind_group(0, self.bind_groups.get(&id).unwrap(), &[]);
-            render_pass.set_vertex_buffer(0, buffers.next().unwrap().slice(..));
+            ctx.render_pass
+                .set_bind_group(0, self.bind_groups.get(&id).unwrap(), &[]);
+            ctx.render_pass
+                .set_vertex_buffer(0, buffers.next().unwrap().slice(..));
 
-            render_pass.draw(0..sprites.len() as u32 * 6, 0..1);
+            ctx.render_pass.draw(0..sprites.len() as u32 * 6, 0..1);
         }
-
-        drop(render_pass);
-
-        ctx.queue.submit(std::iter::once(encoder.finish()));
     }
 }

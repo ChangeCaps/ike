@@ -49,7 +49,7 @@ impl<S> UiPanels<S> {
     }
 
     #[inline]
-    pub fn show(&mut self, ctx: &UiPanelCtx<S>) {
+    pub fn show(&mut self, ctx: &mut UiPanelCtx<S>) {
         for panel in &self.order {
             self.panels.get_mut(panel).unwrap().show(ctx);
         }
@@ -75,5 +75,5 @@ pub struct UiPanelCtx<'a, S> {
 }
 
 pub trait UiPanel<S>: 'static {
-    fn show(&mut self, ctx: &UiPanelCtx<S>);
+    fn show(&mut self, ctx: &mut UiPanelCtx<S>);
 }

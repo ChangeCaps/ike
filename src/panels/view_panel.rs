@@ -1,12 +1,12 @@
 use egui::*;
-use glam::UVec2;
 
-use crate::{id::Id, prelude::UiPanel, renderer::Renderer, ui_panel::UiPanelCtx};
+use crate::{prelude::UiPanel, ui_panel::UiPanelCtx};
 
 pub struct MainViewPanel;
 
 impl<S> UiPanel<S> for MainViewPanel {
-    fn show(&mut self, ctx: &UiPanelCtx<S>) {
+    #[inline]
+    fn show(&mut self, ctx: &mut UiPanelCtx<S>) {
         CentralPanel::default().show(ctx.egui_ctx, |ui| {
             let size = ui.available_size();
 

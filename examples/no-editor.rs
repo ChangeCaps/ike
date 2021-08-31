@@ -1,8 +1,5 @@
 use ike::{
-    d2::{
-        render::{Node2d, Render2d},
-        transform2d::Transform2d,
-    },
+    d2::{render::Render2d, transform2d::Transform2d},
     prelude::*,
 };
 
@@ -41,9 +38,9 @@ fn main() {
         .init()
         .unwrap();
 
-    let mut app = App::new();
+    let app = App::new();
 
-    app.renderer.add_node(Node2d::new(Color::BLACK, 4));
+    //app.renderer.add_node(SpriteNode2d::new(Color::BLACK, 4));
 
     app.run(Game::new())
 }

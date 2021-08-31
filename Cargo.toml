@@ -10,7 +10,7 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-members = ["ike-derive", "ike-editor"]
+members = ["ike-derive", "ike-editor", "ike-wgpu"]
 
 [dependencies]
 anyhow = "^1.0"

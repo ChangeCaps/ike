@@ -154,7 +154,8 @@ fn main() -> anyhow::Result<()> {
 
     let mut app = App::new();
 
-    app.renderer.add_node(EguiNode::default());
+    let mut main_pass = app.renderer.pass_mut::<MainPass>().unwrap();
+    main_pass.push(EguiNode::default());
 
     let state = EditorState::load_project(&opts.path)?;
 

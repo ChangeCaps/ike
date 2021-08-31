@@ -35,7 +35,7 @@ impl<S> App<S> {
         render_ctx: &RenderCtx,
         state: &mut S,
     ) {
-        let ctx = UiPanelCtx {
+        let mut ctx = UiPanelCtx {
             egui_ctx,
             render_ctx,
             renderer: &mut self.renderer,
@@ -43,6 +43,6 @@ impl<S> App<S> {
             state,
         };
 
-        self.editor.panels.show(&ctx);
+        self.editor.panels.show(&mut ctx);
     }
 }
