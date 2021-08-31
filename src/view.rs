@@ -26,7 +26,7 @@ impl Views {
     pub fn render_main_view(&mut self, id: Id<Camera>, view_proj: Mat4) {
         self.target_id = Some(id);
         self.views.insert(
-            id, 
+            id,
             View {
                 id,
                 view_proj,

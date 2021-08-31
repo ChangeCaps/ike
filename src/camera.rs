@@ -1,9 +1,51 @@
 use glam::{Mat4, UVec2};
 
-use crate::id::Id;
+use crate::id::{HasId, Id};
 
 /// Marker type for [`Id`]s.
 pub struct Camera;
+
+#[derive(Clone, Debug)]
+pub struct PerspectiveProjection {
+    pub id: Id<Camera>,
+    pub fov: f32,
+    pub aspect: f32,
+    pub near: f32,
+}
+
+impl HasId<Camera> for PerspectiveProjection {
+    #[inline]
+    fn id(&self) -> Id<Camera> {
+        self.id
+    }
+}
+
+impl Default for PerspectiveProjection {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            id: Id::new(),
+            fov: std::f32::consts::FRAC_PI_2,
+            aspect: 1.0,
+            near: 0.1,
+        }
+    }
+}
+
+impl PerspectiveProjection {
+    #[inline]
+    pub fn scale(&mut self, size: UVec2) {
+        let width = size.x as f32;
+        let height = size.y as f32;
+
+        self.aspect = width / height;
+    }
+
+    #[inline]
+    pub fn proj_matrix(&self) -> Mat4 {
+        Mat4::perspective_infinite_reverse_rh(self.fov, self.aspect, self.near)
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct OrthographicProjection {
@@ -15,6 +57,13 @@ pub struct OrthographicProjection {
     pub size: f32,
     pub near: f32,
     pub far: f32,
+}
+
+impl HasId<Camera> for OrthographicProjection {
+    #[inline]
+    fn id(&self) -> Id<Camera> {
+        self.id
+    }
 }
 
 impl Default for OrthographicProjection {
