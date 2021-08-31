@@ -439,10 +439,10 @@ impl PassNode<EditorState> for EguiNode {
             // prepare texture bind_groups
             if let TextureId::User(ref id) = mesh.texture_id {
                 if !self.texture_bind_groups.contains_key(id) {
-                    let view = if let Some(view) = views.views.remove(&Id(*id)) {
+                    let view = if let Some(view) = views.views.remove(&Id::from(*id)) {
                         view.target
                     } else {
-                        let texture = state.textures.get(&Id(*id)).unwrap();
+                        let texture = state.textures.get(&Id::from(*id)).unwrap();
                         let view = texture.create_view(&Default::default());
                         view
                     };

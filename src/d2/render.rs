@@ -196,7 +196,7 @@ pub trait Render2d {
 
 pub struct SpriteNode2d {
     buffers: Vec<wgpu::Buffer>,
-    bind_groups: HashMap<Id, wgpu::BindGroup>,
+    bind_groups: HashMap<Id<Texture>, wgpu::BindGroup>,
     pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
 }
 

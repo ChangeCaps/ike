@@ -2,9 +2,12 @@ use glam::{Mat4, UVec2};
 
 use crate::id::Id;
 
+/// Marker type for [`Id`]s.
+pub struct Camera;
+
 #[derive(Clone, Debug)]
 pub struct OrthographicProjection {
-    pub id: Id,
+    pub id: Id<Camera>,
     pub left: f32,
     pub bottom: f32,
     pub right: f32,

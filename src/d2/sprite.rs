@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use glam::{Mat3, Vec2};
 
-use crate::id::Id;
+use crate::{id::Id, prelude::Texture};
 
 pub struct Sprite {
     pub transform: Mat3,
@@ -11,13 +11,13 @@ pub struct Sprite {
     pub height: u32,
     pub min: Vec2,
     pub max: Vec2,
-    pub texture_id: Id,
+    pub texture_id: Id<Texture>,
     pub view: wgpu::TextureView,
 }
 
 #[derive(Default)]
 pub struct Sprites {
-    pub(crate) batches: HashMap<Id, Vec<Sprite>>,
+    pub(crate) batches: HashMap<Id<Texture>, Vec<Sprite>>,
 }
 
 impl Sprites {

@@ -6,7 +6,7 @@ use wgpu::util::DeviceExt;
 use crate::{id::Id, prelude::Color, renderer::RenderCtx};
 
 pub struct Texture {
-    pub id: Id,
+    pub id: Id<Self>,
     pub width: u32,
     pub height: u32,
     pub synced: bool,
