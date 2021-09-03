@@ -1,7 +1,11 @@
-use std::{borrow::Cow, ops::{Deref, DerefMut}, sync::{
+use std::{
+    borrow::Cow,
+    ops::{Deref, DerefMut},
+    sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
-    }};
+    },
+};
 
 use bytemuck::{cast_slice, Pod};
 use glam::{Vec2, Vec3};
@@ -65,72 +69,72 @@ pub struct Indices;
 
 #[derive(Debug)]
 pub struct Buffer<T, I = T> {
-	id: Id<I>,
-	inner: Arc<Vec<T>>,
-	mutated: AtomicBool,
+    id: Id<I>,
+    inner: Arc<Vec<T>>,
+    mutated: AtomicBool,
 }
 
 impl<T, I> HasId<I> for Buffer<T, I> {
-	#[inline]
-	fn id(&self) -> Id<I> {
-		self.id	
-	}
+    #[inline]
+    fn id(&self) -> Id<I> {
+        self.id
+    }
 }
 
 impl<T, I> Clone for Buffer<T, I> {
-	#[inline]
-	fn clone(&self) -> Self {
-		Self {
-			id: self.id.clone(),
-			inner: self.inner.clone(),
-			mutated: AtomicBool::new(true),
-		}		
-	}
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id.clone(),
+            inner: self.inner.clone(),
+            mutated: AtomicBool::new(true),
+        }
+    }
 }
 
 impl<T, I> Deref for Buffer<T, I> {
-	type Target = Vec<T>;
+    type Target = Vec<T>;
 
-	#[inline]
-	fn deref(&self) -> &Self::Target {
-		self.inner.deref()	
-	}
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.inner.deref()
+    }
 }
 
 impl<T: Clone, I> DerefMut for Buffer<T, I> {
-	#[inline]
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		self.mutated.store(true, Ordering::SeqCst);
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mutated.store(true, Ordering::SeqCst);
 
-		if Arc::get_mut(&mut self.inner).is_some() {
-			return Arc::get_mut(&mut self.inner).unwrap();
-		}	
+        if Arc::get_mut(&mut self.inner).is_some() {
+            return Arc::get_mut(&mut self.inner).unwrap();
+        }
 
-		self.id = Id::new();
+        self.id = Id::new();
 
-		Arc::make_mut(&mut self.inner)
-	}	
+        Arc::make_mut(&mut self.inner)
+    }
 }
 
 impl<T, I> Buffer<T, I> {
-	#[inline]
-	pub fn new() -> Self {
-		Self {
-			id: Id::new(),
-			inner: Default::default(),
-			mutated: AtomicBool::new(false),
-		}
-	}
+    #[inline]
+    pub fn new() -> Self {
+        Self {
+            id: Id::new(),
+            inner: Default::default(),
+            mutated: AtomicBool::new(false),
+        }
+    }
 
-	#[inline]
-	pub fn mutated(&self) -> bool {
-		self.mutated.load(Ordering::SeqCst)
-	}
+    #[inline]
+    pub fn mutated(&self) -> bool {
+        self.mutated.load(Ordering::SeqCst)
+    }
 
-	#[inline]
-	pub fn reset_mutated(&self) {
-		self.mutated.store(false, Ordering::SeqCst);
-	}
+    #[inline]
+    pub fn reset_mutated(&self) {
+        self.mutated.store(false, Ordering::SeqCst);
+    }
 }
 
 #[derive(Debug)]
@@ -179,10 +183,10 @@ impl<V> Mesh<V> {
         }
     }
 
-	#[inline]
-	pub fn mutated(&self) -> bool {
-		self.vertices.mutated() | self.indices.mutated()
-	}
+    #[inline]
+    pub fn mutated(&self) -> bool {
+        self.vertices.mutated() | self.indices.mutated()
+    }
 
     #[inline]
     pub fn data(&self) -> MeshData<'_>
@@ -202,7 +206,7 @@ impl<V> Mesh<V> {
     where
         V: PositionNormal + Clone,
     {
-		let vertices = &mut *self.vertices;
+        let vertices = &mut *self.vertices;
 
         for vertex in vertices.iter_mut() {
             *vertex.normal_mut() = Vec3::ZERO;
@@ -227,5 +231,5 @@ impl<V> Mesh<V> {
         for vertex in vertices {
             *vertex.normal_mut() = vertex.normal().normalize();
         }
-    }	
+    }
 }

@@ -1,5 +1,49 @@
 use bytemuck::{Pod, Zeroable};
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Pod, Zeroable)]
+pub struct Color8 {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+}
+
+impl Color8 {
+    pub const TRANSPARENT: Self = Self::rgba(0, 0, 0, 0);
+    pub const BLACK: Self = Self::rgb(0, 0, 0);
+    pub const WHITE: Self = Self::rgb(255, 255, 255);
+
+    #[inline]
+    pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
+        Self { r, g, b, a: 255 }
+    }
+
+    #[inline]
+    pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
+        Self { r, g, b, a }
+    }
+}
+
+impl From<[u8; 4]> for Color8 {
+    #[inline]
+    fn from([r, g, b, a]: [u8; 4]) -> Self {
+        Self {
+            r, 
+            g, 
+            b,
+            a,
+        } 
+    }
+}
+
+impl From<Color> for Color8 {
+    #[inline]
+    fn from(color: Color) -> Self {
+        Self::from(Into::<[u8; 4]>::into(color))
+    }
+}
+
 #[repr(C, align(16))]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 pub struct Color {
