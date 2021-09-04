@@ -28,7 +28,7 @@ pub mod prelude {
     pub use crate::camera::{Camera, OrthographicProjection, PerspectiveProjection};
     pub use crate::color::{Color, Color8};
     #[cfg(feature = "2d")]
-    pub use crate::d2::{transform2d::Transform2d, font::Font};
+    pub use crate::d2::{font::Font, transform2d::Transform2d};
     #[cfg(feature = "3d")]
     pub use crate::d3::{
         mesh::{Mesh, MeshData, Vertex},

@@ -2,9 +2,14 @@ use super::{
     sprite::{Sprite, Sprites},
     transform2d::Transform2d,
 };
-use crate::{id::{HasId, Id}, prelude::Font, renderer::{PassNode, PassNodeCtx, RenderCtx, SampleCount}, texture::Texture};
+use crate::{
+    id::{HasId, Id},
+    prelude::Font,
+    renderer::{PassNode, PassNodeCtx, RenderCtx, SampleCount},
+    texture::Texture,
+};
 use bytemuck::{cast_slice, Pod, Zeroable};
-use glam::Vec2;
+use glam::{Vec2, Vec3};
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 
@@ -142,7 +147,7 @@ impl<'a> Render2dCtx<'a> {
         for c in text.chars() {
             let glyph = if let Some(glyph) = font.raw_glyph(c) {
                 glyph
-            } else { 
+            } else {
                 continue;
             };
 
@@ -151,7 +156,7 @@ impl<'a> Render2dCtx<'a> {
 
             let sprite = Sprite {
                 transform: transform.matrix(),
-                depth: 0.0, 
+                depth: 0.0,
                 width: glyph.width() as f32 / height * size,
                 height: glyph.height() as f32 / height * size,
                 min: glyph.min.as_f32() / font.texture.size().as_f32(),
@@ -167,7 +172,14 @@ impl<'a> Render2dCtx<'a> {
     }
 
     #[inline]
-    pub fn draw_text_depth(&mut self, font: &Font, text: &str, transform: &Transform2d, size: f32, depth: f32) {
+    pub fn draw_text_depth(
+        &mut self,
+        font: &Font,
+        text: &str,
+        transform: &Transform2d,
+        size: f32,
+        depth: f32,
+    ) {
         let mut height = 0.0f32;
         let mut width = 0.0;
 
@@ -234,12 +246,7 @@ impl<'a> Render2dCtx<'a> {
     }
 
     #[inline]
-    pub fn draw_texture_depth(
-        &mut self,
-        texture: &Texture,
-        transform: &Transform2d,
-        depth: f32,
-    ) {
+    pub fn draw_texture_depth(&mut self, texture: &Texture, transform: &Transform2d, depth: f32) {
         let view = texture
             .texture(self.render_ctx)
             .create_view(&Default::default());
@@ -284,8 +291,14 @@ pub trait Render2d {
     fn render(&mut self, ctx: &mut Render2dCtx);
 }
 
+struct Draw {
+    id: Id<Texture>,
+    vertex_count: u32,
+    vertices: wgpu::Buffer,
+}
+
 pub struct SpriteNode2d {
-    buffers: Vec<wgpu::Buffer>,
+    draws: Vec<Draw>,
     bind_groups: HashMap<Id<Texture>, wgpu::BindGroup>,
     pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
 }
@@ -294,7 +307,7 @@ impl Default for SpriteNode2d {
     #[inline]
     fn default() -> Self {
         Self {
-            buffers: Vec::new(),
+            draws: Vec::new(),
             bind_groups: Default::default(),
             pipelines: Default::default(),
         }
@@ -326,14 +339,22 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
 
         state.render(&mut render_ctx);
 
-        self.buffers.clear();
+        self.draws.clear();
 
         ctx.render_pass.set_pipeline(pipeline);
 
-        for (id, sprites) in &sprites.batches {
-            let mut vertices = Vec::with_capacity(sprites.len());
+        struct SpriteDraw<'a> {
+            id: Id<Texture>,
+            depth: f32,
+            vertices: [Vertex2d; 6],
+            view: &'a wgpu::TextureView,
+        }
 
-            for sprite in sprites {
+        let mut sprites = sprites
+            .batches
+            .values()
+            .flatten()
+            .map(|sprite| {
                 let w = sprite.width / 2.0;
                 let h = sprite.height / 2.0;
 
@@ -352,50 +373,78 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
                 let br = ctx.view.view_proj.transform_point3(br.extend(sprite.depth));
                 let tr = ctx.view.view_proj.transform_point3(tr.extend(sprite.depth));
 
-                vertices.push(Vertex2d {
-                    position: bl.into(),
-                    uv: [sprite.min.x, sprite.max.y],
-                    color: [1.0; 4],
-                });
-                vertices.push(Vertex2d {
-                    position: tl.into(),
-                    uv: [sprite.min.x, sprite.min.y],
-                    color: [1.0; 4],
-                });
-                vertices.push(Vertex2d {
-                    position: br.into(),
-                    uv: [sprite.max.x, sprite.max.y],
-                    color: [1.0; 4],
-                });
-                vertices.push(Vertex2d {
-                    position: tl.into(),
-                    uv: [sprite.min.x, sprite.min.y],
-                    color: [1.0; 4],
-                });
-                vertices.push(Vertex2d {
-                    position: br.into(),
-                    uv: [sprite.max.x, sprite.max.y],
-                    color: [1.0; 4],
-                });
-                vertices.push(Vertex2d {
-                    position: tr.into(),
-                    uv: [sprite.max.x, sprite.min.y],
-                    color: [1.0; 4],
+                // calculate average depth
+                let depth = (bl.z + tl.z + br.z + tr.z) / 4.0;
+
+                SpriteDraw {
+                    id: sprite.texture_id,
+                    depth,
+                    vertices: [
+                        Vertex2d {
+                            position: bl.into(),
+                            uv: [sprite.min.x, sprite.max.y],
+                            color: [1.0; 4],
+                        },
+                        Vertex2d {
+                            position: tl.into(),
+                            uv: [sprite.min.x, sprite.min.y],
+                            color: [1.0; 4],
+                        },
+                        Vertex2d {
+                            position: br.into(),
+                            uv: [sprite.max.x, sprite.max.y],
+                            color: [1.0; 4],
+                        },
+                        Vertex2d {
+                            position: tl.into(),
+                            uv: [sprite.min.x, sprite.min.y],
+                            color: [1.0; 4],
+                        },
+                        Vertex2d {
+                            position: br.into(),
+                            uv: [sprite.max.x, sprite.max.y],
+                            color: [1.0; 4],
+                        },
+                        Vertex2d {
+                            position: tr.into(),
+                            uv: [sprite.max.x, sprite.min.y],
+                            color: [1.0; 4],
+                        },
+                    ],
+                    view: &sprite.view,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        sprites.sort_by(|a, b| b.depth.partial_cmp(&a.depth).unwrap());
+
+        let mut current_id: Option<Id<Texture>> = None;
+        let mut vertices: Vec<Vertex2d> = Vec::new();
+
+        let draw = |draws: &mut Vec<Draw>,
+                    ctx: &mut PassNodeCtx,
+                    vertices: &[Vertex2d],
+                    current_id: &Option<Id<Texture>>| {
+            if let Some(current_id) = current_id {
+                let vertex_buffer =
+                    ctx.render_ctx
+                        .device
+                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("sprite_batch_vertex"),
+                            contents: cast_slice(&vertices),
+                            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
+                        }); 
+
+                draws.push(Draw {
+                    id: *current_id,
+                    vertices: vertex_buffer,
+                    vertex_count: vertices.len() as u32,
                 });
             }
+        };
 
-            let vertex_buffer =
-                ctx.render_ctx
-                    .device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some("sprite_batch_vertex"),
-                        contents: cast_slice(&vertices),
-                        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
-                    });
-
-            self.buffers.push(vertex_buffer);
-
-            if !self.bind_groups.contains_key(id) {
+        for sprite_draw in sprites {
+            if !self.bind_groups.contains_key(&sprite_draw.id) {
                 let sampler = ctx
                     .render_ctx
                     .device
@@ -439,9 +488,7 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
                             entries: &[
                                 wgpu::BindGroupEntry {
                                     binding: 0,
-                                    resource: wgpu::BindingResource::TextureView(
-                                        &sprites.first().unwrap().view,
-                                    ),
+                                    resource: wgpu::BindingResource::TextureView(sprite_draw.view),
                                 },
                                 wgpu::BindGroupEntry {
                                     binding: 1,
@@ -450,19 +497,35 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
                             ],
                         });
 
-                self.bind_groups.insert(*id, bind_group);
+                self.bind_groups.insert(sprite_draw.id, bind_group);
             }
+
+            if current_id != Some(sprite_draw.id) {
+                draw(&mut self.draws, ctx, &vertices, &current_id);
+
+                vertices.clear();
+                current_id = Some(sprite_draw.id);
+            }
+
+            vertices.push(sprite_draw.vertices[0]);
+            vertices.push(sprite_draw.vertices[1]);
+            vertices.push(sprite_draw.vertices[2]);
+            vertices.push(sprite_draw.vertices[3]);
+            vertices.push(sprite_draw.vertices[4]);
+            vertices.push(sprite_draw.vertices[5]);
         }
 
-        let mut buffers = self.buffers.iter();
+        if current_id.is_some() {
+            draw(&mut self.draws, ctx, &vertices, &current_id);
+        }
 
-        for (id, sprites) in sprites.batches {
+        for draw in &self.draws {
             ctx.render_pass
-                .set_bind_group(0, self.bind_groups.get(&id).unwrap(), &[]);
+                .set_bind_group(0, self.bind_groups.get(&draw.id).unwrap(), &[]);
             ctx.render_pass
-                .set_vertex_buffer(0, buffers.next().unwrap().slice(..));
+                .set_vertex_buffer(0, draw.vertices.slice(..));
 
-            ctx.render_pass.draw(0..sprites.len() as u32 * 6, 0..1);
+            ctx.render_pass.draw(0..draw.vertex_count, 0..1);
         }
     }
 }

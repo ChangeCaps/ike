@@ -6,7 +6,11 @@ use image::io::Reader;
 use once_cell::sync::OnceCell;
 use wgpu::util::DeviceExt;
 
-use crate::{id::{HasId, Id}, prelude::Color8, renderer::RenderCtx};
+use crate::{
+    id::{HasId, Id},
+    prelude::Color8,
+    renderer::RenderCtx,
+};
 
 pub struct Texture {
     id: Id<Self>,
@@ -21,7 +25,7 @@ pub struct Texture {
 impl HasId<Texture> for Texture {
     #[inline]
     fn id(&self) -> Id<Texture> {
-        self.id 
+        self.id
     }
 }
 
@@ -34,9 +38,7 @@ impl Texture {
 
         let data: Vec<Color8> = rgba
             .pixels()
-            .map(|pixel| {
-                Color8::rgba(pixel[0], pixel[1], pixel[2], pixel[3])
-            })
+            .map(|pixel| Color8::rgba(pixel[0], pixel[1], pixel[2], pixel[3]))
             .collect();
 
         Ok(Self::from_data(data, rgba.width(), rgba.height()))
@@ -171,7 +173,7 @@ impl Texture {
         } else {
             self.data
                 .set(vec![
-                    Color8::TRANSPARENT; 
+                    Color8::TRANSPARENT;
                     self.width as usize * self.height as usize
                 ])
                 .unwrap();
@@ -181,7 +183,7 @@ impl Texture {
 
     #[inline]
     pub fn bytes(&self) -> Option<&[u8]> {
-        self.data.get().map(|data| cast_slice(data)) 
+        self.data.get().map(|data| cast_slice(data))
     }
 
     #[inline]
@@ -205,7 +207,7 @@ impl Texture {
                     usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
                 },
                 &self.bytes().unwrap(),
-            ); 
+            );
 
             self.texture.set(texture).unwrap();
 

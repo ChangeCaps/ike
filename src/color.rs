@@ -28,12 +28,7 @@ impl Color8 {
 impl From<[u8; 4]> for Color8 {
     #[inline]
     fn from([r, g, b, a]: [u8; 4]) -> Self {
-        Self {
-            r, 
-            g, 
-            b,
-            a,
-        } 
+        Self { r, g, b, a }
     }
 }
 

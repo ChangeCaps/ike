@@ -7,132 +7,134 @@ use crate::prelude::{Color, Color8, Texture};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RawGlyph {
-	pub min: UVec2,
-	pub max: UVec2,
+    pub min: UVec2,
+    pub max: UVec2,
 }
 
 impl RawGlyph {
-	#[inline]
-	pub fn width(&self) -> u32 {
-		self.max.x - self.min.x
-	}
+    #[inline]
+    pub fn width(&self) -> u32 {
+        self.max.x - self.min.x
+    }
 
-	#[inline]
-	pub fn height(&self) -> u32 {
-		self.max.y - self.min.y
-	}
+    #[inline]
+    pub fn height(&self) -> u32 {
+        self.max.y - self.min.y
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Glyph {
-	pub min: Vec2,
-	pub max: Vec2,
+    pub min: Vec2,
+    pub max: Vec2,
 }
 
 impl Glyph {
-	#[inline]
-	pub fn width(&self) -> f32 {
-		self.max.x - self.min.x
-	}
+    #[inline]
+    pub fn width(&self) -> f32 {
+        self.max.x - self.min.x
+    }
 
-	#[inline]
-	pub fn height(&self) -> f32 {
-		self.max.y - self.min.y
-	}
+    #[inline]
+    pub fn height(&self) -> f32 {
+        self.max.y - self.min.y
+    }
 }
 
 pub struct Font {
-	pub texture: Texture,
-	pub glyphs: HashMap<char, RawGlyph>,
+    pub texture: Texture,
+    pub glyphs: HashMap<char, RawGlyph>,
 }
 
 impl Font {
-	#[inline]
-	pub fn load(path: impl AsRef<Path>, scale: impl Into<PxScale>) -> anyhow::Result<Self> {
-		let mut bytes = Vec::new();
-		std::fs::File::open(path.as_ref())?.read_to_end(&mut bytes)?;
-		let font = FontArc::try_from_vec(bytes)?;
-		let font = font.as_scaled(scale);
+    #[inline]
+    pub fn load(path: impl AsRef<Path>, scale: impl Into<PxScale>) -> anyhow::Result<Self> {
+        let mut bytes = Vec::new();
+        std::fs::File::open(path.as_ref())?.read_to_end(&mut bytes)?;
+        let font = FontArc::try_from_vec(bytes)?;
+        let font = font.as_scaled(scale);
 
-		let mut width = 1;
-		let mut row_height = 1;
+        let mut width = 1;
+        let mut row_height = 1;
 
-		for (_glyph, c) in font.codepoint_ids() {
-			let glyph = font.scaled_glyph(c);
+        for (_glyph, c) in font.codepoint_ids() {
+            let glyph = font.scaled_glyph(c);
 
-			if let Some(outlined) = font.outline_glyph(glyph) {
-				let bounds = outlined.px_bounds();  
+            if let Some(outlined) = font.outline_glyph(glyph) {
+                let bounds = outlined.px_bounds();
 
-				width += bounds.width() as usize;
-				row_height = row_height.max(bounds.height() as usize);
-			}
-		}
+                width += bounds.width() as usize;
+                row_height = row_height.max(bounds.height() as usize);
+            }
+        }
 
-		width = (width as f32).sqrt().round() as usize;
+        width = (width as f32).sqrt().round() as usize;
 
-		row_height += 2;
+        row_height += 2;
 
-		let mut x = 0;
-		let mut y = 0;
-		let mut height = row_height;
+        let mut x = 0;
+        let mut y = 0;
+        let mut height = row_height;
 
-		let mut data: Vec<Color8> = Vec::new();
+        let mut data: Vec<Color8> = Vec::new();
 
-		let mut glyphs = HashMap::new();
+        let mut glyphs = HashMap::new();
 
-		for (_glyph, c) in font.codepoint_ids() {
-			let glyph = font.scaled_glyph(c);
+        for (_glyph, c) in font.codepoint_ids() {
+            let glyph = font.scaled_glyph(c);
 
-			if let Some(outlined) = font.outline_glyph(glyph) {
-				let bounds = outlined.px_bounds();
-				
-				let mut x_end = x + bounds.width() as usize;
+            if let Some(outlined) = font.outline_glyph(glyph) {
+                let bounds = outlined.px_bounds();
 
-				if x_end >= width {
-					x = 0;
-					x_end = bounds.width() as usize;
+                let mut x_end = x + bounds.width() as usize;
 
-					y += row_height;
-					height += row_height;
-				}
+                if x_end >= width {
+                    x = 0;
+                    x_end = bounds.width() as usize;
 
-				glyphs.insert(c, RawGlyph {
-					min: UVec2::new(x as u32, y as u32),
-					max: UVec2::new(x_end as u32, y as u32 + bounds.height() as u32),
-				});
+                    y += row_height;
+                    height += row_height;
+                }
 
-				let data_size = (height + 1) * width;
-				data.resize(data_size, Color8::TRANSPARENT);
+                glyphs.insert(
+                    c,
+                    RawGlyph {
+                        min: UVec2::new(x as u32, y as u32),
+                        max: UVec2::new(x_end as u32, y as u32 + bounds.height() as u32),
+                    },
+                );
 
-				outlined.draw(|dx, dy, a| {
-					let x = x + dx as usize;
-					let y = y + dy as usize;
-					data[y * width + x] = Color::rgba(1.0, 1.0, 1.0, a).into();
-				});
+                let data_size = (height + 1) * width;
+                data.resize(data_size, Color8::TRANSPARENT);
 
-				x = x_end + 2;
-			}
-		}
+                outlined.draw(|dx, dy, a| {
+                    let x = x + dx as usize;
+                    let y = y + dy as usize;
+                    data[y * width + x] = Color::rgba(1.0, 1.0, 1.0, a).into();
+                });
 
-		Ok(Self {
-			texture: Texture::from_data(data, width as u32, height as u32),
-			glyphs,
-		})
-	}
+                x = x_end + 2;
+            }
+        }
 
-	#[inline]
-	pub fn raw_glyph(&self, c: char) -> Option<&RawGlyph> {
-		self.glyphs.get(&c)
-	}
+        Ok(Self {
+            texture: Texture::from_data(data, width as u32, height as u32),
+            glyphs,
+        })
+    }
 
-	#[inline]
-	pub fn glyph(&self, c: char) -> Option<Glyph> {
-		let glyph = self.glyphs.get(&c)?; 
+    #[inline]
+    pub fn raw_glyph(&self, c: char) -> Option<&RawGlyph> {
+        self.glyphs.get(&c)
+    }
 
-		Some(Glyph {
-			min: glyph.min.as_f32() / self.texture.size().as_f32(),
-			max: glyph.max.as_f32() / self.texture.size().as_f32(),
-		})
-	}
+    #[inline]
+    pub fn glyph(&self, c: char) -> Option<Glyph> {
+        let glyph = self.glyphs.get(&c)?;
+
+        Some(Glyph {
+            min: glyph.min.as_f32() / self.texture.size().as_f32(),
+            max: glyph.max.as_f32() / self.texture.size().as_f32(),
+        })
+    }
 }
-
