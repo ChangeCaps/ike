@@ -28,4 +28,9 @@ pub trait State {
 
     #[inline]
     fn render(&mut self, _views: &mut Views) {}
+
+    #[inline]
+    fn exit(&mut self) -> bool {
+        true
+    }
 }

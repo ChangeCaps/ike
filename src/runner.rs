@@ -90,7 +90,24 @@ impl<S: State> App<S> {
                 let delta_time = (now - last_frame).as_secs_f32();
                 last_frame = now;
 
-                let target = render_ctx.surface.get_current_frame().unwrap();
+                let target = match render_ctx.surface.get_current_frame() {
+                    Ok(target) => target,
+                    Err(wgpu::SurfaceError::Outdated) => {
+                        render_ctx
+                            .surface
+                            .configure(&render_ctx.device, &render_ctx.config);
+
+                        return;
+                    }
+                    Err(wgpu::SurfaceError::OutOfMemory) => {
+                        eprintln!("ran out of gpu memory");
+
+                        *control_flow = ControlFlow::Exit;
+
+                        return;
+                    }
+                    Err(e) => panic!("{}", e),
+                };
 
                 let target_view = target
                     .output
@@ -136,11 +153,13 @@ impl<S: State> App<S> {
             }
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => {
-                    *control_flow = ControlFlow::Exit;
+                    if state.exit() {
+                        *control_flow = ControlFlow::Exit; 
+                    }
                 }
                 WindowEvent::Resized(new_size) => {
-                    render_ctx.config.width = new_size.width;
-                    render_ctx.config.height = new_size.height;
+                    render_ctx.config.width = new_size.width.max(1);
+                    render_ctx.config.height = new_size.height.max(1);
                     render_ctx
                         .surface
                         .configure(&render_ctx.device, &render_ctx.config);

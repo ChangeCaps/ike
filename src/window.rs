@@ -25,7 +25,7 @@ impl Window {
     #[inline]
     pub fn pre_update(&mut self, window: &winit::window::Window) {
         let size = window.inner_size();
-        self.size = UVec2::new(size.width, size.height);
+        self.size = UVec2::new(size.width.max(1), size.height.max(1));
         self.maximized = window.is_maximized();
     }
 

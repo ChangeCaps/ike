@@ -433,7 +433,7 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
                             label: Some("sprite_batch_vertex"),
                             contents: cast_slice(&vertices),
                             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
-                        }); 
+                        });
 
                 draws.push(Draw {
                     id: *current_id,
