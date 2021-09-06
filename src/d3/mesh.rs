@@ -71,7 +71,7 @@ pub struct Indices;
 pub struct Buffer<T, I = T> {
     id: Id<I>,
     inner: Arc<Vec<T>>,
-    mutated: AtomicBool,
+    version: u64,
 }
 
 impl<T, I> HasId<I> for Buffer<T, I> {
@@ -87,7 +87,7 @@ impl<T, I> Clone for Buffer<T, I> {
         Self {
             id: self.id.clone(),
             inner: self.inner.clone(),
-            mutated: AtomicBool::new(true),
+            version: 0,
         }
     }
 }
@@ -104,7 +104,7 @@ impl<T, I> Deref for Buffer<T, I> {
 impl<T: Clone, I> DerefMut for Buffer<T, I> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated.store(true, Ordering::SeqCst);
+        self.version += 1;
 
         if Arc::get_mut(&mut self.inner).is_some() {
             return Arc::get_mut(&mut self.inner).unwrap();
@@ -116,24 +116,27 @@ impl<T: Clone, I> DerefMut for Buffer<T, I> {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BufferVersion(u64);
+
 impl<T, I> Buffer<T, I> {
     #[inline]
     pub fn new() -> Self {
         Self {
             id: Id::new(),
             inner: Default::default(),
-            mutated: AtomicBool::new(false),
+            version: 0,
         }
     }
 
     #[inline]
-    pub fn mutated(&self) -> bool {
-        self.mutated.load(Ordering::SeqCst)
+    pub fn version(&self) -> BufferVersion {
+        BufferVersion(self.version)
     }
 
     #[inline]
-    pub fn reset_mutated(&self) {
-        self.mutated.store(false, Ordering::SeqCst);
+    pub fn changed(&self, version: BufferVersion) -> bool {
+        self.version != version.0 
     }
 }
 
@@ -181,11 +184,6 @@ impl<V> Mesh<V> {
             vertices: Buffer::new(),
             indices: Buffer::new(),
         }
-    }
-
-    #[inline]
-    pub fn mutated(&self) -> bool {
-        self.vertices.mutated() | self.indices.mutated()
     }
 
     #[inline]
