@@ -20,6 +20,16 @@ impl Color8 {
     }
 
     #[inline]
+    pub fn srgb(r: u8, g: u8, b: u8) -> Self {
+        Self {
+            r: ((r as f32 / 255.0).powf(2.2) * 255.0).round() as u8,
+            g: ((g as f32 / 255.0).powf(2.2) * 255.0).round() as u8,
+            b: ((b as f32 / 255.0).powf(2.2) * 255.0).round() as u8,
+            a: 255,
+        }
+    }
+
+    #[inline]
     pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self { r, g, b, a }
     }
@@ -39,7 +49,21 @@ impl From<Color> for Color8 {
     }
 }
 
-#[repr(C, align(16))]
+impl Into<[u8; 4]> for Color8 {
+    #[inline]
+    fn into(self) -> [u8; 4] {
+        [self.r, self.g, self.b, self.a]
+    }
+}
+
+impl Into<Color> for Color8 {
+    #[inline]
+    fn into(self) -> Color {
+        Color::from(Into::<[u8; 4]>::into(self))
+    }
+}
+
+#[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 pub struct Color {
     pub r: f32,

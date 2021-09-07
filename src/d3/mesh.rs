@@ -87,7 +87,7 @@ impl<T, I> Clone for Buffer<T, I> {
         Self {
             id: self.id.clone(),
             inner: self.inner.clone(),
-            version: 0,
+            version: 1,
         }
     }
 }
@@ -116,7 +116,7 @@ impl<T: Clone, I> DerefMut for Buffer<T, I> {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BufferVersion(u64);
 
 impl<T, I> Buffer<T, I> {
@@ -125,7 +125,7 @@ impl<T, I> Buffer<T, I> {
         Self {
             id: Id::new(),
             inner: Default::default(),
-            version: 0,
+            version: 1,
         }
     }
 
@@ -136,7 +136,7 @@ impl<T, I> Buffer<T, I> {
 
     #[inline]
     pub fn changed(&self, version: BufferVersion) -> bool {
-        self.version != version.0 
+        self.version != version.0
     }
 }
 
@@ -219,7 +219,7 @@ impl<V> Mesh<V> {
             let p1 = vertices[i1 as usize].position();
             let p2 = vertices[i2 as usize].position();
 
-            let normal = (p1 - p0).cross(p2 - p0).normalize();
+            let normal = (p1 - p0).cross(p2 - p0);
 
             *vertices[i0 as usize].normal_mut() += normal;
             *vertices[i1 as usize].normal_mut() += normal;

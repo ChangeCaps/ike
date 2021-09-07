@@ -154,7 +154,7 @@ impl<S: State> App<S> {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => {
                     if state.exit() {
-                        *control_flow = ControlFlow::Exit; 
+                        *control_flow = ControlFlow::Exit;
                     }
                 }
                 WindowEvent::Resized(new_size) => {
