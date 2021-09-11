@@ -6,6 +6,7 @@ use std::{
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(0);
 
+#[repr(transparent)]
 pub struct Id<T = ()>(pub u64, PhantomData<fn() -> T>);
 
 impl<T> std::fmt::Debug for Id<T> {

@@ -7,17 +7,17 @@ use crate::{camera::Camera, id::Id};
 pub struct View {
     pub id: Id<Camera>,
     pub view_proj: Mat4,
-    pub target: wgpu::TextureView,
+    pub target: ike_wgpu::TextureView,
     pub width: u32,
     pub height: u32,
-    pub format: wgpu::TextureFormat,
+    pub format: ike_wgpu::TextureFormat,
 }
 
 pub struct Views {
-    pub target: Option<wgpu::TextureView>,
+    pub target: Option<ike_wgpu::TextureView>,
     pub width: u32,
     pub height: u32,
-    pub format: wgpu::TextureFormat,
+    pub format: ike_wgpu::TextureFormat,
     pub target_id: Option<Id<Camera>>,
     pub views: HashMap<Id<Camera>, View>,
 }

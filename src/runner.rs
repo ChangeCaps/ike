@@ -50,9 +50,9 @@ async unsafe fn wgpu_init(window: &winit::window::Window) -> anyhow::Result<Rend
     surface.configure(&device, &config);
 
     Ok(RenderCtx {
-        device,
-        queue,
-        surface,
+        device: ike_wgpu::Device::new(device),
+        queue: ike_wgpu::Queue::new(queue),
+        surface: ike_wgpu::Surface::new(surface),
         config,
     })
 }
@@ -92,27 +92,24 @@ impl<S: State> App<S> {
 
                 let target = match render_ctx.surface.get_current_frame() {
                     Ok(target) => target,
-                    Err(wgpu::SurfaceError::Outdated) => {
+                    Err(ike_wgpu::SurfaceError::Outdated) => {
                         render_ctx
                             .surface
                             .configure(&render_ctx.device, &render_ctx.config);
 
                         return;
                     }
-                    Err(wgpu::SurfaceError::OutOfMemory) => {
+                    Err(ike_wgpu::SurfaceError::OutOfMemory) => {
                         eprintln!("ran out of gpu memory");
 
                         *control_flow = ControlFlow::Exit;
 
                         return;
                     }
-                    Err(e) => panic!("{}", e),
+                    Err(e) => panic!("{:?}", e),
                 };
 
-                let target_view = target
-                    .output
-                    .texture
-                    .create_view(&wgpu::TextureViewDescriptor::default());
+                let target_view = target.output.create_view(&Default::default());
 
                 let mut views = Views {
                     target: Some(target_view),

@@ -12,7 +12,7 @@ pub struct Sprite {
     pub min: Vec2,
     pub max: Vec2,
     pub texture_id: Id<Texture>,
-    pub view: wgpu::TextureView,
+    pub view: ike_wgpu::TextureView,
 }
 
 #[derive(Default)]

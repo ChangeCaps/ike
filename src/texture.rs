@@ -4,7 +4,6 @@ use bytemuck::cast_slice;
 use glam::UVec2;
 use image::io::Reader;
 use once_cell::sync::OnceCell;
-use wgpu::util::DeviceExt;
 
 use crate::{
     id::{HasId, Id},
@@ -16,10 +15,25 @@ pub struct Texture {
     id: Id<Self>,
     width: u32,
     height: u32,
-    pub synced: bool,
-    pub buffer: OnceCell<wgpu::Buffer>,
-    pub data: OnceCell<Vec<Color8>>,
-    pub texture: OnceCell<wgpu::Texture>,
+    synced: bool,
+    buffer: OnceCell<ike_wgpu::Buffer>,
+    data: OnceCell<Vec<Color8>>,
+    texture: OnceCell<ike_wgpu::Texture>,
+}
+
+impl Default for Texture {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            id: Id::new(),
+            width: 1,
+            height: 1,
+            synced: true,
+            buffer: Default::default(),
+            data: Default::default(),
+            texture: Default::default(),
+        }
+    }
 }
 
 impl HasId<Texture> for Texture {
@@ -73,12 +87,14 @@ impl Texture {
     }
 
     #[inline]
-    pub const fn format(&self) -> wgpu::TextureFormat {
-        wgpu::TextureFormat::Rgba8UnormSrgb
+    pub const fn format(&self) -> ike_wgpu::TextureFormat {
+        ike_wgpu::TextureFormat::Rgba8UnormSrgb
     }
 
     #[inline]
-    pub fn sync(&mut self, ctx: &RenderCtx) {
+    pub fn sync_down(&mut self, ctx: &RenderCtx) {
+        self.synced = true;
+
         let texture = if let Some(texture) = self.texture.get() {
             texture
         } else {
@@ -95,14 +111,14 @@ impl Texture {
         let buffer = if let Some(buffer) = self.buffer.get() {
             buffer
         } else {
-            let buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+            let buffer = ctx.device.create_buffer(&ike_wgpu::BufferDescriptor {
                 label: Some("texture buffer"),
                 size,
-                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                usage: ike_wgpu::BufferUsages::COPY_DST | ike_wgpu::BufferUsages::MAP_READ,
                 mapped_at_creation: false,
             });
 
-            self.buffer.set(buffer).unwrap();
+            let _ = self.buffer.set(buffer);
 
             self.buffer.get().unwrap()
         };
@@ -110,21 +126,21 @@ impl Texture {
         let mut encoder = ctx.device.create_command_encoder(&Default::default());
 
         encoder.copy_texture_to_buffer(
-            wgpu::ImageCopyTextureBase {
+            ike_wgpu::ImageCopyTexture {
                 texture,
                 mip_level: 0,
                 origin: Default::default(),
-                aspect: wgpu::TextureAspect::All,
+                aspect: ike_wgpu::TextureAspect::All,
             },
-            wgpu::ImageCopyBufferBase {
+            ike_wgpu::ImageCopyBuffer {
                 buffer,
-                layout: wgpu::ImageDataLayout {
+                layout: ike_wgpu::ImageDataLayout {
                     offset: 0,
-                    bytes_per_row: Some(unsafe { NonZeroU32::new_unchecked(bytes_per_row) }),
+                    bytes_per_row: unsafe { Some(NonZeroU32::new_unchecked(bytes_per_row)) },
                     rows_per_image: None,
                 },
             },
-            wgpu::Extent3d {
+            ike_wgpu::Extent3d {
                 width: self.width,
                 height: self.height,
                 depth_or_array_layers: 1,
@@ -134,9 +150,9 @@ impl Texture {
         ctx.queue.submit(std::iter::once(encoder.finish()));
 
         let slice = buffer.slice(..);
-        let fut = slice.map_async(wgpu::MapMode::Read);
+        let fut = slice.map_async(ike_wgpu::MapMode::Read);
 
-        ctx.device.poll(wgpu::Maintain::Wait);
+        ctx.device.poll(ike_wgpu::Maintain::Wait);
 
         pollster::block_on(fut).unwrap();
 
@@ -167,6 +183,54 @@ impl Texture {
     }
 
     #[inline]
+    pub fn sync_up(&mut self, ctx: &RenderCtx) {
+        if self.synced || self.width == 0 || self.height == 0 {
+            return;
+        }
+
+        self.synced = true;
+
+        self.data_mut();
+
+        let data = self.bytes().unwrap();
+
+        let texture = self.texture(ctx);
+
+        let bytes_per_row = ((self.width * 4 - 1) / 256 + 1) * 256;
+
+        ctx.queue.write_texture(
+            ike_wgpu::ImageCopyTexture {
+                texture,
+                mip_level: 0,
+                origin: ike_wgpu::Origin3d::default(),
+                aspect: ike_wgpu::TextureAspect::All,
+            },
+            data,
+            ike_wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: unsafe { Some(NonZeroU32::new_unchecked(bytes_per_row)) },
+                rows_per_image: None,
+            },
+            ike_wgpu::Extent3d {
+                width: self.width,
+                height: self.height,
+                depth_or_array_layers: 1,
+            },
+        );
+    }
+
+    #[inline]
+    pub fn resize(&mut self, width: u32, height: u32) {
+        self.width = width;
+        self.height = height;
+
+        self.synced = false;
+        self.texture.take();
+        self.data.take();
+        self.buffer.take();
+    }
+
+    #[inline]
     pub fn data_mut(&mut self) -> &mut Vec<Color8> {
         if self.data.get().is_some() {
             self.data.get_mut().unwrap()
@@ -187,27 +251,63 @@ impl Texture {
     }
 
     #[inline]
-    pub fn texture(&self, ctx: &RenderCtx) -> &wgpu::Texture {
+    pub fn write(&self, path: impl AsRef<Path>) -> anyhow::Result<()> {
+        image::save_buffer(
+            path,
+            self.bytes()
+                .ok_or_else(|| anyhow::Error::msg("no data in texture"))?,
+            self.width,
+            self.height,
+            image::ColorType::Rgba8,
+        )?;
+
+        Ok(())
+    }
+
+    #[inline]
+    pub fn texture(&self, ctx: &RenderCtx) -> &ike_wgpu::Texture {
         if let Some(texture) = self.texture.get() {
             texture
         } else {
-            let texture = ctx.device.create_texture_with_data(
-                &ctx.queue,
-                &wgpu::TextureDescriptor {
+            let texture = if let Some(data) = self.bytes() {
+                let texture = ctx.device.create_texture_with_data(
+                    &ctx.queue,
+                    &ike_wgpu::TextureDescriptor {
+                        label: Some("texture"),
+                        size: ike_wgpu::Extent3d {
+                            width: self.width,
+                            height: self.height,
+                            depth_or_array_layers: 1,
+                        },
+                        mip_level_count: 1,
+                        sample_count: 1,
+                        dimension: ike_wgpu::TextureDimension::D2,
+                        format: ike_wgpu::TextureFormat::Rgba8UnormSrgb,
+                        usage: ike_wgpu::TextureUsages::COPY_DST
+                            | ike_wgpu::TextureUsages::TEXTURE_BINDING,
+                    },
+                    data,
+                );
+
+                texture
+            } else {
+                let texture = ctx.device.create_texture(&ike_wgpu::TextureDescriptor {
                     label: Some("texture"),
-                    size: wgpu::Extent3d {
+                    size: ike_wgpu::Extent3d {
                         width: self.width,
                         height: self.height,
                         depth_or_array_layers: 1,
                     },
                     mip_level_count: 1,
                     sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                    usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
-                },
-                &self.bytes().unwrap(),
-            );
+                    dimension: ike_wgpu::TextureDimension::D2,
+                    format: ike_wgpu::TextureFormat::Rgba8UnormSrgb,
+                    usage: ike_wgpu::TextureUsages::COPY_DST
+                        | ike_wgpu::TextureUsages::TEXTURE_BINDING,
+                });
+
+                texture
+            };
 
             self.texture.set(texture).unwrap();
 

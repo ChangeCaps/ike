@@ -1,10 +1,7 @@
 use std::{
     borrow::Cow,
     ops::{Deref, DerefMut},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
+    sync::Arc,
 };
 
 use bytemuck::{cast_slice, Pod};
@@ -25,30 +22,18 @@ pub struct Vertex {
 }
 
 pub trait PositionNormal {
-    fn position(&self) -> Vec3;
-    fn position_mut(&mut self) -> &mut Vec3;
-    fn normal(&self) -> Vec3;
-    fn normal_mut(&mut self) -> &mut Vec3;
+    fn position(&mut self) -> &mut Vec3;
+    fn normal(&mut self) -> &mut Vec3;
 }
 
 impl PositionNormal for Vertex {
     #[inline]
-    fn position(&self) -> Vec3 {
-        self.position
-    }
-
-    #[inline]
-    fn position_mut(&mut self) -> &mut Vec3 {
+    fn position(&mut self) -> &mut Vec3 {
         &mut self.position
     }
 
     #[inline]
-    fn normal(&self) -> Vec3 {
-        self.normal
-    }
-
-    #[inline]
-    fn normal_mut(&mut self) -> &mut Vec3 {
+    fn normal(&mut self) -> &mut Vec3 {
         &mut self.normal
     }
 }
@@ -140,27 +125,18 @@ impl<T, I> Buffer<T, I> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Mesh<V = Vertex> {
     pub vertices: Buffer<V, Vertices>,
     pub indices: Buffer<u32, Indices>,
+    pub pipeline: Option<Id<ike_wgpu::RenderPipeline>>,
 }
 
 impl<V> Default for Mesh<V> {
     #[inline]
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl<V> Clone for Mesh<V> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self {
-            vertices: self.vertices.clone(),
-            indices: self.indices.clone(),
-        }
-    }
+    } 
 }
 
 impl<V> HasId<Vertices> for Mesh<V> {
@@ -183,6 +159,7 @@ impl<V> Mesh<V> {
         Self {
             vertices: Buffer::new(),
             indices: Buffer::new(),
+            pipeline: None,
         }
     }
 
@@ -207,7 +184,7 @@ impl<V> Mesh<V> {
         let vertices = &mut *self.vertices;
 
         for vertex in vertices.iter_mut() {
-            *vertex.normal_mut() = Vec3::ZERO;
+            *vertex.normal() = Vec3::ZERO;
         }
 
         for i in 0..self.indices.len() / 3 {
@@ -215,19 +192,19 @@ impl<V> Mesh<V> {
             let i1 = self.indices[i * 3 + 1];
             let i2 = self.indices[i * 3 + 2];
 
-            let p0 = vertices[i0 as usize].position();
-            let p1 = vertices[i1 as usize].position();
-            let p2 = vertices[i2 as usize].position();
+            let p0 = *vertices[i0 as usize].position();
+            let p1 = *vertices[i1 as usize].position();
+            let p2 = *vertices[i2 as usize].position();
 
             let normal = (p1 - p0).cross(p2 - p0);
 
-            *vertices[i0 as usize].normal_mut() += normal;
-            *vertices[i1 as usize].normal_mut() += normal;
-            *vertices[i2 as usize].normal_mut() += normal;
+            *vertices[i0 as usize].normal() += normal;
+            *vertices[i1 as usize].normal() += normal;
+            *vertices[i2 as usize].normal() += normal;
         }
 
         for vertex in vertices {
-            *vertex.normal_mut() = vertex.normal().normalize();
+            *vertex.normal() = vertex.normal().normalize();
         }
     }
 }

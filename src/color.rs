@@ -129,10 +129,10 @@ impl From<[f32; 4]> for Color {
     }
 }
 
-impl Into<wgpu::Color> for Color {
+impl Into<ike_wgpu::Color> for Color {
     #[inline]
-    fn into(self) -> wgpu::Color {
-        wgpu::Color {
+    fn into(self) -> ike_wgpu::Color {
+        ike_wgpu::Color {
             r: self.r as f64,
             g: self.g as f64,
             b: self.b as f64,

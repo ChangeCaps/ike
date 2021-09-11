@@ -1,3 +1,4 @@
+mod default_pipeline;
 pub mod mesh;
 pub mod render;
 pub mod transform3d;

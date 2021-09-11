@@ -4,7 +4,6 @@ use bytemuck::{cast_slice, Pod, Zeroable};
 use ike::{
     egui::{ClippedMesh, Pos2, Rect, Rgba, TextureId},
     prelude::*,
-    wgpu::util::DeviceExt,
 };
 
 #[inline]
@@ -361,7 +360,7 @@ impl PassNode<EditorState> for EguiNode {
             let buffer =
                 ctx.render_ctx
                     .device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    .create_buffer_init(&wgpu::BufferInitDescriptor {
                         label: Some("size_buffer"),
                         contents: cast_slice(&[ctx.view.width as f32, ctx.view.height as f32]),
                         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
@@ -419,7 +418,7 @@ impl PassNode<EditorState> for EguiNode {
             let vertex_buffer =
                 ctx.render_ctx
                     .device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    .create_buffer_init(&wgpu::BufferInitDescriptor {
                         label: Some("egui_vertex_buffer"),
                         contents: cast_slice(&vertices),
                         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
@@ -428,7 +427,7 @@ impl PassNode<EditorState> for EguiNode {
             let index_buffer =
                 ctx.render_ctx
                     .device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    .create_buffer_init(&wgpu::BufferInitDescriptor {
                         label: Some("egui_index_buffer"),
                         contents: cast_slice(&mesh.indices),
                         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::INDEX,

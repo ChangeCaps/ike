@@ -17,7 +17,7 @@ anyhow = "^1.0"
 egui = "^0.13"
 glam = { version = "^0.17", features = ["bytemuck"] }
 pollster = "0.2.4"
-wgpu = "^0.10"
+wgpu = { version = "^0.10", optional = true }
 winit = { version = "^0.25", features = ["serde"] }
 ike-derive = { version = "0.0.1", path = "ike-derive" }
 ike-wgpu = { version = "0.0.1", path = "ike-wgpu" }
@@ -32,8 +32,8 @@ log = "^0.4"
 simple_logger = "^1.13"
 
 [features]
-default = ["editor", "3d", "2d", "runner"]
-runner = []
+default = ["editor", "3d", "2d"]
+runner = ["ike-wgpu/wgpu", "wgpu"]
 editor = []
 3d = ["image"]
 2d = ["image", "ab_glyph", "glyph_brush_layout"]

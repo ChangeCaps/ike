@@ -4,7 +4,9 @@ use std::{
     marker::PhantomData,
 };
 
-use crate::{prelude::Color, view::View};
+use glam::Mat4;
+
+use crate::{prelude::Color, type_name::TypeName, view::View};
 
 pub mod render_stage {
     pub const PRE_RENDER: &str = "pre_render";
@@ -15,22 +17,22 @@ pub struct PassNodeCtx<'a, 'b> {
     pub data: &'a mut PassData,
     pub view: &'a View,
     pub render_ctx: &'a RenderCtx,
-    pub render_pass: &'a mut wgpu::RenderPass<'b>,
+    pub render_pass: &'a mut ike_wgpu::RenderPass<'b>,
 }
 
-pub trait PassNode<S> {
+pub trait PassNode<S>: TypeName {
     fn run<'a>(&'a mut self, ctx: &mut PassNodeCtx<'_, 'a>, state: &mut S);
 }
 
 pub trait RenderPass<S> {
     fn run<'a>(
         &'a mut self,
-        encoder: &'a mut wgpu::CommandEncoder,
+        encoder: &'a mut ike_wgpu::CommandEncoder,
         ctx: &RenderCtx,
         view: &'a View,
         data: &mut PassData,
         state: &mut S,
-    ) -> wgpu::RenderPass<'a>;
+    ) -> ike_wgpu::RenderPass<'a>;
 }
 
 #[derive(Default)]
@@ -70,8 +72,27 @@ impl PassData {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone)]
 pub struct SampleCount(pub u32);
+
+impl Default for SampleCount {
+    #[inline]
+    fn default() -> Self {
+        Self(1)
+    }
+}
+
+#[derive(Clone)]
+pub struct TargetFormat(pub ike_wgpu::TextureFormat);
+
+#[derive(Clone)]
+pub struct TargetSize {
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Clone)]
+pub struct ViewProj(pub Mat4);
 
 #[derive(Default)]
 pub struct MainPass {
@@ -79,50 +100,56 @@ pub struct MainPass {
     pub sample_count: u32,
     width: u32,
     height: u32,
-    depth_texture: Option<wgpu::TextureView>,
-    ms_texture: Option<wgpu::TextureView>,
+    depth_texture: Option<ike_wgpu::TextureView>,
+    ms_texture: Option<ike_wgpu::TextureView>,
 }
 
 impl<S> RenderPass<S> for MainPass {
     fn run<'a>(
         &'a mut self,
-        encoder: &'a mut wgpu::CommandEncoder,
+        encoder: &'a mut ike_wgpu::CommandEncoder,
         ctx: &RenderCtx,
         view: &'a View,
         data: &mut PassData,
         _state: &mut S,
-    ) -> wgpu::RenderPass<'a> {
+    ) -> ike_wgpu::RenderPass<'a> {
         data.insert(SampleCount(self.sample_count));
+        data.insert(TargetFormat(view.format));
+        data.insert(TargetSize {
+            width: view.width,
+            height: view.height,
+        });
+        data.insert(ViewProj(view.view_proj));
 
         let depth = if let Some(ref mut depth) = self.depth_texture {
             if self.width != view.width || self.height != view.height {
-                let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
+                let texture = ctx.device.create_texture(&ike_wgpu::TextureDescriptor {
                     label: None,
-                    size: wgpu::Extent3d {
+                    size: ike_wgpu::Extent3d {
                         width: view.width,
                         height: view.height,
                         depth_or_array_layers: 1,
                     },
                     mip_level_count: 1,
                     sample_count: self.sample_count,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Depth24Plus,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    dimension: ike_wgpu::TextureDimension::D2,
+                    format: ike_wgpu::TextureFormat::Depth24Plus,
+                    usage: ike_wgpu::TextureUsages::RENDER_ATTACHMENT,
                 });
 
                 if self.sample_count > 1 {
-                    let ms_texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
+                    let ms_texture = ctx.device.create_texture(&ike_wgpu::TextureDescriptor {
                         label: None,
-                        size: wgpu::Extent3d {
+                        size: ike_wgpu::Extent3d {
                             width: view.width,
                             height: view.height,
                             depth_or_array_layers: 1,
                         },
                         mip_level_count: 1,
                         sample_count: self.sample_count,
-                        dimension: wgpu::TextureDimension::D2,
+                        dimension: ike_wgpu::TextureDimension::D2,
                         format: view.format,
-                        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                        usage: ike_wgpu::TextureUsages::RENDER_ATTACHMENT,
                     });
 
                     self.ms_texture = Some(ms_texture.create_view(&Default::default()));
@@ -137,33 +164,33 @@ impl<S> RenderPass<S> for MainPass {
 
             depth
         } else {
-            let depth_texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
+            let depth_texture = ctx.device.create_texture(&ike_wgpu::TextureDescriptor {
                 label: None,
-                size: wgpu::Extent3d {
+                size: ike_wgpu::Extent3d {
                     width: view.width,
                     height: view.height,
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
                 sample_count: self.sample_count,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Depth24Plus,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                dimension: ike_wgpu::TextureDimension::D2,
+                format: ike_wgpu::TextureFormat::Depth24Plus,
+                usage: ike_wgpu::TextureUsages::RENDER_ATTACHMENT,
             });
 
             if self.sample_count > 1 {
-                let ms_texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
+                let ms_texture = ctx.device.create_texture(&ike_wgpu::TextureDescriptor {
                     label: None,
-                    size: wgpu::Extent3d {
+                    size: ike_wgpu::Extent3d {
                         width: view.width,
                         height: view.height,
                         depth_or_array_layers: 1,
                     },
                     mip_level_count: 1,
                     sample_count: self.sample_count,
-                    dimension: wgpu::TextureDimension::D2,
+                    dimension: ike_wgpu::TextureDimension::D2,
                     format: view.format,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    usage: ike_wgpu::TextureUsages::RENDER_ATTACHMENT,
                 });
 
                 self.ms_texture = Some(ms_texture.create_view(&Default::default()));
@@ -178,32 +205,32 @@ impl<S> RenderPass<S> for MainPass {
         };
 
         let color_attachment = if self.sample_count > 1 {
-            wgpu::RenderPassColorAttachment {
+            ike_wgpu::RenderPassColorAttachment {
                 view: self.ms_texture.as_ref().unwrap(),
                 resolve_target: Some(&view.target),
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(self.clear_color.into()),
+                ops: ike_wgpu::Operations {
+                    load: ike_wgpu::LoadOp::Clear(self.clear_color.into()),
                     store: true,
                 },
             }
         } else {
-            wgpu::RenderPassColorAttachment {
+            ike_wgpu::RenderPassColorAttachment {
                 view: &view.target,
                 resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(self.clear_color.into()),
+                ops: ike_wgpu::Operations {
+                    load: ike_wgpu::LoadOp::Clear(self.clear_color.into()),
                     store: true,
                 },
             }
         };
 
-        let desc = wgpu::RenderPassDescriptor {
+        let desc = ike_wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[color_attachment],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+            depth_stencil_attachment: Some(ike_wgpu::RenderPassDepthStencilAttachment {
                 view: depth,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
+                depth_ops: Some(ike_wgpu::Operations {
+                    load: ike_wgpu::LoadOp::Clear(1.0),
                     store: true,
                 }),
                 stencil_ops: None,
@@ -215,10 +242,10 @@ impl<S> RenderPass<S> for MainPass {
 }
 
 pub struct RenderCtx {
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
-    pub surface: wgpu::Surface,
-    pub config: wgpu::SurfaceConfiguration,
+    pub device: ike_wgpu::Device,
+    pub queue: ike_wgpu::Queue,
+    pub surface: ike_wgpu::Surface,
+    pub config: ike_wgpu::SurfaceConfiguration,
 }
 
 pub struct Pass<S> {
@@ -238,9 +265,42 @@ impl<S> Pass<S> {
     }
 
     #[inline]
+    pub fn name(&self) -> &'static str {
+        self.pass.as_ref().type_name()
+    }
+
+    #[inline]
+    pub fn push<N: PassNode<S> + 'static>(&mut self, pass: N) {
+        self.nodes.push((type_name::<N>(), Box::new(pass)));
+    }
+
+    #[inline]
+    pub fn before<N: PassNode<S> + 'static, A: PassNode<S> + 'static>(&mut self, pass: N) {
+        if let Some(idx) = self
+            .nodes
+            .iter()
+            .position(|(name, _)| *name == type_name::<A>())
+        {
+            self.nodes.insert(idx, (type_name::<N>(), Box::new(pass)));
+        }
+    }
+
+    #[inline]
+    pub fn after<N: PassNode<S> + 'static, A: PassNode<S> + 'static>(&mut self, pass: N) {
+        if let Some(idx) = self
+            .nodes
+            .iter()
+            .position(|(name, _)| *name == type_name::<A>())
+        {
+            self.nodes
+                .insert(idx + 1, (type_name::<N>(), Box::new(pass)));
+        }
+    }
+
+    #[inline]
     pub fn run(
         &mut self,
-        encoder: &mut wgpu::CommandEncoder,
+        encoder: &mut ike_wgpu::CommandEncoder,
         render_ctx: &RenderCtx,
         view: &View,
         state: &mut S,
@@ -270,35 +330,17 @@ pub struct PassGuard<'a, S, P> {
 impl<'a, S, P> PassGuard<'a, S, P> {
     #[inline]
     pub fn push<N: PassNode<S> + 'static>(&mut self, pass: N) {
-        self.pass.nodes.push((type_name::<N>(), Box::new(pass)));
+        self.pass.push(pass);
     }
 
     #[inline]
     pub fn before<N: PassNode<S> + 'static, A: PassNode<S> + 'static>(&mut self, pass: N) {
-        if let Some(idx) = self
-            .pass
-            .nodes
-            .iter()
-            .position(|(name, _)| *name == type_name::<A>())
-        {
-            self.pass
-                .nodes
-                .insert(idx, (type_name::<N>(), Box::new(pass)));
-        }
+        self.pass.before::<N, A>(pass);
     }
 
     #[inline]
     pub fn after<N: PassNode<S> + 'static, A: PassNode<S> + 'static>(&mut self, pass: N) {
-        if let Some(idx) = self
-            .pass
-            .nodes
-            .iter()
-            .position(|(name, _)| *name == type_name::<A>())
-        {
-            self.pass
-                .nodes
-                .insert(idx + 1, (type_name::<N>(), Box::new(pass)));
-        }
+        self.pass.after::<N, A>(pass);
     }
 }
 
@@ -340,6 +382,18 @@ impl<S> Renderer<S> {
         }
 
         render_ctx.queue.submit(std::iter::once(encoder.finish()));
+    }
+
+    #[inline]
+    pub fn insert_before<Before: RenderPass<S>>(&mut self, pass: Pass<S>) {
+        let idx = self
+            .order
+            .iter()
+            .position(|name| *name == type_name::<Before>())
+            .unwrap_or(0);
+
+        self.order.insert(idx, pass.name());
+        self.passes.insert(pass.name(), pass);
     }
 
     #[inline]

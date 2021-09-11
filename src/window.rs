@@ -33,10 +33,10 @@ impl Window {
     pub fn pre_update(&mut self, window: &winit::window::Window) {
         let size = window.inner_size();
         // min size is [1, 1] to not cause wgpu to create textures with invalid sizes.
-        self.size = UVec2::new(size.width.max(1), size.height.max(1)); 
+        self.size = UVec2::new(size.width.max(1), size.height.max(1));
         self.actual_size = self.size;
 
-        self.maximized = window.is_maximized(); 
+        self.maximized = window.is_maximized();
     }
 
     #[inline]

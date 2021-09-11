@@ -6,6 +6,7 @@ pub mod d2;
 #[cfg(feature = "3d")]
 pub mod d3;
 pub mod editor;
+pub mod frame_buffer;
 pub mod id;
 pub mod input;
 pub mod panels;
@@ -15,13 +16,14 @@ pub mod runner;
 pub mod state;
 #[cfg(feature = "image")]
 pub mod texture;
+pub mod type_name;
 pub mod ui_panel;
 pub mod view;
 pub mod window;
 
 pub use anyhow;
 pub use egui;
-pub use wgpu;
+pub use ike_wgpu as wgpu;
 
 pub mod prelude {
     pub use crate::app::App;
@@ -35,23 +37,25 @@ pub mod prelude {
         transform3d::Transform3d,
     };
     pub use crate::export_app;
+    pub use crate::frame_buffer::{FrameBuffer, FrameBufferDescriptor};
     pub use crate::id::{HasId, Id};
-    pub use crate::input;
+    pub use crate::input::{Input, Mouse};
     pub use crate::panels::{
         inspector_panel::{Inspect, InspectCtx, Inspectable, InspectorPanel},
         view_panel::MainViewPanel,
     };
     pub use crate::renderer::{
-        MainPass, PassNode, PassNodeCtx, RenderCtx, RenderPass, SampleCount,
+        MainPass, Pass, PassData, PassNode, PassNodeCtx, RenderCtx, RenderPass, SampleCount,
+        TargetFormat, TargetSize, ViewProj,
     };
     pub use crate::state::{StartCtx, State, UpdateCtx};
     #[cfg(feature = "image")]
     pub use crate::texture::Texture;
     pub use crate::ui_panel::UiPanel;
     pub use crate::view::{View, Views};
+    pub use crate::wgpu;
     pub use crate::window::Window;
     pub use glam::{swizzles::*, *};
-    pub use wgpu;
     pub use winit::event::{MouseButton, VirtualKeyCode as Key};
 }
 

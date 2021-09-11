@@ -5,53 +5,52 @@ use super::{
 use crate::{
     id::{HasId, Id},
     prelude::Font,
-    renderer::{PassNode, PassNodeCtx, RenderCtx, SampleCount},
+    renderer::{PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat, ViewProj},
     texture::Texture,
 };
 use bytemuck::{cast_slice, Pod, Zeroable};
 use glam::{Vec2, Vec3};
 use std::collections::HashMap;
-use wgpu::util::DeviceExt;
 
-fn crate_pipeline(
+fn create_pipeline(
     ctx: &RenderCtx,
-    format: wgpu::TextureFormat,
+    format: ike_wgpu::TextureFormat,
     sample_count: u32,
-) -> wgpu::RenderPipeline {
+) -> ike_wgpu::RenderPipeline {
     let shader_module = ctx
         .device
-        .create_shader_module(&wgpu::include_wgsl!("shader.wgsl"));
+        .create_shader_module(&ike_wgpu::include_wgsl!("shader.wgsl"));
 
-    let bind_group_layout = ctx
-        .device
-        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("2d_bind_group_layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
+    let bind_group_layout =
+        ctx.device
+            .create_bind_group_layout(&ike_wgpu::BindGroupLayoutDescriptor {
+                label: Some("2d_bind_group_layout"),
+                entries: &[
+                    ike_wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,
+                        ty: ike_wgpu::BindingType::Texture {
+                            sample_type: ike_wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: ike_wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Sampler {
-                        filtering: true,
-                        comparison: false,
+                    ike_wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,
+                        ty: ike_wgpu::BindingType::Sampler {
+                            filtering: true,
+                            comparison: false,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-            ],
-        });
+                ],
+            });
 
     let layout = ctx
         .device
-        .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        .create_pipeline_layout(&ike_wgpu::PipelineLayoutDescriptor {
             label: Some("2d_pipeline_layout"),
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
@@ -59,27 +58,27 @@ fn crate_pipeline(
 
     let pipeline = ctx
         .device
-        .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        .create_render_pipeline(&ike_wgpu::RenderPipelineDescriptor {
             label: Some("2d_pipeline"),
             layout: Some(&layout),
-            vertex: wgpu::VertexState {
+            vertex: ike_wgpu::VertexState {
                 module: &shader_module,
-                buffers: &[wgpu::VertexBufferLayout {
+                buffers: &[ike_wgpu::VertexBufferLayout {
                     array_stride: 36,
-                    step_mode: wgpu::VertexStepMode::Vertex,
+                    step_mode: ike_wgpu::VertexStepMode::Vertex,
                     attributes: &[
-                        wgpu::VertexAttribute {
-                            format: wgpu::VertexFormat::Float32x3,
+                        ike_wgpu::VertexAttribute {
+                            format: ike_wgpu::VertexFormat::Float32x3,
                             offset: 0,
                             shader_location: 0,
                         },
-                        wgpu::VertexAttribute {
-                            format: wgpu::VertexFormat::Float32x2,
+                        ike_wgpu::VertexAttribute {
+                            format: ike_wgpu::VertexFormat::Float32x2,
                             offset: 12,
                             shader_location: 1,
                         },
-                        wgpu::VertexAttribute {
-                            format: wgpu::VertexFormat::Float32x4,
+                        ike_wgpu::VertexAttribute {
+                            format: ike_wgpu::VertexFormat::Float32x4,
                             offset: 20,
                             shader_location: 2,
                         },
@@ -87,24 +86,24 @@ fn crate_pipeline(
                 }],
                 entry_point: "main",
             },
-            fragment: Some(wgpu::FragmentState {
+            fragment: Some(ike_wgpu::FragmentState {
                 module: &shader_module,
-                targets: &[wgpu::ColorTargetState {
+                targets: &[ike_wgpu::ColorTargetState {
                     format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
+                    blend: Some(ike_wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: ike_wgpu::ColorWrites::ALL,
                 }],
                 entry_point: "main",
             }),
             primitive: Default::default(),
-            multisample: wgpu::MultisampleState {
+            multisample: ike_wgpu::MultisampleState {
                 count: sample_count,
                 ..Default::default()
             },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth24Plus,
+            depth_stencil: Some(ike_wgpu::DepthStencilState {
+                format: ike_wgpu::TextureFormat::Depth24Plus,
                 depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::LessEqual,
+                depth_compare: ike_wgpu::CompareFunction::LessEqual,
                 stencil: Default::default(),
                 bias: Default::default(),
             }),
@@ -294,13 +293,13 @@ pub trait Render2d {
 struct Draw {
     id: Id<Texture>,
     vertex_count: u32,
-    vertices: wgpu::Buffer,
+    vertices: ike_wgpu::Buffer,
 }
 
 pub struct SpriteNode2d {
     draws: Vec<Draw>,
-    bind_groups: HashMap<Id<Texture>, wgpu::BindGroup>,
-    pipelines: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
+    bind_groups: HashMap<Id<Texture>, ike_wgpu::BindGroup>,
+    pipelines: HashMap<ike_wgpu::TextureFormat, ike_wgpu::RenderPipeline>,
 }
 
 impl Default for SpriteNode2d {
@@ -325,10 +324,22 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
     #[inline]
     fn run<'a>(&'a mut self, ctx: &mut PassNodeCtx<'_, 'a>, state: &mut S) {
         let sample_count = ctx.data.get::<SampleCount>().unwrap().0;
+        let format = ctx
+            .data
+            .get::<TargetFormat>()
+            .cloned()
+            .unwrap_or_else(|| TargetFormat(ctx.view.format))
+            .0;
+        let view_proj = ctx
+            .data
+            .get::<ViewProj>()
+            .cloned()
+            .unwrap_or_else(|| ViewProj(ctx.view.view_proj));
+
         let pipeline = self
             .pipelines
-            .entry(ctx.view.format)
-            .or_insert_with(|| crate_pipeline(ctx.render_ctx, ctx.view.format, sample_count));
+            .entry(format)
+            .or_insert_with(|| create_pipeline(ctx.render_ctx, format, sample_count));
 
         let mut sprites = Sprites::default();
 
@@ -347,7 +358,7 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
             id: Id<Texture>,
             depth: f32,
             vertices: [Vertex2d; 6],
-            view: &'a wgpu::TextureView,
+            view: &'a ike_wgpu::TextureView,
         }
 
         let mut sprites = sprites
@@ -368,10 +379,10 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
                 let br = sprite.transform.transform_point2(br);
                 let tr = sprite.transform.transform_point2(tr);
 
-                let bl = ctx.view.view_proj.transform_point3(bl.extend(sprite.depth));
-                let tl = ctx.view.view_proj.transform_point3(tl.extend(sprite.depth));
-                let br = ctx.view.view_proj.transform_point3(br.extend(sprite.depth));
-                let tr = ctx.view.view_proj.transform_point3(tr.extend(sprite.depth));
+                let bl = view_proj.0.transform_point3(bl.extend(sprite.depth));
+                let tl = view_proj.0.transform_point3(tl.extend(sprite.depth));
+                let br = view_proj.0.transform_point3(br.extend(sprite.depth));
+                let tr = view_proj.0.transform_point3(tr.extend(sprite.depth));
 
                 // calculate average depth
                 let depth = (bl.z + tl.z + br.z + tr.z) / 4.0;
@@ -429,10 +440,11 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
                 let vertex_buffer =
                     ctx.render_ctx
                         .device
-                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        .create_buffer_init(&ike_wgpu::BufferInitDescriptor {
                             label: Some("sprite_batch_vertex"),
                             contents: cast_slice(&vertices),
-                            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
+                            usage: ike_wgpu::BufferUsages::COPY_DST
+                                | ike_wgpu::BufferUsages::VERTEX,
                         });
 
                 draws.push(Draw {
@@ -448,28 +460,28 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
                 let sampler = ctx
                     .render_ctx
                     .device
-                    .create_sampler(&wgpu::SamplerDescriptor::default());
+                    .create_sampler(&ike_wgpu::SamplerDescriptor::default());
 
                 let layout = ctx.render_ctx.device.create_bind_group_layout(
-                    &wgpu::BindGroupLayoutDescriptor {
+                    &ike_wgpu::BindGroupLayoutDescriptor {
                         label: Some("2d_pass_layout"),
                         entries: &[
-                            wgpu::BindGroupLayoutEntry {
+                            ike_wgpu::BindGroupLayoutEntry {
                                 binding: 0,
-                                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                                ty: wgpu::BindingType::Texture {
-                                    sample_type: wgpu::TextureSampleType::Float {
+                                visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,
+                                ty: ike_wgpu::BindingType::Texture {
+                                    sample_type: ike_wgpu::TextureSampleType::Float {
                                         filterable: true,
                                     },
-                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    view_dimension: ike_wgpu::TextureViewDimension::D2,
                                     multisampled: false,
                                 },
                                 count: None,
                             },
-                            wgpu::BindGroupLayoutEntry {
+                            ike_wgpu::BindGroupLayoutEntry {
                                 binding: 1,
-                                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                                ty: wgpu::BindingType::Sampler {
+                                visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,
+                                ty: ike_wgpu::BindingType::Sampler {
                                     filtering: true,
                                     comparison: false,
                                 },
@@ -482,17 +494,19 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
                 let bind_group =
                     ctx.render_ctx
                         .device
-                        .create_bind_group(&wgpu::BindGroupDescriptor {
+                        .create_bind_group(&ike_wgpu::BindGroupDescriptor {
                             label: Some("2d_pass_bind_group"),
                             layout: &layout,
                             entries: &[
-                                wgpu::BindGroupEntry {
+                                ike_wgpu::BindGroupEntry {
                                     binding: 0,
-                                    resource: wgpu::BindingResource::TextureView(sprite_draw.view),
+                                    resource: ike_wgpu::BindingResource::TextureView(
+                                        sprite_draw.view,
+                                    ),
                                 },
-                                wgpu::BindGroupEntry {
+                                ike_wgpu::BindGroupEntry {
                                     binding: 1,
-                                    resource: wgpu::BindingResource::Sampler(&sampler),
+                                    resource: ike_wgpu::BindingResource::Sampler(&sampler),
                                 },
                             ],
                         });
@@ -526,6 +540,6 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
                 .set_vertex_buffer(0, draw.vertices.slice(..));
 
             ctx.render_pass.draw(0..draw.vertex_count, 0..1);
-        }
+        } 
     }
 }
