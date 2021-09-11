@@ -8,11 +8,6 @@ use glam::Mat4;
 
 use crate::{prelude::Color, type_name::TypeName, view::View};
 
-pub mod render_stage {
-    pub const PRE_RENDER: &str = "pre_render";
-    pub const RENDER: &str = "render";
-}
-
 pub struct PassNodeCtx<'a, 'b> {
     pub data: &'a mut PassData,
     pub view: &'a View,
