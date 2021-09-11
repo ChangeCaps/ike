@@ -68,6 +68,10 @@ impl EditorState {
 }
 
 impl State for EditorState {
+    fn start(&mut self, ctx: &mut StartCtx) {
+        ctx.window.title = String::from("Ike Editor"); 
+    }
+
     fn update(&mut self, ctx: &mut UpdateCtx) {
         let modifiers = Modifiers {
             alt: ctx.key_input.down(&Key::LAlt),

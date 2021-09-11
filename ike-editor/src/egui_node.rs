@@ -183,7 +183,13 @@ fn pipeline(ctx: &RenderCtx, format: wgpu::TextureFormat) -> wgpu::RenderPipelin
             }),
             primitive: Default::default(),
             multisample: Default::default(),
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth24Plus,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
         });
 
     pipeline
