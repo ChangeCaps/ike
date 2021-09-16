@@ -32,8 +32,9 @@ log = "^0.4"
 simple_logger = "^1.13"
 
 [features]
-default = ["editor", "3d", "2d"]
+default = ["editor", "3d", "2d", "debug"]
 runner = ["ike-wgpu/wgpu", "wgpu"]
 editor = []
+debug = []
 3d = ["image"]
 2d = ["image", "ab_glyph", "glyph_brush_layout"]

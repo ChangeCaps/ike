@@ -31,9 +31,7 @@ pub struct AppContainer<S: 'static> {
 pub trait AppTrait {
     fn show_editor(&mut self, views: &Views, egui_ctx: &CtxRef, render_ctx: &RenderCtx);
 
-    fn update(&mut self, update_ctx: &mut UpdateCtx);
-
-    fn render(&mut self, views: &mut Views);
+    fn update<'a>(&'a mut self, update_ctx: &mut UpdateCtx<'a>);
 
     fn render_views(&mut self, ctx: &RenderCtx, views: &Views);
 }
@@ -44,12 +42,10 @@ impl<S: State> AppTrait for AppContainer<S> {
             .show_editor(views, egui_ctx, render_ctx, &mut self.state);
     }
 
-    fn update(&mut self, update_ctx: &mut UpdateCtx) {
-        self.state.update(update_ctx);
-    }
+    fn update<'a>(&'a mut self, update_ctx: &mut UpdateCtx<'a>) {
+        update_ctx.frame = self.app.renderer.frame();
 
-    fn render(&mut self, views: &mut Views) {
-        self.state.render(views);
+        self.state.update(update_ctx);
     }
 
     fn render_views(&mut self, render_ctx: &RenderCtx, views: &Views) {

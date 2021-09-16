@@ -69,7 +69,7 @@ impl EditorState {
 
 impl State for EditorState {
     fn start(&mut self, ctx: &mut StartCtx) {
-        ctx.window.title = String::from("Ike Editor"); 
+        ctx.window.title = String::from("Ike Editor");
     }
 
     fn update(&mut self, ctx: &mut UpdateCtx) {

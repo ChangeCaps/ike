@@ -25,7 +25,11 @@ unsafe impl QueueTrait for wgpu::Queue {
 
     #[inline]
     fn write_buffer(&self, buffer: &crate::Buffer, offset: u64, data: &[u8]) {
-        self.write_buffer(unsafe { &*(buffer.0.as_ref() as *const _ as *const _) }, offset, data);
+        self.write_buffer(
+            unsafe { &*(buffer.0.as_ref() as *const _ as *const _) },
+            offset,
+            data,
+        );
     }
 
     #[inline]
@@ -65,12 +69,7 @@ impl Queue {
     }
 
     #[inline]
-    pub fn write_buffer(
-        &self,
-        buffer: &crate::Buffer,
-        offset: u64,
-        data: &[u8]
-    ) { 
+    pub fn write_buffer(&self, buffer: &crate::Buffer, offset: u64, data: &[u8]) {
         self.0.write_buffer(buffer, offset, data);
     }
 

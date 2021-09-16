@@ -4,7 +4,7 @@ use glam::{Mat3, Vec2};
 
 use crate::{id::Id, prelude::Texture};
 
-pub struct Sprite {
+pub struct BatchedSprite {
     pub transform: Mat3,
     pub depth: f32,
     pub width: f32,
@@ -17,12 +17,12 @@ pub struct Sprite {
 
 #[derive(Default)]
 pub struct Sprites {
-    pub(crate) batches: BTreeMap<Id<Texture>, Vec<Sprite>>,
+    pub(crate) batches: BTreeMap<Id<Texture>, Vec<BatchedSprite>>,
 }
 
 impl Sprites {
     #[inline]
-    pub fn draw(&mut self, sprite: Sprite) {
+    pub fn draw(&mut self, sprite: BatchedSprite) {
         self.batches
             .entry(sprite.texture_id)
             .or_default()

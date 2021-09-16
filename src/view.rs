@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use glam::Mat4;
-
-use crate::{camera::Camera, id::Id};
+use crate::{
+    camera::Camera,
+    id::{HasId, Id},
+};
 
 pub struct View {
-    pub id: Id<Camera>,
-    pub view_proj: Mat4,
+    pub camera: Camera,
     pub target: ike_wgpu::TextureView,
     pub width: u32,
     pub height: u32,
@@ -23,13 +23,12 @@ pub struct Views {
 }
 
 impl Views {
-    pub fn render_main_view(&mut self, id: Id<Camera>, view_proj: Mat4) {
-        self.target_id = Some(id);
+    pub fn render_main_view(&mut self, camera: Camera) {
+        self.target_id = Some(camera.id());
         self.views.insert(
-            id,
+            camera.id(),
             View {
-                id,
-                view_proj,
+                camera,
                 target: self.target.take().unwrap(),
                 width: self.width,
                 height: self.height,

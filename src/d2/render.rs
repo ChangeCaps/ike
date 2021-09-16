@@ -1,15 +1,15 @@
 use super::{
-    sprite::{Sprite, Sprites},
+    sprite::{BatchedSprite, Sprites},
     transform2d::Transform2d,
 };
 use crate::{
     id::{HasId, Id},
-    prelude::Font,
-    renderer::{PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat, ViewProj},
+    prelude::{Camera, Font},
+    renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat, ViewProj},
     texture::Texture,
 };
 use bytemuck::{cast_slice, Pod, Zeroable};
-use glam::{Vec2, Vec3};
+use glam::{Mat3, Mat4, Vec2};
 use std::collections::HashMap;
 
 fn create_pipeline(
@@ -112,169 +112,125 @@ fn create_pipeline(
     pipeline
 }
 
-pub struct Render2dCtx<'a> {
-    pub sprites: &'a mut Sprites,
-    pub render_ctx: &'a RenderCtx,
+pub struct TextSprite<'a> {
+    pub transform: Transform2d,
+    pub depth: f32,
+    pub size: f32,
+    pub text: &'a str,
+    pub font: &'a Font,
 }
 
-impl<'a> Render2dCtx<'a> {
+impl<'a> TextSprite<'a> {
     #[inline]
-    pub fn draw_sprite(&mut self, sprite: Sprite) {
-        self.sprites.draw(sprite);
-    }
-
-    #[inline]
-    pub fn draw_text(&mut self, font: &Font, text: &str, transform: &Transform2d, size: f32) {
-        let mut height = 0.0f32;
-        let mut width = 0.0;
-
-        for c in text.chars() {
-            let glyph = if let Some(glyph) = font.raw_glyph(c) {
-                glyph
-            } else {
-                continue;
-            };
-
-            width += glyph.width() as f32 / font.texture.width() as f32;
-            height = height.max(glyph.height() as f32);
-        }
-
-        let texture = font.texture.texture(self.render_ctx);
-
-        let mut x = -width / 2.0;
-
-        for c in text.chars() {
-            let glyph = if let Some(glyph) = font.raw_glyph(c) {
-                glyph
-            } else {
-                continue;
-            };
-
-            let mut transform = transform.clone();
-            transform.translation.x += x;
-
-            let sprite = Sprite {
-                transform: transform.matrix(),
-                depth: 0.0,
-                width: glyph.width() as f32 / height * size,
-                height: glyph.height() as f32 / height * size,
-                min: glyph.min.as_f32() / font.texture.size().as_f32(),
-                max: glyph.max.as_f32() / font.texture.size().as_f32(),
-                texture_id: font.texture.id(),
-                view: texture.create_view(&Default::default()),
-            };
-
-            self.sprites.draw(sprite);
-
-            x += glyph.width() as f32 / height * size;
-        }
-    }
-
-    #[inline]
-    pub fn draw_text_depth(
-        &mut self,
-        font: &Font,
-        text: &str,
-        transform: &Transform2d,
-        size: f32,
-        depth: f32,
-    ) {
-        let mut height = 0.0f32;
-        let mut width = 0.0;
-
-        for c in text.chars() {
-            let glyph = if let Some(glyph) = font.raw_glyph(c) {
-                glyph
-            } else {
-                continue;
-            };
-
-            width += glyph.width() as f32 / font.texture.width() as f32;
-            height = height.max(glyph.height() as f32);
-        }
-
-        let texture = font.texture.texture(self.render_ctx);
-
-        let mut x = -width / 2.0;
-
-        for c in text.chars() {
-            let glyph = if let Some(glyph) = font.raw_glyph(c) {
-                glyph
-            } else {
-                continue;
-            };
-
-            let mut transform = transform.clone();
-            transform.translation.x += x;
-
-            let sprite = Sprite {
-                transform: transform.matrix(),
-                depth,
-                width: glyph.width() as f32 / height * size,
-                height: glyph.height() as f32 / height * size,
-                min: glyph.min.as_f32() / font.texture.size().as_f32(),
-                max: glyph.max.as_f32() / font.texture.size().as_f32(),
-                texture_id: font.texture.id(),
-                view: texture.create_view(&Default::default()),
-            };
-
-            self.sprites.draw(sprite);
-
-            x += glyph.width() as f32 / height * size;
-        }
-    }
-
-    #[inline]
-    pub fn draw_texture(&mut self, texture: &Texture, transform: &Transform2d) {
-        let view = texture
-            .texture(self.render_ctx)
-            .create_view(&Default::default());
-
-        let sprite = Sprite {
-            transform: transform.matrix(),
-            width: texture.width() as f32,
-            height: texture.height() as f32,
+    pub fn new(font: &'a Font, transform: Transform2d) -> Self {
+        Self {
+            transform,
             depth: 0.0,
-            min: Vec2::ZERO,
-            max: Vec2::ONE,
-            texture_id: texture.id(),
-            view,
-        };
-
-        self.sprites.draw(sprite);
+            size: 10.0,
+            text: "",
+            font,
+        }
     }
+}
+
+impl Drawable for TextSprite<'_> {
+    type Node = SpriteNode2d;
 
     #[inline]
-    pub fn draw_texture_depth(&mut self, texture: &Texture, transform: &Transform2d, depth: f32) {
-        let view = texture
-            .texture(self.render_ctx)
-            .create_view(&Default::default());
+    fn draw(&self, ctx: &RenderCtx, node: &mut Self::Node) {
+        let mut height = 0.0f32;
+        let mut width = 0.0;
 
-        let sprite = Sprite {
-            transform: transform.matrix(),
+        for c in self.text.chars() {
+            let glyph = if let Some(glyph) = self.font.raw_glyph(c) {
+                glyph
+            } else {
+                continue;
+            };
+
+            width += glyph.width() as f32 / self.font.texture.width() as f32;
+            height = height.max(glyph.height() as f32);
+        }
+
+        let texture = self.font.texture.texture(ctx);
+
+        let mut x = -width / 2.0;
+
+        for c in self.text.chars() {
+            let glyph = if let Some(glyph) = self.font.raw_glyph(c) {
+                glyph
+            } else {
+                continue;
+            };
+
+            let mut transform = self.transform.clone();
+            transform.translation.x += x;
+
+            let sprite = BatchedSprite {
+                transform: transform.matrix(),
+                depth: self.depth,
+                width: glyph.width() as f32 / height * self.size,
+                height: glyph.height() as f32 / height * self.size,
+                min: glyph.min.as_f32() / self.font.texture.size().as_f32(),
+                max: glyph.max.as_f32() / self.font.texture.size().as_f32(),
+                texture_id: self.font.texture.id(),
+                view: texture.create_view(&Default::default()),
+            };
+
+            node.sprites.draw(sprite);
+
+            x += glyph.width() as f32 / height * self.size;
+        }
+    }
+}
+
+pub struct Sprite<'a> {
+    pub transform: Transform2d,
+    pub depth: f32,
+    pub width: f32,
+    pub height: f32,
+    pub min: Vec2,
+    pub max: Vec2,
+    pub texture: &'a Texture,
+}
+
+impl<'a> Sprite<'a> {
+    #[inline]
+    pub fn new(texture: &'a Texture, transform: Transform2d) -> Self {
+        Self {
+            transform: transform.clone(),
+            depth: 0.0,
             width: texture.width() as f32,
             height: texture.height() as f32,
-            depth,
             min: Vec2::ZERO,
             max: Vec2::ONE,
-            texture_id: texture.id(),
-            view,
-        };
-
-        self.sprites.draw(sprite);
+            texture,
+        }
     }
 
     #[inline]
-    pub fn draw_texture_offset(
-        &mut self,
-        texture: &Texture,
-        transform: &Transform2d,
-        offset: Vec2,
-    ) {
-        let mut transform = transform.clone();
-        transform.translation += offset;
+    pub fn offset(&mut self, offset: Vec2) {
+        self.transform.translation += offset;
+    }
+}
 
-        self.draw_texture(texture, &transform);
+impl Drawable for Sprite<'_> {
+    type Node = SpriteNode2d;
+
+    #[inline]
+    fn draw(&self, ctx: &RenderCtx, node: &mut Self::Node) {
+        let sprite = BatchedSprite {
+            transform: self.transform.matrix(),
+            depth: self.depth,
+            width: self.width,
+            height: self.height,
+            min: self.min,
+            max: self.max,
+            texture_id: self.texture.id(),
+            view: self.texture.texture(ctx).create_view(&Default::default()),
+        };
+
+        node.sprites.draw(sprite);
     }
 }
 
@@ -284,10 +240,6 @@ struct Vertex2d {
     position: [f32; 3],
     uv: [f32; 2],
     color: [f32; 4],
-}
-
-pub trait Render2d {
-    fn render(&mut self, ctx: &mut Render2dCtx);
 }
 
 struct Draw {
@@ -300,6 +252,7 @@ pub struct SpriteNode2d {
     draws: Vec<Draw>,
     bind_groups: HashMap<Id<Texture>, ike_wgpu::BindGroup>,
     pipelines: HashMap<ike_wgpu::TextureFormat, ike_wgpu::RenderPipeline>,
+    sprites: Sprites,
 }
 
 impl Default for SpriteNode2d {
@@ -309,6 +262,7 @@ impl Default for SpriteNode2d {
             draws: Vec::new(),
             bind_groups: Default::default(),
             pipelines: Default::default(),
+            sprites: Default::default(),
         }
     }
 }
@@ -320,9 +274,14 @@ impl SpriteNode2d {
     }
 }
 
-impl<S: Render2d> PassNode<S> for SpriteNode2d {
+impl<S> PassNode<S> for SpriteNode2d {
     #[inline]
-    fn run<'a>(&'a mut self, ctx: &mut PassNodeCtx<'_, 'a>, state: &mut S) {
+    fn clear(&mut self) {
+        self.sprites.batches.clear();
+    }
+
+    #[inline]
+    fn run<'a>(&'a mut self, ctx: &mut PassNodeCtx<'_, 'a>, _: &mut S) {
         let sample_count = ctx.data.get::<SampleCount>().unwrap().0;
         let format = ctx
             .data
@@ -330,25 +289,14 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
             .cloned()
             .unwrap_or_else(|| TargetFormat(ctx.view.format))
             .0;
-        let view_proj = ctx
-            .data
-            .get::<ViewProj>()
-            .cloned()
-            .unwrap_or_else(|| ViewProj(ctx.view.view_proj));
+        let camera = ctx.data.get::<Camera>().unwrap_or_else(|| &ctx.view.camera);
+
+        let view_proj = camera.view_proj();
 
         let pipeline = self
             .pipelines
             .entry(format)
             .or_insert_with(|| create_pipeline(ctx.render_ctx, format, sample_count));
-
-        let mut sprites = Sprites::default();
-
-        let mut render_ctx = Render2dCtx {
-            sprites: &mut sprites,
-            render_ctx: ctx.render_ctx,
-        };
-
-        state.render(&mut render_ctx);
 
         self.draws.clear();
 
@@ -361,7 +309,8 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
             view: &'a ike_wgpu::TextureView,
         }
 
-        let mut sprites = sprites
+        let mut sprites = self
+            .sprites
             .batches
             .values()
             .flatten()
@@ -379,10 +328,10 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
                 let br = sprite.transform.transform_point2(br);
                 let tr = sprite.transform.transform_point2(tr);
 
-                let bl = view_proj.0.transform_point3(bl.extend(sprite.depth));
-                let tl = view_proj.0.transform_point3(tl.extend(sprite.depth));
-                let br = view_proj.0.transform_point3(br.extend(sprite.depth));
-                let tr = view_proj.0.transform_point3(tr.extend(sprite.depth));
+                let bl = view_proj.transform_point3(bl.extend(sprite.depth));
+                let tl = view_proj.transform_point3(tl.extend(sprite.depth));
+                let br = view_proj.transform_point3(br.extend(sprite.depth));
+                let tr = view_proj.transform_point3(tr.extend(sprite.depth));
 
                 // calculate average depth
                 let depth = (bl.z + tl.z + br.z + tr.z) / 4.0;
@@ -540,6 +489,6 @@ impl<S: Render2d> PassNode<S> for SpriteNode2d {
                 .set_vertex_buffer(0, draw.vertices.slice(..));
 
             ctx.render_pass.draw(0..draw.vertex_count, 0..1);
-        } 
+        }
     }
 }

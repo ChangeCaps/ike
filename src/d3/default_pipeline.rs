@@ -1,6 +1,5 @@
 #[inline]
-pub fn default_pipeline<S>(
-    _s: &mut S,
+pub fn default_pipeline(
     device: &ike_wgpu::Device,
     format: ike_wgpu::TextureFormat,
     sample_count: u32,
@@ -13,7 +12,7 @@ pub fn default_pipeline<S>(
             binding: 0,
             ty: ike_wgpu::BindingType::Buffer {
                 ty: ike_wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false, 
+                has_dynamic_offset: false,
                 min_binding_size: None,
             },
             visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,

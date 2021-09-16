@@ -1,4 +1,4 @@
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat3, Mat4, Quat, Vec3};
 
 #[derive(Clone, Debug)]
 pub struct Transform3d {
@@ -60,6 +60,14 @@ impl Transform3d {
             rotation: self.rotation * other.rotation,
             scale: self.scale * other.scale,
         }
+    }
+
+    #[inline]
+    pub fn look_at(&mut self, target: Vec3, up: Vec3) {
+        let forward = Vec3::normalize(self.translation - target);
+        let right = up.cross(forward).normalize();
+        let up = forward.cross(right);
+        self.rotation = Quat::from_mat3(&Mat3::from_cols(right, up, forward));
     }
 
     #[inline]

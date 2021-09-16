@@ -1,9 +1,28 @@
-use glam::{Mat4, UVec2};
+use glam::{Mat4, UVec2, Vec3};
 
 use crate::id::{HasId, Id};
 
-/// Marker type for [`Id`]s.
-pub struct Camera;
+#[derive(Clone, Debug)]
+pub struct Camera {
+    pub id: Id<Camera>,
+    pub position: Vec3,
+    pub view: Mat4,
+    pub proj: Mat4,
+}
+
+impl HasId<Camera> for Camera {
+    #[inline]
+    fn id(&self) -> Id<Camera> {
+        self.id
+    }
+}
+
+impl Camera {
+    #[inline]
+    pub fn view_proj(&self) -> Mat4 {
+        self.proj * self.view.inverse()
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct PerspectiveProjection {

@@ -10,6 +10,7 @@ use glam::{Vec2, Vec3};
 use crate::{
     id::{HasId, Id},
     prelude::Color,
+    renderer::RenderCtx,
 };
 
 #[repr(C)]
@@ -136,7 +137,7 @@ impl<V> Default for Mesh<V> {
     #[inline]
     fn default() -> Self {
         Self::new()
-    } 
+    }
 }
 
 impl<V> HasId<Vertices> for Mesh<V> {
@@ -206,5 +207,50 @@ impl<V> Mesh<V> {
         for vertex in vertices {
             *vertex.normal() = vertex.normal().normalize();
         }
+    }
+}
+
+impl Mesh<Vertex> {
+    /// Create quad on the xy plane.
+    #[inline]
+    pub fn quad(size: Vec2) -> Self {
+        let mut mesh = Self::new();
+
+        mesh.vertices.push(Vertex {
+            position: Vec3::new(-size.x, -size.y, 0.0),
+            normal: Vec3::Z,
+            color: Color::WHITE,
+            uv: Vec2::ZERO,
+        });
+
+        mesh.vertices.push(Vertex {
+            position: Vec3::new(size.x, -size.y, 0.0),
+            normal: Vec3::Z,
+            color: Color::WHITE,
+            uv: Vec2::new(1.0, 0.0),
+        });
+
+        mesh.vertices.push(Vertex {
+            position: Vec3::new(-size.x, size.y, 0.0),
+            normal: Vec3::Z,
+            color: Color::WHITE,
+            uv: Vec2::new(0.0, 1.0),
+        });
+
+        mesh.vertices.push(Vertex {
+            position: Vec3::new(size.x, size.y, 0.0),
+            normal: Vec3::Z,
+            color: Color::WHITE,
+            uv: Vec2::ONE,
+        });
+
+        mesh.indices.push(0);
+        mesh.indices.push(1);
+        mesh.indices.push(2);
+        mesh.indices.push(1);
+        mesh.indices.push(2);
+        mesh.indices.push(3);
+
+        mesh
     }
 }

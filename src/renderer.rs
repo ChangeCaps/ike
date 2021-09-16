@@ -6,7 +6,13 @@ use std::{
 
 use glam::Mat4;
 
-use crate::{prelude::Color, type_name::TypeName, view::View};
+use crate::{type_name::TypeName, view::View};
+
+pub trait Drawable {
+    type Node;
+
+    fn draw(&self, ctx: &RenderCtx, node: &mut Self::Node);
+}
 
 pub struct PassNodeCtx<'a, 'b> {
     pub data: &'a mut PassData,
@@ -16,10 +22,13 @@ pub struct PassNodeCtx<'a, 'b> {
 }
 
 pub trait PassNode<S>: TypeName {
+    #[inline]
+    fn clear(&mut self) {}
+
     fn run<'a>(&'a mut self, ctx: &mut PassNodeCtx<'_, 'a>, state: &mut S);
 }
 
-pub trait RenderPass<S> {
+pub trait RenderPass<S>: TypeName {
     fn run<'a>(
         &'a mut self,
         encoder: &'a mut ike_wgpu::CommandEncoder,
@@ -89,153 +98,6 @@ pub struct TargetSize {
 #[derive(Clone)]
 pub struct ViewProj(pub Mat4);
 
-#[derive(Default)]
-pub struct MainPass {
-    pub clear_color: Color,
-    pub sample_count: u32,
-    width: u32,
-    height: u32,
-    depth_texture: Option<ike_wgpu::TextureView>,
-    ms_texture: Option<ike_wgpu::TextureView>,
-}
-
-impl<S> RenderPass<S> for MainPass {
-    fn run<'a>(
-        &'a mut self,
-        encoder: &'a mut ike_wgpu::CommandEncoder,
-        ctx: &RenderCtx,
-        view: &'a View,
-        data: &mut PassData,
-        _state: &mut S,
-    ) -> ike_wgpu::RenderPass<'a> {
-        data.insert(SampleCount(self.sample_count));
-        data.insert(TargetFormat(view.format));
-        data.insert(TargetSize {
-            width: view.width,
-            height: view.height,
-        });
-        data.insert(ViewProj(view.view_proj));
-
-        let depth = if let Some(ref mut depth) = self.depth_texture {
-            if self.width != view.width || self.height != view.height {
-                let texture = ctx.device.create_texture(&ike_wgpu::TextureDescriptor {
-                    label: None,
-                    size: ike_wgpu::Extent3d {
-                        width: view.width,
-                        height: view.height,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: self.sample_count,
-                    dimension: ike_wgpu::TextureDimension::D2,
-                    format: ike_wgpu::TextureFormat::Depth24Plus,
-                    usage: ike_wgpu::TextureUsages::RENDER_ATTACHMENT,
-                });
-
-                if self.sample_count > 1 {
-                    let ms_texture = ctx.device.create_texture(&ike_wgpu::TextureDescriptor {
-                        label: None,
-                        size: ike_wgpu::Extent3d {
-                            width: view.width,
-                            height: view.height,
-                            depth_or_array_layers: 1,
-                        },
-                        mip_level_count: 1,
-                        sample_count: self.sample_count,
-                        dimension: ike_wgpu::TextureDimension::D2,
-                        format: view.format,
-                        usage: ike_wgpu::TextureUsages::RENDER_ATTACHMENT,
-                    });
-
-                    self.ms_texture = Some(ms_texture.create_view(&Default::default()));
-                }
-
-                self.width = view.width;
-                self.height = view.height;
-
-                let view = texture.create_view(&Default::default());
-                *depth = view;
-            }
-
-            depth
-        } else {
-            let depth_texture = ctx.device.create_texture(&ike_wgpu::TextureDescriptor {
-                label: None,
-                size: ike_wgpu::Extent3d {
-                    width: view.width,
-                    height: view.height,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: self.sample_count,
-                dimension: ike_wgpu::TextureDimension::D2,
-                format: ike_wgpu::TextureFormat::Depth24Plus,
-                usage: ike_wgpu::TextureUsages::RENDER_ATTACHMENT,
-            });
-
-            if self.sample_count > 1 {
-                let ms_texture = ctx.device.create_texture(&ike_wgpu::TextureDescriptor {
-                    label: None,
-                    size: ike_wgpu::Extent3d {
-                        width: view.width,
-                        height: view.height,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: self.sample_count,
-                    dimension: ike_wgpu::TextureDimension::D2,
-                    format: view.format,
-                    usage: ike_wgpu::TextureUsages::RENDER_ATTACHMENT,
-                });
-
-                self.ms_texture = Some(ms_texture.create_view(&Default::default()));
-            }
-
-            self.width = view.width;
-            self.height = view.height;
-
-            self.depth_texture = Some(depth_texture.create_view(&Default::default()));
-
-            self.depth_texture.as_ref().unwrap()
-        };
-
-        let color_attachment = if self.sample_count > 1 {
-            ike_wgpu::RenderPassColorAttachment {
-                view: self.ms_texture.as_ref().unwrap(),
-                resolve_target: Some(&view.target),
-                ops: ike_wgpu::Operations {
-                    load: ike_wgpu::LoadOp::Clear(self.clear_color.into()),
-                    store: true,
-                },
-            }
-        } else {
-            ike_wgpu::RenderPassColorAttachment {
-                view: &view.target,
-                resolve_target: None,
-                ops: ike_wgpu::Operations {
-                    load: ike_wgpu::LoadOp::Clear(self.clear_color.into()),
-                    store: true,
-                },
-            }
-        };
-
-        let desc = ike_wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[color_attachment],
-            depth_stencil_attachment: Some(ike_wgpu::RenderPassDepthStencilAttachment {
-                view: depth,
-                depth_ops: Some(ike_wgpu::Operations {
-                    load: ike_wgpu::LoadOp::Clear(1.0),
-                    store: true,
-                }),
-                stencil_ops: None,
-            }),
-        };
-
-        encoder.begin_render_pass(&desc)
-    }
-}
-
 pub struct RenderCtx {
     pub device: ike_wgpu::Device,
     pub queue: ike_wgpu::Queue,
@@ -243,7 +105,7 @@ pub struct RenderCtx {
     pub config: ike_wgpu::SurfaceConfiguration,
 }
 
-pub struct Pass<S> {
+pub struct Pass<S: ?Sized> {
     data: PassData,
     pass: Box<dyn RenderPass<S>>,
     nodes: Vec<(&'static str, Box<dyn PassNode<S>>)>,
@@ -262,6 +124,28 @@ impl<S> Pass<S> {
     #[inline]
     pub fn name(&self) -> &'static str {
         self.pass.as_ref().type_name()
+    }
+
+    #[inline]
+    pub fn get<P: PassNode<S>>(&self) -> Option<&P> {
+        self.nodes.iter().find_map(|(ident, node)| {
+            if *ident == type_name::<P>() {
+                Some(unsafe { &*(node.as_ref() as *const _ as *const _) })
+            } else {
+                None
+            }
+        })
+    }
+
+    #[inline]
+    pub fn get_mut<P: PassNode<S>>(&mut self) -> Option<&mut P> {
+        self.nodes.iter_mut().find_map(|(ident, node)| {
+            if *ident == type_name::<P>() {
+                Some(unsafe { &mut *(node.as_mut() as *mut _ as *mut _) })
+            } else {
+                None
+            }
+        })
     }
 
     #[inline]
@@ -357,7 +241,7 @@ impl<'a, S, P> std::ops::DerefMut for PassGuard<'a, S, P> {
     }
 }
 
-pub struct Renderer<S> {
+pub struct Renderer<S: ?Sized> {
     order: Vec<&'static str>,
     passes: HashMap<&'static str, Pass<S>>,
 }
@@ -380,6 +264,24 @@ impl<S> Renderer<S> {
     }
 
     #[inline]
+    pub fn frame(&mut self) -> RenderFrame<'_> {
+        let passes = self
+            .passes
+            .iter_mut()
+            .map(|(name, pass)| (*name, pass as &mut dyn FramePass))
+            .collect();
+
+        RenderFrame { passes }
+    }
+
+    #[inline]
+    pub fn clear_nodes(&mut self) {
+        for pass in self.passes.values_mut() {
+            pass.clear();
+        }
+    }
+
+    #[inline]
     pub fn insert_before<Before: RenderPass<S>>(&mut self, pass: Pass<S>) {
         let idx = self
             .order
@@ -392,9 +294,9 @@ impl<S> Renderer<S> {
     }
 
     #[inline]
-    pub fn push_pass<P: RenderPass<S> + 'static>(&mut self, pass: P) {
-        self.order.push(type_name::<P>());
-        self.passes.insert(type_name::<P>(), Pass::new(pass));
+    pub fn push(&mut self, pass: Pass<S>) {
+        self.order.push(pass.name());
+        self.passes.insert(pass.name(), pass);
     }
 
     #[inline]
@@ -413,13 +315,54 @@ impl<S> Renderer<S> {
 impl<S> Default for Renderer<S> {
     #[inline]
     fn default() -> Self {
-        let mut renderer = Self {
+        let renderer = Self {
             order: Default::default(),
             passes: Default::default(),
         };
 
-        renderer.push_pass(MainPass::default());
-
         renderer
+    }
+}
+
+trait FramePass {
+    fn clear(&mut self);
+
+    fn node_mut(&mut self, name: &'static str) -> Option<*mut u8>;
+}
+
+impl<S> FramePass for Pass<S> {
+    #[inline]
+    fn clear(&mut self) {
+        for (_, node) in &mut self.nodes {
+            node.clear();
+        }
+    }
+
+    #[inline]
+    fn node_mut(&mut self, name: &'static str) -> Option<*mut u8> {
+        self.nodes.iter_mut().find_map(|(ident, node)| {
+            if *ident == name {
+                Some(node.as_mut() as *mut _ as *mut _)
+            } else {
+                None
+            }
+        })
+    }
+}
+
+pub struct RenderFrame<'a> {
+    passes: HashMap<&'a str, &'a mut dyn FramePass>,
+}
+
+impl<'a> RenderFrame<'a> {
+    #[inline]
+    pub fn draw<D: Drawable>(&mut self, ctx: &RenderCtx, drawable: &D) {
+        for pass in self.passes.values_mut() {
+            if let Some(node) = pass.node_mut(type_name::<D::Node>()) {
+                let node = unsafe { &mut *(node as *mut D::Node) };
+
+                drawable.draw(ctx, node);
+            }
+        }
     }
 }

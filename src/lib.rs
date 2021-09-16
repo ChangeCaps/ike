@@ -5,10 +5,13 @@ pub mod color;
 pub mod d2;
 #[cfg(feature = "3d")]
 pub mod d3;
+#[cfg(feature = "debug")]
+pub mod debug;
 pub mod editor;
 pub mod frame_buffer;
 pub mod id;
 pub mod input;
+pub mod main_pass;
 pub mod panels;
 pub mod renderer;
 #[cfg(feature = "runner")]
@@ -30,22 +33,22 @@ pub mod prelude {
     pub use crate::camera::{Camera, OrthographicProjection, PerspectiveProjection};
     pub use crate::color::{Color, Color8};
     #[cfg(feature = "2d")]
-    pub use crate::d2::{font::Font, transform2d::Transform2d};
+    pub use crate::d2::{font::Font, render::Sprite, render::TextSprite, transform2d::Transform2d};
     #[cfg(feature = "3d")]
-    pub use crate::d3::{
-        mesh::{Mesh, MeshData, Vertex},
-        transform3d::Transform3d,
-    };
+    pub use crate::d3::{Mesh, MeshData, Transform3d, Vertex};
+    #[cfg(feature = "debug")]
+    pub use crate::debug::{DebugLine, DebugNode};
     pub use crate::export_app;
     pub use crate::frame_buffer::{FrameBuffer, FrameBufferDescriptor};
     pub use crate::id::{HasId, Id};
     pub use crate::input::{Input, Mouse};
+    pub use crate::main_pass::MainPass;
     pub use crate::panels::{
         inspector_panel::{Inspect, InspectCtx, Inspectable, InspectorPanel},
         view_panel::MainViewPanel,
     };
     pub use crate::renderer::{
-        MainPass, Pass, PassData, PassNode, PassNodeCtx, RenderCtx, RenderPass, SampleCount,
+        Pass, PassData, PassNode, PassNodeCtx, RenderCtx, RenderPass, Renderer, SampleCount,
         TargetFormat, TargetSize, ViewProj,
     };
     pub use crate::state::{StartCtx, State, UpdateCtx};

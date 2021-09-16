@@ -363,14 +363,14 @@ impl PassNode<EditorState> for EguiNode {
                 cast_slice(&[ctx.view.width as f32, ctx.view.height as f32]),
             );
         } else {
-            let buffer =
-                ctx.render_ctx
-                    .device
-                    .create_buffer_init(&wgpu::BufferInitDescriptor {
-                        label: Some("size_buffer"),
-                        contents: cast_slice(&[ctx.view.width as f32, ctx.view.height as f32]),
-                        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
-                    });
+            let buffer = ctx
+                .render_ctx
+                .device
+                .create_buffer_init(&wgpu::BufferInitDescriptor {
+                    label: Some("size_buffer"),
+                    contents: cast_slice(&[ctx.view.width as f32, ctx.view.height as f32]),
+                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
+                });
 
             let layout =
                 ctx.render_ctx

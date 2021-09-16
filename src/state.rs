@@ -2,6 +2,7 @@ use winit::event::{MouseButton, VirtualKeyCode};
 
 use crate::{
     input::{Input, Mouse},
+    renderer::{Drawable, RenderCtx, RenderFrame},
     view::Views,
     window::Window,
 };
@@ -17,6 +18,16 @@ pub struct UpdateCtx<'a> {
     pub mouse_input: &'a Input<MouseButton>,
     pub mouse: &'a Mouse,
     pub char_input: &'a [char],
+    pub render_ctx: &'a RenderCtx,
+    pub frame: RenderFrame<'a>,
+    pub views: &'a mut Views,
+}
+
+impl<'a> UpdateCtx<'a> {
+    #[inline]
+    pub fn draw<D: Drawable>(&mut self, drawable: &D) {
+        self.frame.draw(self.render_ctx, drawable);
+    }
 }
 
 pub trait State {
@@ -25,9 +36,6 @@ pub trait State {
 
     #[inline]
     fn update(&mut self, _ctx: &mut UpdateCtx) {}
-
-    #[inline]
-    fn render(&mut self, _views: &mut Views) {}
 
     #[inline]
     fn exit(&mut self) -> bool {

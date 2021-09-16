@@ -46,7 +46,7 @@ pub(crate) unsafe trait RenderPassTrait<'a> {
     fn set_scissor_rect(&mut self, x: u32, y: u32, width: u32, height: u32);
 
     fn draw(&mut self, vertices: Range<u32>, instances: Range<u32>);
-    
+
     fn draw_indexed(&mut self, indices: Range<u32>, base_vertex: i32, instances: Range<u32>);
 }
 
@@ -75,12 +75,14 @@ unsafe impl<'a> RenderPassTrait<'a> for wgpu::RenderPass<'a> {
         self.set_index_buffer(
             unsafe { *(buffer_slice.0.as_ref() as *const _ as *const _) },
             index_format,
-        ); 
+        );
     }
 
     #[inline]
     fn set_vertex_buffer(&mut self, slot: u32, buffer_slice: crate::BufferSlice<'a>) {
-        self.set_vertex_buffer(slot, unsafe { *(buffer_slice.0.as_ref() as *const _ as *const _) });
+        self.set_vertex_buffer(slot, unsafe {
+            *(buffer_slice.0.as_ref() as *const _ as *const _)
+        });
     }
 
     #[inline]
@@ -103,7 +105,12 @@ pub struct RenderPass<'a>(pub(crate) Box<dyn RenderPassTrait<'a> + 'a>);
 
 impl<'a> RenderPass<'a> {
     #[inline]
-    pub fn set_bind_group(&mut self, index: u32, bind_group: &'a crate::BindGroup, offsets: &[u32]) {
+    pub fn set_bind_group(
+        &mut self,
+        index: u32,
+        bind_group: &'a crate::BindGroup,
+        offsets: &[u32],
+    ) {
         self.0.set_bind_group(index, bind_group, offsets);
     }
 

@@ -129,10 +129,12 @@ impl<S: State> App<S> {
                     mouse_input: &mouse_input,
                     mouse: &mouse,
                     char_input: &char_input,
+                    render_ctx: &render_ctx,
+                    frame: self.renderer.frame(),
+                    views: &mut views,
                 };
 
                 state.update(&mut update_ctx);
-                state.render(&mut views);
 
                 window.post_update(&winit_window);
 
@@ -144,6 +146,8 @@ impl<S: State> App<S> {
                 for view in views.views.values() {
                     self.renderer.render_view(&render_ctx, view, &mut state);
                 }
+
+                self.renderer.clear_nodes();
             }
             Event::MainEventsCleared => {
                 winit_window.request_redraw();
