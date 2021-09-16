@@ -3,7 +3,7 @@ use egui::CtxRef;
 use crate::{
     editor::Editor,
     prelude::UpdateCtx,
-    renderer::{RenderCtx, Renderer},
+    renderer::{RenderCtx, RenderFrame, Renderer},
     state::State,
     view::Views,
 };
@@ -31,7 +31,11 @@ pub struct AppContainer<S: 'static> {
 pub trait AppTrait {
     fn show_editor(&mut self, views: &Views, egui_ctx: &CtxRef, render_ctx: &RenderCtx);
 
-    fn update<'a>(&'a mut self, update_ctx: &mut UpdateCtx<'a>);
+    fn update(&mut self, update_ctx: &mut UpdateCtx);
+
+    fn render(&mut self, update_ctx: &mut UpdateCtx);
+
+    fn frame(&mut self) -> RenderFrame<'_>;
 
     fn render_views(&mut self, ctx: &RenderCtx, views: &Views);
 }
@@ -42,10 +46,16 @@ impl<S: State> AppTrait for AppContainer<S> {
             .show_editor(views, egui_ctx, render_ctx, &mut self.state);
     }
 
-    fn update<'a>(&'a mut self, update_ctx: &mut UpdateCtx<'a>) {
-        update_ctx.frame = self.app.renderer.frame();
-
+    fn update(&mut self, update_ctx: &mut UpdateCtx) {
         self.state.update(update_ctx);
+    }
+
+    fn render(&mut self, update_ctx: &mut UpdateCtx) {
+        self.state.render(update_ctx);
+    }
+
+    fn frame(&mut self) -> RenderFrame<'_> {
+        self.app.renderer.frame()
     }
 
     fn render_views(&mut self, render_ctx: &RenderCtx, views: &Views) {

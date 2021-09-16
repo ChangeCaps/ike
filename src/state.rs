@@ -38,6 +38,9 @@ pub trait State {
     fn update(&mut self, _ctx: &mut UpdateCtx) {}
 
     #[inline]
+    fn render(&mut self, _ctx: &mut UpdateCtx) {}
+
+    #[inline]
     fn exit(&mut self) -> bool {
         true
     }

@@ -1,10 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use bytemuck::bytes_of;
+use glam::{Mat4, Vec3};
 
 use crate::{
     id::{HasId, Id},
-    prelude::Camera,
+    prelude::{Camera, Color},
     renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat},
 };
 
@@ -56,7 +57,7 @@ struct VersionedBuffer {
     buffer: SizedBuffer,
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct InstancesId {
     vertex_buffer: Id<Vertices>,
     index_buffer: Id<Indices>,
@@ -71,9 +72,9 @@ struct Instances {
 
 #[derive(Default)]
 pub(crate) struct Meshes {
-    vertex_buffers: HashMap<Id<Vertices>, VersionedBuffer>,
-    index_buffers: HashMap<Id<Indices>, VersionedBuffer>,
-    instances: HashMap<InstancesId, Instances>,
+    vertex_buffers: BTreeMap<Id<Vertices>, VersionedBuffer>,
+    index_buffers: BTreeMap<Id<Indices>, VersionedBuffer>,
+    instances: BTreeMap<InstancesId, Instances>,
 }
 
 impl Meshes {
@@ -86,6 +87,8 @@ impl Meshes {
                 buffer
                     .buffer
                     .write(&ctx.device, &ctx.queue, &mesh_data.vertex_data);
+
+                buffer.version = mesh.vertices.version();
             }
         } else {
             self.vertex_buffers.insert(
@@ -106,6 +109,8 @@ impl Meshes {
                 buffer
                     .buffer
                     .write(&ctx.device, &ctx.queue, &mesh_data.index_data);
+
+                buffer.version = mesh.vertices.version();
             }
         } else {
             self.index_buffers.insert(
@@ -152,11 +157,58 @@ impl Meshes {
     }
 
     #[inline]
-    pub fn frame(&mut self) {
+    pub fn clear(&mut self) {
         for (_, instance) in &mut self.instances {
             instance.data.clear();
             instance.count = 0;
         }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct PointLight {
+    pub position: Vec3,
+    pub intensity: f32,
+    pub color: Color,
+}
+
+impl Drawable for PointLight {
+    type Node = D3Node;
+
+    #[inline]
+    fn draw(&self, _ctx: &RenderCtx, node: &mut Self::Node) {
+        node.point_lights.push(*self);
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct Uniforms {
+    pub view_proj: Mat4,
+    pub point_light_count: u32,
+    pub padding: [u8; 12],
+    pub point_lights: [PointLight; 64],
+}
+
+#[inline]
+fn point_lights(lights: &[PointLight]) -> [PointLight; 64] {
+    let mut point_lights: [PointLight; 64] = bytemuck::Zeroable::zeroed();
+
+    for (i, light) in lights.iter().enumerate() {
+        point_lights[i] = *light;
+    }
+
+    point_lights
+}
+
+impl Drawable for Mesh {
+    type Node = D3Node;
+
+    #[inline]
+    fn draw(&self, ctx: &RenderCtx, node: &mut Self::Node) {
+        node.meshes
+            .add_instance(ctx, self, bytes_of(&Mat4::IDENTITY));
     }
 }
 
@@ -172,15 +224,16 @@ impl Drawable for (&Mesh, &Transform3d) {
 
 impl Mesh {
     #[inline]
-    pub fn render_3d<'a>(&'a self, transform: &'a Transform3d) -> (&Self, &Transform3d) {
+    pub fn transform<'a>(&'a self, transform: &'a Transform3d) -> (&Self, &Transform3d) {
         (self, transform)
     }
 }
 
 pub struct D3Node {
     pub(crate) meshes: Meshes,
-    camera_buffer: Option<ike_wgpu::Buffer>,
-    camera_bind_group: Option<ike_wgpu::BindGroup>,
+    pub(crate) point_lights: Vec<PointLight>,
+    uniforms_buffer: Option<ike_wgpu::Buffer>,
+    uniforms_bind_group: Option<ike_wgpu::BindGroup>,
     default_pipelines: HashMap<ike_wgpu::TextureFormat, ike_wgpu::RenderPipeline>,
 }
 
@@ -189,8 +242,9 @@ impl Default for D3Node {
     fn default() -> Self {
         Self {
             meshes: Default::default(),
-            camera_buffer: Default::default(),
-            camera_bind_group: Default::default(),
+            point_lights: Vec::new(),
+            uniforms_buffer: Default::default(),
+            uniforms_bind_group: Default::default(),
             default_pipelines: Default::default(),
         }
     }
@@ -201,8 +255,9 @@ impl D3Node {
     pub fn new() -> Self {
         Self {
             meshes: Default::default(),
-            camera_buffer: Default::default(),
-            camera_bind_group: Default::default(),
+            point_lights: Vec::new(),
+            uniforms_buffer: Default::default(),
+            uniforms_bind_group: Default::default(),
             default_pipelines: Default::default(),
         }
     }
@@ -211,7 +266,8 @@ impl D3Node {
 impl<S> PassNode<S> for D3Node {
     #[inline]
     fn clear(&mut self) {
-        self.meshes.frame();
+        self.meshes.clear();
+        self.point_lights.clear();
     }
 
     #[inline]
@@ -230,24 +286,31 @@ impl<S> PassNode<S> for D3Node {
             .entry(format)
             .or_insert_with(|| default_pipeline(&ctx.render_ctx.device, format, sample_count.0));
 
-        if let Some(ref buffer) = self.camera_buffer {
+        let uniforms = Uniforms {
+            view_proj: camera.view_proj(),
+            point_light_count: self.point_lights.len() as u32,
+            padding: [0; 12],
+            point_lights: point_lights(&self.point_lights),
+        };
+
+        if let Some(ref buffer) = self.uniforms_buffer {
             ctx.render_ctx
                 .queue
-                .write_buffer(buffer, 0, bytes_of(&camera.view_proj()));
+                .write_buffer(buffer, 0, bytes_of(&uniforms));
         } else {
             let buffer =
                 ctx.render_ctx
                     .device
                     .create_buffer_init(&ike_wgpu::BufferInitDescriptor {
                         label: None,
-                        contents: bytes_of(&camera.view_proj()),
+                        contents: bytes_of(&uniforms),
                         usage: ike_wgpu::BufferUsages::UNIFORM | ike_wgpu::BufferUsages::COPY_DST,
                     });
 
-            self.camera_buffer = Some(buffer);
+            self.uniforms_buffer = Some(buffer);
         }
 
-        if self.camera_bind_group.is_none() {
+        if self.uniforms_bind_group.is_none() {
             let bind_group_layout = ctx.render_ctx.device.create_bind_group_layout(
                 &ike_wgpu::BindGroupLayoutDescriptor {
                     label: None,
@@ -272,11 +335,11 @@ impl<S> PassNode<S> for D3Node {
                         layout: &bind_group_layout,
                         entries: &[ike_wgpu::BindGroupEntry {
                             binding: 0,
-                            resource: self.camera_buffer.as_ref().unwrap().as_entire_binding(),
+                            resource: self.uniforms_buffer.as_ref().unwrap().as_entire_binding(),
                         }],
                     });
 
-            self.camera_bind_group = Some(bind_group);
+            self.uniforms_bind_group = Some(bind_group);
         }
 
         self.meshes.prepare(&ctx.render_ctx);
@@ -284,7 +347,7 @@ impl<S> PassNode<S> for D3Node {
         ctx.render_pass.set_pipeline(default_pipeline);
 
         ctx.render_pass
-            .set_bind_group(0, self.camera_bind_group.as_ref().unwrap(), &[]);
+            .set_bind_group(0, self.uniforms_bind_group.as_ref().unwrap(), &[]);
 
         for (id, instances) in &mut self.meshes.instances {
             let vertex_buffer = self.meshes.vertex_buffers.get(&id.vertex_buffer).unwrap();
@@ -302,9 +365,7 @@ impl<S> PassNode<S> for D3Node {
 
             ctx.render_pass.set_vertex_buffer(
                 1,
-                instance_buffer
-                    .buffer
-                    .slice(..index_buffer.buffer.len as u64),
+                instance_buffer.buffer.slice(..instance_buffer.len as u64),
             );
 
             ctx.render_pass.set_index_buffer(

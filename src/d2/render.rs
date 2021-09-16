@@ -5,11 +5,11 @@ use super::{
 use crate::{
     id::{HasId, Id},
     prelude::{Camera, Font},
-    renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat, ViewProj},
+    renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat},
     texture::Texture,
 };
 use bytemuck::{cast_slice, Pod, Zeroable};
-use glam::{Mat3, Mat4, Vec2};
+use glam::Vec2;
 use std::collections::HashMap;
 
 fn create_pipeline(

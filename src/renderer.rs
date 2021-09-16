@@ -1,10 +1,8 @@
 use std::{
     any::{type_name, Any, TypeId},
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     marker::PhantomData,
 };
-
-use glam::Mat4;
 
 use crate::{type_name::TypeName, view::View};
 
@@ -94,9 +92,6 @@ pub struct TargetSize {
     pub width: u32,
     pub height: u32,
 }
-
-#[derive(Clone)]
-pub struct ViewProj(pub Mat4);
 
 pub struct RenderCtx {
     pub device: ike_wgpu::Device,
@@ -210,6 +205,16 @@ impl<'a, S, P> PassGuard<'a, S, P> {
     #[inline]
     pub fn push<N: PassNode<S> + 'static>(&mut self, pass: N) {
         self.pass.push(pass);
+    }
+
+    #[inline]
+    pub fn get<N: PassNode<S> + 'static>(&self) -> Option<&N> {
+        self.pass.get()
+    }
+
+    #[inline]
+    pub fn get_mut<N: PassNode<S> + 'static>(&mut self) -> Option<&mut N> {
+        self.pass.get_mut()
     }
 
     #[inline]
@@ -351,7 +356,7 @@ impl<S> FramePass for Pass<S> {
 }
 
 pub struct RenderFrame<'a> {
-    passes: HashMap<&'a str, &'a mut dyn FramePass>,
+    passes: BTreeMap<&'a str, &'a mut dyn FramePass>,
 }
 
 impl<'a> RenderFrame<'a> {
@@ -359,6 +364,7 @@ impl<'a> RenderFrame<'a> {
     pub fn draw<D: Drawable>(&mut self, ctx: &RenderCtx, drawable: &D) {
         for pass in self.passes.values_mut() {
             if let Some(node) = pass.node_mut(type_name::<D::Node>()) {
+                // SAFETY: the implementation on FramePass ensures that the type is always valid
                 let node = unsafe { &mut *(node as *mut D::Node) };
 
                 drawable.draw(ctx, node);

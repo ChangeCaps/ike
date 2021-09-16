@@ -1,6 +1,9 @@
 use glam::{Mat4, UVec2, Vec3};
 
-use crate::id::{HasId, Id};
+use crate::{
+    id::{HasId, Id},
+    prelude::Transform3d,
+};
 
 #[derive(Clone, Debug)]
 pub struct Camera {
@@ -62,7 +65,7 @@ impl PerspectiveProjection {
 
     #[inline]
     pub fn proj_matrix(&self) -> Mat4 {
-        Mat4::perspective_infinite_reverse_rh(self.fov, self.aspect, self.near)
+        Mat4::perspective_infinite_rh(self.fov, self.aspect, self.near)
     }
 }
 
@@ -125,5 +128,30 @@ impl OrthographicProjection {
             self.near,
             self.far,
         )
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct PerspectiveCamera {
+    pub projection: PerspectiveProjection,
+    pub transform: Transform3d,
+}
+
+impl HasId<Camera> for PerspectiveCamera {
+    #[inline]
+    fn id(&self) -> Id<Camera> {
+        self.projection.id()
+    }
+}
+
+impl PerspectiveCamera {
+    #[inline]
+    pub fn camera(&self) -> Camera {
+        Camera {
+            id: self.id(),
+            position: self.transform.translation,
+            view: self.transform.matrix(),
+            proj: self.projection.proj_matrix(),
+        }
     }
 }

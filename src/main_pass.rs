@@ -1,6 +1,6 @@
 use crate::{
     prelude::{Color, View},
-    renderer::{PassData, RenderCtx, RenderPass, SampleCount, TargetFormat, TargetSize, ViewProj},
+    renderer::{PassData, RenderCtx, RenderPass, SampleCount, TargetFormat, TargetSize},
 };
 
 pub struct MainPass {

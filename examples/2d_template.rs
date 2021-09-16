@@ -1,16 +1,9 @@
-use ike::{
-    d2::render::{Render2d, Render2dCtx, SpriteNode2d},
-    prelude::*,
-};
+use ike::prelude::*;
 
 #[derive(Default)]
 pub struct GameState {}
 
 impl State for GameState {}
-
-impl Render2d for GameState {
-    fn render(&mut self, ctx: &mut Render2dCtx) {}
-}
 
 fn main() {
     let mut app = App::new();

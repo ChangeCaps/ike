@@ -312,6 +312,8 @@ impl PassNode<EditorState> for EguiNode {
         state.top_bar_ui();
 
         if let Some(ref mut app) = state.app {
+            let mut update_ctx = UpdateCtx {};
+
             app.render(&mut views);
             app.render_views(ctx.render_ctx, &views);
             app.show_editor(&mut views, &state.egui_ctx, ctx.render_ctx);

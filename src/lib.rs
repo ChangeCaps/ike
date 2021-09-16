@@ -30,14 +30,20 @@ pub use ike_wgpu as wgpu;
 
 pub mod prelude {
     pub use crate::app::App;
-    pub use crate::camera::{Camera, OrthographicProjection, PerspectiveProjection};
+    pub use crate::camera::{
+        Camera, OrthographicProjection, PerspectiveCamera, PerspectiveProjection,
+    };
     pub use crate::color::{Color, Color8};
     #[cfg(feature = "2d")]
-    pub use crate::d2::{font::Font, render::Sprite, render::TextSprite, transform2d::Transform2d};
+    pub use crate::d2::{
+        font::Font,
+        render::{Sprite, SpriteNode2d, TextSprite},
+        transform2d::Transform2d,
+    };
     #[cfg(feature = "3d")]
-    pub use crate::d3::{Mesh, MeshData, Transform3d, Vertex};
+    pub use crate::d3::{D3Node, Mesh, MeshData, PointLight, Transform3d, Vertex};
     #[cfg(feature = "debug")]
-    pub use crate::debug::{DebugLine, DebugNode};
+    pub use crate::debug::{DebugLine, DebugMesh, DebugNode};
     pub use crate::export_app;
     pub use crate::frame_buffer::{FrameBuffer, FrameBufferDescriptor};
     pub use crate::id::{HasId, Id};
@@ -49,7 +55,7 @@ pub mod prelude {
     };
     pub use crate::renderer::{
         Pass, PassData, PassNode, PassNodeCtx, RenderCtx, RenderPass, Renderer, SampleCount,
-        TargetFormat, TargetSize, ViewProj,
+        TargetFormat, TargetSize,
     };
     pub use crate::state::{StartCtx, State, UpdateCtx};
     #[cfg(feature = "image")]

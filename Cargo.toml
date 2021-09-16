@@ -38,3 +38,8 @@ editor = []
 debug = []
 3d = ["image"]
 2d = ["image", "ab_glyph", "glyph_brush_layout"]
+
+[[example]]
+name = "3d-template"
+path = "examples/3d_template.rs"
+required-features = ["runner"]

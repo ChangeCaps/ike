@@ -48,8 +48,8 @@ impl Transform3d {
 
     #[inline]
     pub fn mul_vec3(&self, mut vec3: Vec3) -> Vec3 {
-        vec3 *= self.scale;
         vec3 = self.rotation * vec3;
+        vec3 *= self.scale;
         self.translation + vec3
     }
 
@@ -76,12 +76,28 @@ impl Transform3d {
     }
 }
 
+impl Default for Transform3d {
+    #[inline]
+    fn default() -> Self {
+        Transform3d::IDENTITY
+    }
+}
+
 impl std::ops::Mul<Transform3d> for Transform3d {
     type Output = Transform3d;
 
     #[inline]
     fn mul(self, rhs: Transform3d) -> Self::Output {
         self.mul_transform(&rhs)
+    }
+}
+
+impl std::ops::Mul<&Transform3d> for Transform3d {
+    type Output = Transform3d;
+
+    #[inline]
+    fn mul(self, rhs: &Transform3d) -> Self::Output {
+        self.mul_transform(rhs)
     }
 }
 

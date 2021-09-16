@@ -43,7 +43,7 @@ async unsafe fn wgpu_init(window: &winit::window::Window) -> anyhow::Result<Rend
         width: size.width,
         height: size.height,
         format: surface.get_preferred_format(&adapter).unwrap(),
-        present_mode: wgpu::PresentMode::Fifo,
+        present_mode: wgpu::PresentMode::Immediate,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
     };
 
@@ -135,6 +135,7 @@ impl<S: State> App<S> {
                 };
 
                 state.update(&mut update_ctx);
+                state.render(&mut update_ctx);
 
                 window.post_update(&winit_window);
 
