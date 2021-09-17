@@ -165,12 +165,21 @@ impl Meshes {
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Clone, Debug)]
 pub struct PointLight {
     pub position: Vec3,
-    pub intensity: f32,
     pub color: Color,
+    pub intensity: f32,
+    pub range: f32,
+    pub radius: f32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct PointLightRaw {
+    pub position: [f32; 4],
+    pub color: [f32; 4],
+    pub light_params: [f32; 4],
 }
 
 impl Drawable for PointLight {
@@ -178,7 +187,13 @@ impl Drawable for PointLight {
 
     #[inline]
     fn draw(&self, _ctx: &RenderCtx, node: &mut Self::Node) {
-        node.point_lights.push(*self);
+        let color = self.color * self.intensity;
+
+        node.point_lights.push(PointLightRaw {
+            position: [self.position.x, self.position.y, self.position.z, 0.0],
+            color: color.into(),
+            light_params: [1.0 / (self.range * self.range), self.radius, 0.0, 0.0], 
+        });
     }
 }
 
@@ -186,14 +201,14 @@ impl Drawable for PointLight {
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Uniforms {
     pub view_proj: Mat4,
+    pub camera_position: Vec3,
     pub point_light_count: u32,
-    pub padding: [u8; 12],
-    pub point_lights: [PointLight; 64],
+    pub point_lights: [PointLightRaw; 64],
 }
 
 #[inline]
-fn point_lights(lights: &[PointLight]) -> [PointLight; 64] {
-    let mut point_lights: [PointLight; 64] = bytemuck::Zeroable::zeroed();
+fn point_lights(lights: &[PointLightRaw]) -> [PointLightRaw; 64] {
+    let mut point_lights: [PointLightRaw; 64] = bytemuck::Zeroable::zeroed();
 
     for (i, light) in lights.iter().enumerate() {
         point_lights[i] = *light;
@@ -231,7 +246,7 @@ impl Mesh {
 
 pub struct D3Node {
     pub(crate) meshes: Meshes,
-    pub(crate) point_lights: Vec<PointLight>,
+    pub(crate) point_lights: Vec<PointLightRaw>,
     uniforms_buffer: Option<ike_wgpu::Buffer>,
     uniforms_bind_group: Option<ike_wgpu::BindGroup>,
     default_pipelines: HashMap<ike_wgpu::TextureFormat, ike_wgpu::RenderPipeline>,
@@ -288,8 +303,8 @@ impl<S> PassNode<S> for D3Node {
 
         let uniforms = Uniforms {
             view_proj: camera.view_proj(),
+            camera_position: camera.position,
             point_light_count: self.point_lights.len() as u32,
-            padding: [0; 12],
             point_lights: point_lights(&self.point_lights),
         };
 

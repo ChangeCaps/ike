@@ -20,8 +20,10 @@ impl GameState {
             camera,
             light: PointLight {
                 position: Vec3::new(1.0, 2.0, 2.0),
-                intensity: 1.0,
                 color: Color::WHITE,
+                intensity: 200.0,
+                range: 20.0,
+                radius: 0.0,
             },
         }
     }

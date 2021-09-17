@@ -140,3 +140,12 @@ impl Into<ike_wgpu::Color> for Color {
         }
     }
 }
+
+impl std::ops::Mul<f32> for Color {
+    type Output = Color;
+
+    #[inline]
+    fn mul(self, rhs: f32) -> Self::Output {
+        Color::rgba(self.r * rhs, self.g * rhs, self.b * rhs, self.a * rhs) 
+    }
+}
