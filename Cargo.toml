@@ -24,8 +24,8 @@ ike-wgpu = { version = "0.0.1", path = "ike-wgpu" }
 image = { version = "^0.23", optional = true }
 bytemuck = { version = "^1.7", features = ["derive"] }
 ab_glyph = { version = "^0.2", optional = true }
-glyph_brush_layout =  { version = "^0.2", optional = true }
 once_cell = { version = "^1.8" }
+gltf = "^0.16"
 
 [dev-dependencies]
 log = "^0.4"
@@ -37,7 +37,7 @@ runner = ["ike-wgpu/wgpu", "wgpu"]
 editor = []
 debug = []
 3d = ["image"]
-2d = ["image", "ab_glyph", "glyph_brush_layout"]
+2d = ["image", "ab_glyph"]
 
 [[example]]
 name = "3d-template"

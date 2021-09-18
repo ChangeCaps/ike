@@ -135,6 +135,7 @@ impl OrthographicProjection {
 pub struct PerspectiveCamera {
     pub projection: PerspectiveProjection,
     pub transform: Transform3d,
+    pub global_transform: Option<Transform3d>,
 }
 
 impl HasId<Camera> for PerspectiveCamera {
@@ -146,11 +147,23 @@ impl HasId<Camera> for PerspectiveCamera {
 
 impl PerspectiveCamera {
     #[inline]
+    pub fn transform(&mut self, transform: &Transform3d) {
+        self.global_transform = Some(transform * &self.transform);
+    }
+
+    #[inline]
+    pub fn global_transform(&self) -> &Transform3d {
+        self.global_transform.as_ref().unwrap_or(&self.transform)
+    }
+
+    #[inline]
     pub fn camera(&self) -> Camera {
+        let transform = self.global_transform();
+
         Camera {
             id: self.id(),
             position: self.transform.translation,
-            view: self.transform.matrix(),
+            view: transform.matrix(),
             proj: self.projection.proj_matrix(),
         }
     }

@@ -1,6 +1,6 @@
 use glam::Vec2;
 use winit::{
-    event::{ElementState, Event, KeyboardInput, WindowEvent},
+    event::{ElementState, Event, KeyboardInput, MouseScrollDelta, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -43,7 +43,7 @@ async unsafe fn wgpu_init(window: &winit::window::Window) -> anyhow::Result<Rend
         width: size.width,
         height: size.height,
         format: surface.get_preferred_format(&adapter).unwrap(),
-        present_mode: wgpu::PresentMode::Immediate,
+        present_mode: wgpu::PresentMode::Fifo,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
     };
 
@@ -143,6 +143,7 @@ impl<S: State> App<S> {
                 mouse_input.update();
                 char_input.clear();
                 mouse.prev_position = mouse.position;
+                mouse.wheel_delta = Vec2::ZERO;
 
                 for view in views.views.values() {
                     self.renderer.render_view(&render_ctx, view, &mut state);
@@ -193,6 +194,12 @@ impl<S: State> App<S> {
                 WindowEvent::CursorMoved { position, .. } => {
                     mouse.position = Vec2::new(position.x as f32, position.y as f32);
                 }
+                WindowEvent::MouseWheel { delta, .. } => match delta {
+                    MouseScrollDelta::LineDelta(x, y) => mouse.wheel_delta += Vec2::new(x, y),
+                    MouseScrollDelta::PixelDelta(delta) => {
+                        mouse.wheel_delta += Vec2::new(delta.x as f32, delta.y as f32);
+                    }
+                },
                 WindowEvent::ReceivedCharacter(c) => {
                     char_input.push(c);
                 }

@@ -1,4 +1,4 @@
-use std::{num::NonZeroU32, path::Path};
+use std::{fmt::Debug, num::NonZeroU32, path::Path};
 
 use bytemuck::cast_slice;
 use glam::UVec2;
@@ -11,8 +11,19 @@ use crate::{
     renderer::RenderCtx,
 };
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TextureVersion(u64);
+
+impl Default for TextureVersion {
+    #[inline]
+    fn default() -> Self {
+        Self(0)
+    }
+}
+
 pub struct Texture {
     id: Id<Self>,
+    version: u64,
     width: u32,
     height: u32,
     synced: bool,
@@ -26,6 +37,7 @@ impl Default for Texture {
     fn default() -> Self {
         Self {
             id: Id::new(),
+            version: 1,
             width: 1,
             height: 1,
             synced: true,
@@ -40,6 +52,34 @@ impl HasId<Texture> for Texture {
     #[inline]
     fn id(&self) -> Id<Texture> {
         self.id
+    }
+}
+
+impl Clone for Texture {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            id: Id::new(),
+            version: 1,
+            width: self.width,
+            height: self.height,
+            synced: true,
+            buffer: OnceCell::new(),
+            data: self.data.clone(),
+            texture: OnceCell::new(),
+        }
+    }
+}
+
+impl std::fmt::Debug for Texture {
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Texture")
+            .field("id", &self.id)
+            .field("version", &self.version)
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .finish()
     }
 }
 
@@ -62,6 +102,7 @@ impl Texture {
     pub fn from_data(data: Vec<Color8>, width: u32, height: u32) -> Self {
         Self {
             id: Id::new(),
+            version: 1,
             width,
             height,
             synced: true,
@@ -69,6 +110,16 @@ impl Texture {
             data: OnceCell::from(data),
             texture: OnceCell::new(),
         }
+    }
+
+    #[inline]
+    pub fn version(&self) -> TextureVersion {
+        TextureVersion(self.version)
+    }
+
+    #[inline]
+    pub fn outdated(&self, version: TextureVersion) -> bool {
+        self.version > version.0
     }
 
     #[inline]
@@ -232,6 +283,8 @@ impl Texture {
 
     #[inline]
     pub fn data_mut(&mut self) -> &mut Vec<Color8> {
+        self.version += 1;
+
         if self.data.get().is_some() {
             self.data.get_mut().unwrap()
         } else {

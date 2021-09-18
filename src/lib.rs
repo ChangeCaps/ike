@@ -41,7 +41,10 @@ pub mod prelude {
         transform2d::Transform2d,
     };
     #[cfg(feature = "3d")]
-    pub use crate::d3::{D3Node, Mesh, MeshData, PointLight, Transform3d, Vertex};
+    pub use crate::d3::{
+        Animation, D3Node, Mesh, MeshData, PbrMaterial, PbrMesh, PbrNode, PbrScene, PointLight,
+        Transform3d, Vertex,
+    };
     #[cfg(feature = "debug")]
     pub use crate::debug::{DebugLine, DebugMesh, DebugNode};
     pub use crate::export_app;

@@ -103,6 +103,14 @@ impl DebugLine {
             depth: false,
         }
     }
+
+    #[inline]
+    pub fn color(from: Vec3, to: Vec3, color: Color) -> Self {
+        Self {
+            color,
+            ..Self::new(from, to)
+        }
+    }
 }
 
 impl Drawable for DebugLine {
@@ -120,7 +128,7 @@ pub struct DebugMesh<'a> {
     pub transform: Option<&'a Transform3d>,
     pub vertex_normals: Option<Color>,
     pub face_normals: Option<Color>,
-    pub triangles: Option<Color>,
+    pub faces: Option<Color>,
     pub width: f32,
     pub depth: bool,
 }
@@ -133,7 +141,7 @@ impl<'a> DebugMesh<'a> {
             transform: None,
             vertex_normals: None,
             face_normals: None,
-            triangles: Some(Color::WHITE),
+            faces: Some(Color::WHITE),
             width: 0.002,
             depth: false,
         }
@@ -159,7 +167,7 @@ impl Drawable for DebugMesh<'_> {
             Mat4::IDENTITY
         };
 
-        if let Some(color) = self.triangles {
+        if let Some(color) = self.faces {
             for i in 0..self.mesh.indices.len() / 3 {
                 let i0 = self.mesh.indices[i * 3 + 0];
                 let i1 = self.mesh.indices[i * 3 + 1];

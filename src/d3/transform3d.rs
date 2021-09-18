@@ -47,6 +47,21 @@ impl Transform3d {
     }
 
     #[inline]
+    pub fn local_x(&self) -> Vec3 {
+        self.rotation * Vec3::X
+    }
+
+    #[inline]
+    pub fn local_y(&self) -> Vec3 {
+        self.rotation * Vec3::Y
+    }
+
+    #[inline]
+    pub fn local_z(&self) -> Vec3 {
+        self.rotation * Vec3::Z
+    }
+
+    #[inline]
     pub fn mul_vec3(&self, mut vec3: Vec3) -> Vec3 {
         vec3 = self.rotation * vec3;
         vec3 *= self.scale;

@@ -1,6 +1,7 @@
 #[inline]
 pub fn default_pipeline(
     device: &ike_wgpu::Device,
+    textures: &ike_wgpu::BindGroupLayout,
     format: ike_wgpu::TextureFormat,
     sample_count: u32,
 ) -> ike_wgpu::RenderPipeline {
@@ -20,9 +21,23 @@ pub fn default_pipeline(
         }],
     });
 
+    let joint_matrices = device.create_bind_group_layout(&ike_wgpu::BindGroupLayoutDescriptor {
+        label: None,
+        entries: &[ike_wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            ty: ike_wgpu::BindingType::Buffer {
+                ty: ike_wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,
+            count: None,
+        }],
+    });
+
     let layout = device.create_pipeline_layout(&ike_wgpu::PipelineLayoutDescriptor {
         label: None,
-        bind_group_layouts: &[&uniforms],
+        bind_group_layouts: &[&uniforms, &textures, &joint_matrices],
         push_constant_ranges: &[],
     });
 
@@ -33,7 +48,7 @@ pub fn default_pipeline(
             module: &module,
             buffers: &[
                 ike_wgpu::VertexBufferLayout {
-                    array_stride: 48,
+                    array_stride: 104,
                     step_mode: ike_wgpu::VertexStepMode::Vertex,
                     attributes: &[
                         ike_wgpu::VertexAttribute {
@@ -47,40 +62,80 @@ pub fn default_pipeline(
                             shader_location: 1,
                         },
                         ike_wgpu::VertexAttribute {
-                            format: ike_wgpu::VertexFormat::Float32x2,
+                            format: ike_wgpu::VertexFormat::Float32x3,
                             offset: 24,
                             shader_location: 2,
                         },
                         ike_wgpu::VertexAttribute {
-                            format: ike_wgpu::VertexFormat::Float32x4,
-                            offset: 32,
+                            format: ike_wgpu::VertexFormat::Float32x3,
+                            offset: 36,
                             shader_location: 3,
+                        },
+                        ike_wgpu::VertexAttribute {
+                            format: ike_wgpu::VertexFormat::Float32x2,
+                            offset: 48,
+                            shader_location: 4,
+                        },
+                        ike_wgpu::VertexAttribute {
+                            format: ike_wgpu::VertexFormat::Float32x4,
+                            offset: 56,
+                            shader_location: 5,
+                        },
+                        ike_wgpu::VertexAttribute {
+                            format: ike_wgpu::VertexFormat::Uint32x4,
+                            offset: 72,
+                            shader_location: 6,
+                        },
+                        ike_wgpu::VertexAttribute {
+                            format: ike_wgpu::VertexFormat::Float32x4,
+                            offset: 88,
+                            shader_location: 7,
                         },
                     ],
                 },
                 ike_wgpu::VertexBufferLayout {
-                    array_stride: 64,
+                    array_stride: 112,
                     step_mode: ike_wgpu::VertexStepMode::Instance,
                     attributes: &[
                         ike_wgpu::VertexAttribute {
                             format: ike_wgpu::VertexFormat::Float32x4,
                             offset: 0,
-                            shader_location: 4,
+                            shader_location: 8,
                         },
                         ike_wgpu::VertexAttribute {
                             format: ike_wgpu::VertexFormat::Float32x4,
                             offset: 16,
-                            shader_location: 5,
+                            shader_location: 9,
                         },
                         ike_wgpu::VertexAttribute {
                             format: ike_wgpu::VertexFormat::Float32x4,
                             offset: 32,
-                            shader_location: 6,
+                            shader_location: 10,
                         },
                         ike_wgpu::VertexAttribute {
                             format: ike_wgpu::VertexFormat::Float32x4,
                             offset: 48,
-                            shader_location: 7,
+                            shader_location: 11,
+                        },
+                        ike_wgpu::VertexAttribute {
+                            format: ike_wgpu::VertexFormat::Float32x4,
+                            offset: 64,
+                            shader_location: 12,
+                        },
+                        ike_wgpu::VertexAttribute {
+                            format: ike_wgpu::VertexFormat::Float32x3,
+                            offset: 80,
+                            shader_location: 13,
+                        },
+                        ike_wgpu::VertexAttribute {
+                            format: ike_wgpu::VertexFormat::Uint32x2,
+                            offset: 92,
+                            shader_location: 14,
+                        },
+                        ike_wgpu::VertexAttribute {
+                            format: ike_wgpu::VertexFormat::Float32x3,
+                            offset: 100,
+                            shader_location: 15,
                         },
                     ],
                 },

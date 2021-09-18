@@ -1,19 +1,43 @@
+let NORMAL_MAP_FLAG_BIT: u32 = 1u;
+let SKINNED_FLAG_BIT: u32 = 2u;
+
 struct VertexInput {
+	[[builtin(instance_index)]] index: u32;
+
+	// vertex
 	[[location(0)]] position: vec3<f32>;
 	[[location(1)]] normal: vec3<f32>;
-	[[location(2)]] uv: vec2<f32>;
-	[[location(3)]] color: vec4<f32>;
-	[[location(4)]] transform_0: vec4<f32>;
-	[[location(5)]] transform_1: vec4<f32>;
-	[[location(6)]] transform_2: vec4<f32>;
-	[[location(7)]] transform_3: vec4<f32>;
+	[[location(2)]] tangent: vec3<f32>;
+	[[location(3)]] bitangent: vec3<f32>;
+	[[location(4)]] uv: vec2<f32>;
+	[[location(5)]] color: vec4<f32>;
+	[[location(6)]] joints: vec4<u32>;
+	[[location(7)]] weights: vec4<f32>;
+
+	// instance
+	[[location(8)]] transform_0: vec4<f32>;
+	[[location(9)]] transform_1: vec4<f32>;
+	[[location(10)]] transform_2: vec4<f32>;
+	[[location(11)]] transform_3: vec4<f32>;
+	[[location(12)]] albedo: vec4<f32>;
+	[[location(13)]] material: vec3<f32>;
+	[[location(14)]] flags: vec2<u32>;
+	[[location(15)]] emissive: vec3<f32>;
 };
 
 struct VertexOutput {
 	[[builtin(position)]] position: vec4<f32>;
 	[[location(0)]] w_position: vec4<f32>;
 	[[location(1)]] w_normal: vec3<f32>;
-	[[location(2)]] color: vec4<f32>;
+	[[location(2)]] w_tangent: vec3<f32>;
+	[[location(3)]] w_bitangent: vec3<f32>;
+	[[location(4)]] uv: vec2<f32>;
+	[[location(5)]] color: vec4<f32>;
+	[[location(6)]] roughness: f32;
+	[[location(7)]] metallic: f32;
+	[[location(8)]] reflectance: f32;
+	[[location(9)]] flags: u32;
+	[[location(10)]] emissive: vec4<f32>;
 };
 
 struct PointLight {
@@ -21,7 +45,6 @@ struct PointLight {
 	color: vec4<f32>;
 	params: vec4<f32>;
 };
-
 
 let max_point_lights: u32 = 64u32;
 
@@ -36,6 +59,34 @@ struct Uniforms {
 [[group(0), binding(0)]] 
 var<uniform> uniforms: Uniforms;
 
+[[block]]
+struct JointMatrices {
+	matrices: array<mat4x4<f32>>; 
+};
+
+[[group(2), binding(0)]]
+var<storage, read> joint_matrices: JointMatrices;
+
+// since Scalar * Matrix isn't implemented this is necessary
+fn mul_mat(weight: f32, joint: mat4x4<f32>) -> mat4x4<f32> {
+	return mat4x4<f32>(
+		vec4<f32>(weight) * joint.x,	
+		vec4<f32>(weight) * joint.y,	
+		vec4<f32>(weight) * joint.z,	
+		vec4<f32>(weight) * joint.w,	
+	); 
+}
+
+// since Matrix + Matrix isn't implemented this is necessary
+fn add_mat(lhs: mat4x4<f32>, rhs: mat4x4<f32>) -> mat4x4<f32> {
+	return mat4x4<f32>(
+		lhs.x + rhs.x,
+		lhs.y + rhs.y,
+		lhs.z + rhs.z,
+		lhs.w + rhs.w,
+	);
+}
+
 [[stage(vertex)]]
 fn main(in: VertexInput) -> VertexOutput {
 	var out: VertexOutput;
@@ -47,10 +98,35 @@ fn main(in: VertexInput) -> VertexOutput {
 		in.transform_3
 	);
 
-	out.w_position = transform * vec4<f32>(in.position, 1.0);
-	out.position = uniforms.view_proj * transform * vec4<f32>(in.position, 1.0);
-	out.w_normal = normalize((transform * vec4<f32>(in.normal, 0.0)).xyz);
-	out.color = in.color;
+	if ((in.flags.x & SKINNED_FLAG_BIT) == 0u) {
+		out.w_position = transform * vec4<f32>(in.position, 1.0);
+		out.w_normal = normalize((transform * vec4<f32>(in.normal, 0.0)).xyz);
+		out.w_tangent = normalize((transform * vec4<f32>(in.tangent, 0.0)).xyz);
+		out.w_bitangent = normalize((transform * vec4<f32>(in.bitangent, 0.0)).xyz);
+	} else {
+		let joint_offset = in.index * in.flags.y;
+
+		let x = mul_mat(in.weights.x, joint_matrices.matrices[joint_offset + in.joints.x]);
+		let y = mul_mat(in.weights.y, joint_matrices.matrices[joint_offset + in.joints.y]);
+		let z = mul_mat(in.weights.z, joint_matrices.matrices[joint_offset + in.joints.z]);
+		let w = mul_mat(in.weights.w, joint_matrices.matrices[joint_offset + in.joints.w]);
+
+		let skinning_matrix = add_mat(add_mat(add_mat(x, y), z), w);
+
+		out.w_position = transform * skinning_matrix * vec4<f32>(in.position, 1.0);	
+		out.w_normal = normalize((transform * skinning_matrix * vec4<f32>(in.normal, 0.0)).xyz);
+		out.w_tangent = normalize((transform * skinning_matrix * vec4<f32>(in.tangent, 0.0)).xyz);
+		out.w_bitangent = normalize((transform * skinning_matrix * vec4<f32>(in.bitangent, 0.0)).xyz);
+	}
+
+	out.position = uniforms.view_proj * out.w_position;	
+	out.uv = in.uv;
+	out.color = in.color * in.albedo;
+	out.roughness = in.material.r;
+	out.metallic = in.material.g;
+	out.reflectance = in.material.b;
+	out.flags = in.flags.x; 
+	out.emissive = vec4<f32>(in.emissive, 1.0);
 
 	return out;
 }
@@ -59,8 +135,25 @@ struct FragmentInput {
 	[[builtin(front_facing)]] front: bool;
 	[[location(0)]] position: vec3<f32>;
 	[[location(1)]] normal: vec3<f32>; 
-	[[location(2)]] color: vec3<f32>;
+	[[location(2)]] tangent: vec3<f32>; 
+	[[location(3)]] bitangent: vec3<f32>; 
+	[[location(4)]] uv: vec2<f32>;
+	[[location(5)]] color: vec3<f32>;
+	[[location(6)]] roughness: f32;
+	[[location(7)]] metallic: f32;
+	[[location(8)]] reflectance: f32;
+	[[location(9)]] flags: u32;
+	[[location(10)]] emissive: vec4<f32>;
 };
+
+[[group(1), binding(0)]]
+var sampler: sampler;
+[[group(1), binding(1)]]
+var albedo_texture: texture_2d<f32>;
+[[group(1), binding(2)]]
+var metallic_roughness_texture: texture_2d<f32>;
+[[group(1), binding(3)]]
+var normal_map: texture_2d<f32>;
 
 let PI: f32 = 3.141592653589793;
 
@@ -95,11 +188,11 @@ fn v_smith_ggx_correlated(roughness: f32, nov: f32, nol: f32) -> f32 {
 }
 
 fn f_schlick3(f0: vec3<f32>, f90: f32, voh: f32) -> vec3<f32> {
-	return f0 + (f90 - f0) * pow5(1.0 - voh);
+	return f0 + (f90 - f0) * pow(1.0 - voh, 5.0);
 }
 
 fn f_schlick(f0: f32, f90: f32, voh: f32) -> f32 {
-	return f0 + (f90 - f0) * pow5(1.0 - voh);
+	return f0 + (f90 - f0) * pow(1.0 - voh, 5.0);
 }
 
 fn fresnel(f0: vec3<f32>, loh: f32) -> vec3<f32> {
@@ -220,22 +313,38 @@ fn point_light(
  
 [[stage(fragment)]]
 fn main(in: FragmentInput) -> [[location(0)]] vec4<f32> {
-	let base_color = vec3<f32>(0.5);
+	let base_color = in.color * textureSample(albedo_texture, sampler, in.uv).rgb;
 
-	let perceptual_roughness = 0.089;
-	let metallic = 0.01;
-	let reflectance = 0.5;
-	let emissive = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+	let metallic_roughness = textureSample(metallic_roughness_texture, sampler, in.uv);
+
+	let perceptual_roughness = in.roughness;
+	let metallic = in.metallic * metallic_roughness.b;
+	let reflectance = in.reflectance;
+	let emissive = in.emissive;
 	let occlusion = 1.0;
 
-	let roughness = perceptual_roughness_to_roughness(perceptual_roughness);
+	let roughness = perceptual_roughness_to_roughness(perceptual_roughness * metallic_roughness.g);
 
 	var n: vec3<f32>;
+	var t: vec3<f32>;
+	var b: vec3<f32>;
 
 	if (in.front) {
 		n = normalize(in.normal);
+		t = normalize(in.tangent);
+		b = normalize(in.bitangent);
 	} else {
 		n = normalize(-in.normal); 
+		t = normalize(-in.tangent);
+		b = normalize(-in.bitangent);
+	}
+
+	let tbn = mat3x3<f32>(t, b, n);
+
+	let nm = normalize(textureSample(normal_map, sampler, in.uv).rgb * 2.0 - 1.0);
+
+	if ((in.flags & NORMAL_MAP_FLAG_BIT) != 0u) {
+		n = tbn * nm;
 	}
 
 	var v: vec3<f32>;

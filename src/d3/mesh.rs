@@ -17,8 +17,28 @@ use crate::{
 pub struct Vertex {
     pub position: Vec3,
     pub normal: Vec3,
+    pub tangent: Vec3,
+    pub bitangent: Vec3,
     pub uv: Vec2,
     pub color: Color,
+    pub joints: [u32; 4],
+    pub weights: [f32; 4],
+}
+
+impl Default for Vertex {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            normal: Vec3::Z,
+            tangent: Vec3::Y,
+            bitangent: Vec3::X,
+            uv: Vec2::ZERO,
+            color: Color::WHITE,
+            joints: [0; 4],
+            weights: [0.0; 4],
+        }
+    }
 }
 
 pub trait PositionNormal {
@@ -205,6 +225,47 @@ impl<V> Mesh<V> {
 
         for vertex in vertices {
             *vertex.normal() = vertex.normal().normalize();
+        }
+    }
+}
+
+impl Mesh<Vertex> {
+    #[inline]
+    pub fn calculate_tangents(&mut self) {
+        for vertex in self.vertices.iter_mut() {
+            vertex.tangent = Vec3::ZERO;
+            vertex.bitangent = Vec3::ZERO;
+        }
+
+        for i in 0..self.indices.len() / 3 {
+            let i0 = self.indices[i * 3 + 0];
+            let i1 = self.indices[i * 3 + 1];
+            let i2 = self.indices[i * 3 + 2];
+
+            let v0 = &self.vertices[i0 as usize];
+            let v1 = &self.vertices[i1 as usize];
+            let v2 = &self.vertices[i2 as usize];
+
+            let dp1 = v1.position - v0.position;
+            let dp2 = v2.position - v0.position;
+
+            let duv1 = v1.uv - v0.uv;
+            let duv2 = v2.uv - v0.uv;
+
+            let r = 1.0 / (duv1.x * duv2.y - duv1.y * duv2.x);
+            self.vertices[i0 as usize].tangent += (dp1 * duv2.y - dp2 * duv1.y) * r;
+            self.vertices[i0 as usize].bitangent += (dp2 * duv1.x - dp1 * duv2.x) * r;
+
+            self.vertices[i1 as usize].tangent += (dp1 * duv2.y - dp2 * duv1.y) * r;
+            self.vertices[i1 as usize].bitangent += (dp2 * duv1.x - dp1 * duv2.x) * r;
+
+            self.vertices[i2 as usize].tangent += (dp1 * duv2.y - dp2 * duv1.y) * r;
+            self.vertices[i2 as usize].bitangent += (dp2 * duv1.x - dp1 * duv2.x) * r;
+        }
+
+        for vertex in self.vertices.iter_mut() {
+            vertex.tangent = vertex.tangent.normalize();
+            vertex.bitangent = vertex.bitangent.normalize();
         }
     }
 }
