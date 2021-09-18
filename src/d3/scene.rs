@@ -4,13 +4,16 @@ use bytemuck::bytes_of;
 use glam::Mat4;
 
 use crate::{
-    d3::{SampleOutput, TransformMaterial},
+    d3::{InstanceData, SampleOutput},
     id::HasId,
     prelude::{Color, DebugLine, UpdateCtx},
     renderer::{Drawable, RenderCtx},
 };
 
-use super::{Animation, D3Node, Mesh, PbrMaterial, Skeleton, Transform3d};
+use super::{
+    Animation, AnimationError, AnimationIdent, Animations, D3Node, Mesh, PbrFlags, PbrMaterial,
+    Skeleton, Transform3d,
+};
 
 #[derive(Clone, Debug)]
 pub struct PbrMesh {
@@ -42,7 +45,7 @@ pub struct PbrScene {
     pub root_nodes: Vec<usize>,
     pub nodes: HashMap<usize, PbrNode>,
     pub skeletons: HashMap<usize, Skeleton>,
-    pub animations: Vec<Animation>,
+    pub animations: Animations,
 }
 
 impl PbrScene {
@@ -95,7 +98,7 @@ pub struct PosedPbrScene<'a> {
     pub root_nodes: &'a [usize],
     pub nodes: HashMap<usize, PosedPbrNode<'a>>,
     pub skeletons: &'a HashMap<usize, Skeleton>,
-    pub animations: &'a [Animation],
+    pub animations: &'a Animations,
 }
 
 impl<'a> PosedPbrScene<'a> {
@@ -126,42 +129,44 @@ impl<'a> PosedPbrScene<'a> {
     }
 
     #[inline]
-    pub fn joint_matrices(&self) -> Vec<Mat4> {
+    pub fn global_transforms(&self) -> Vec<Transform3d> {
         #[inline]
-        fn joint_matrix(
+        fn global_transform(
             nodes: &HashMap<usize, PosedPbrNode>,
-            matrices: &mut [Mat4],
+            matrices: &mut [Transform3d],
             idx: &usize,
-            transform: &Mat4,
+            transform: &Transform3d,
         ) {
             let node = &nodes[idx];
 
-            let matrix = *transform * node.transform.matrix();
-
-            matrices[*idx] = matrix;
+            let node_transform = transform * &node.transform;
 
             for idx in node.children {
-                joint_matrix(nodes, matrices, idx, &matrix);
+                global_transform(nodes, matrices, idx, &node_transform);
             }
+
+            matrices[*idx] = node_transform;
         }
 
-        let mut joint_matrices = vec![Mat4::IDENTITY; self.nodes.len()];
+        let mut transforms = vec![Transform3d::IDENTITY; self.nodes.len()];
 
         for idx in self.root_nodes {
-            joint_matrix(
-                &self.nodes,
-                &mut joint_matrices,
-                idx,
-                &self.transform.matrix(),
-            );
+            global_transform(&self.nodes, &mut transforms, idx, &self.transform);
         }
 
-        joint_matrices
+        transforms
     }
 
     #[inline]
-    pub fn animate(&mut self, animation: usize, time: f32) {
-        let animation = &self.animations[animation];
+    pub fn animate<'b>(
+        &'b mut self,
+        animation: impl Into<AnimationIdent<'b>>,
+        time: f32,
+    ) -> Result<(), AnimationError> {
+        let animation = self
+            .animations
+            .get(animation)
+            .ok_or_else(|| AnimationError::AnimationNotFound)?; 
 
         for channel in &animation.channels {
             let sampler = &animation.samplers[channel.sampler];
@@ -181,6 +186,8 @@ impl<'a> PosedPbrScene<'a> {
                 _ => unimplemented!(),
             }
         }
+
+        Ok(())
     }
 }
 
@@ -188,45 +195,41 @@ impl Drawable for PosedPbrScene<'_> {
     type Node = D3Node;
 
     #[inline]
-    fn draw(&self, ctx: &RenderCtx, node: &mut Self::Node) {
-        let joint_matrices = self.joint_matrices();
+    fn draw(&self, ctx: &RenderCtx, d3_node: &mut Self::Node) {
+        let global_transforms = self.global_transforms();
 
         let inverse_global_transform = self.transform.matrix().inverse();
 
         for skeleton in self.skeletons.values() {
-            let matrices = skeleton.joint_matrices(inverse_global_transform, &joint_matrices);
+            let mut matrices = skeleton.joint_matrices(inverse_global_transform, &global_transforms);
 
-            let joint_matrices = node.meshes.joint_matrices.entry(skeleton.id()).or_default();
-
-            let len = joint_matrices.joint_matrices.len();
-            joint_matrices
+            let joint_matrices = d3_node
+                .meshes
                 .joint_matrices
-                .resize(len + matrices.len(), Mat4::IDENTITY);
-            joint_matrices.joint_matrices[len..].copy_from_slice(&matrices);
-        } 
+                .entry(skeleton.id())
+                .or_default();
 
-        #[inline]
-        fn draw_node(
-            ctx: &RenderCtx,
-            node: &PosedPbrNode,
-            nodes: &HashMap<usize, PosedPbrNode>,
-            d3_node: &mut D3Node,
-            transform: &Transform3d,
-            skeletons: &HashMap<usize, Skeleton>,
-        ) {
-            let transform = transform * &node.transform;
+            joint_matrices.joint_matrices.append(&mut matrices)
+        }
 
+        for (idx, node) in &self.nodes {
             if let Some(ref skeleton) = node.skeleton {
+                let skeleton = &self.skeletons[skeleton];
+
                 for mesh in node.meshes {
                     d3_node.meshes.add_instance(
                         ctx,
                         &mesh.mesh,
-                        bytes_of(&TransformMaterial {
-                            joint_count: skeletons[skeleton].joints.len() as u32,
-                            ..TransformMaterial::new(transform.matrix(), &mesh.material, 1 << 1)
+                        bytes_of(&InstanceData {
+                            joint_count: skeleton.joints.len() as u32,
+                            ..InstanceData::new(
+                                global_transforms[*idx].matrix(),
+                                &mesh.material,
+                                PbrFlags::SKINNED,
+                            )
                         }),
                         mesh.material.filter_mode,
-                        Some(skeletons[skeleton].id()),
+                        Some(skeleton.id()),
                         mesh.material.albedo_texture.as_ref().map(AsRef::as_ref),
                         mesh.material
                             .metallic_roughness_texture
@@ -240,9 +243,13 @@ impl Drawable for PosedPbrScene<'_> {
                     d3_node.meshes.add_instance(
                         ctx,
                         &mesh.mesh,
-                        bytes_of(&TransformMaterial::new(transform.matrix(), &mesh.material, 0)),
+                        bytes_of(&InstanceData::new(
+                            global_transforms[*idx].matrix(),
+                            &mesh.material,
+                            PbrFlags::EMPTY,
+                        )),
                         mesh.material.filter_mode,
-                        None, 
+                        None,
                         mesh.material.albedo_texture.as_ref().map(AsRef::as_ref),
                         mesh.material
                             .metallic_roughness_texture
@@ -252,23 +259,6 @@ impl Drawable for PosedPbrScene<'_> {
                     );
                 }
             }
-
-            for idx in node.children {
-                let node = &nodes[idx];
-
-                draw_node(ctx, node, nodes, d3_node, &transform, skeletons);
-            }
-        }
-
-        for idx in self.root_nodes {
-            draw_node(
-                ctx,
-                &self.nodes[idx],
-                &self.nodes,
-                node,
-                &self.transform,
-                self.skeletons,
-            );
         }
     }
 }

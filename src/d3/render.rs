@@ -11,7 +11,7 @@ use crate::{
 };
 
 use super::{
-    default_pipeline::default_pipeline, BufferVersion, Indices, Mesh, PbrMaterial,
+    default_pipeline::default_pipeline, BufferVersion, Indices, Mesh, PbrFlags, PbrMaterial,
     Skeleton, Transform3d, Vertices,
 };
 
@@ -22,6 +22,7 @@ pub(crate) struct SizedBuffer {
 }
 
 impl SizedBuffer {
+    #[inline]
     pub fn new(device: &ike_wgpu::Device, data: &[u8], mut usage: ike_wgpu::BufferUsages) -> Self {
         usage |= ike_wgpu::BufferUsages::COPY_DST;
 
@@ -38,6 +39,7 @@ impl SizedBuffer {
         }
     }
 
+    #[inline]
     pub fn write(&mut self, device: &ike_wgpu::Device, queue: &ike_wgpu::Queue, data: &[u8]) {
         if self.len < data.len() {
             let buffer = device.create_buffer_init(&ike_wgpu::BufferInitDescriptor {
@@ -420,18 +422,18 @@ fn point_lights(lights: &[PointLightRaw]) -> [PointLightRaw; 64] {
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub(crate) struct TransformMaterial {
+pub(crate) struct InstanceData {
     pub transform: Mat4,
     pub albedo: [f32; 4],
     pub roughness: f32,
     pub metallic: f32,
     pub reflectance: f32,
-    pub flags: u32,
+    pub flags: PbrFlags,
     pub joint_count: u32,
     pub emissive: [f32; 3],
 }
 
-impl Default for TransformMaterial {
+impl Default for InstanceData {
     #[inline]
     fn default() -> Self {
         Self {
@@ -440,17 +442,19 @@ impl Default for TransformMaterial {
             roughness: 0.089,
             metallic: 0.01,
             reflectance: 0.5,
-            flags: 0,
+            flags: PbrFlags::EMPTY,
             joint_count: 0,
             emissive: [0.0; 3],
         }
     }
 }
 
-impl TransformMaterial {
+impl InstanceData {
     #[inline]
-    pub fn new(transform: Mat4, material: &PbrMaterial, mut flags: u32) -> Self {
-        material.flags(&mut flags);
+    pub fn new(transform: Mat4, material: &PbrMaterial, mut flags: PbrFlags) -> Self {
+        if material.normal_map.is_some() {
+            flags |= PbrFlags::NORMAL_MAP;
+        }
 
         Self {
             transform,
@@ -477,7 +481,7 @@ impl Drawable for Mesh {
         node.meshes.add_instance(
             ctx,
             self,
-            bytes_of(&TransformMaterial::default()),
+            bytes_of(&InstanceData::default()),
             ike_wgpu::FilterMode::Linear,
             None,
             None,
@@ -495,7 +499,7 @@ impl Drawable for (&Mesh, &Transform3d) {
         node.meshes.add_instance(
             ctx,
             self.0,
-            bytes_of(&TransformMaterial {
+            bytes_of(&InstanceData {
                 transform: self.1.matrix(),
                 ..Default::default()
             }),
@@ -516,7 +520,7 @@ impl Drawable for (&Mesh, &Transform3d, &PbrMaterial<'_>) {
         node.meshes.add_instance(
             ctx,
             self.0,
-            bytes_of(&TransformMaterial::new(self.1.matrix(), self.2, 0)),
+            bytes_of(&InstanceData::new(self.1.matrix(), self.2, PbrFlags::EMPTY)),
             self.2.filter_mode,
             None,
             self.2.albedo_texture.as_ref().map(AsRef::as_ref),

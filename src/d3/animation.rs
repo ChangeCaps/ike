@@ -120,7 +120,7 @@ impl Interpolation {
                     SampleOutput::MorphTargetWeight(a + s * (b - a))
                 }
             },
-            _ => unimplemented!(),
+            Interpolation::Step => a.clone(),
         }
     }
 }
@@ -144,8 +144,20 @@ impl std::fmt::Debug for AnimationSampler {
 impl AnimationSampler {
     #[inline]
     pub fn sample(&self, t: f32) -> Option<SampleOutput> {
-        let (_, less) = self.samples.range(..SampleInput(t)).last()?;
-        let (_, more) = self.samples.range(SampleInput(t)..).next()?;
+        let less = self.samples.range(..SampleInput(t)).last();
+        let more = self.samples.range(SampleInput(t)..).next();
+
+        let less = if let Some((_, less)) = less {
+            less
+        } else {
+            return Some(more?.1.output.clone());
+        };
+
+        let more = if let Some((_, more)) = more {
+            more
+        } else {
+            return Some(less.output.clone());
+        };
 
         let s = (t - less.input) / (more.input - less.input);
 
@@ -158,8 +170,64 @@ impl AnimationSampler {
 }
 
 #[derive(Clone, Debug)]
+pub enum AnimationIdent<'a> {
+    Animation(&'a Animation),
+    Index(usize),
+    Name(&'a str),
+}
+
+impl From<usize> for AnimationIdent<'_> {
+    #[inline]
+    fn from(index: usize) -> Self {
+        Self::Index(index)
+    }
+}
+
+impl<'a> From<&'a str> for AnimationIdent<'a> {
+    #[inline]
+    fn from(name: &'a str) -> Self {
+        Self::Name(name)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct Animation {
     pub name: Option<String>,
     pub channels: Vec<AnimationChannel>,
     pub samplers: Vec<AnimationSampler>,
 }
+
+#[derive(Clone, Debug)]
+pub struct Animations {
+    pub animations: Vec<Animation>,
+}
+
+impl Animations {
+    #[inline]
+    pub fn get<'a>(&'a self, ident: impl Into<AnimationIdent<'a>>) -> Option<&Animation> {
+        match ident.into() {
+            AnimationIdent::Animation(animation) => Some(animation),
+            AnimationIdent::Index(idx) => self.animations.get(idx),
+            AnimationIdent::Name(name) => self
+                .animations
+                .iter()
+                .find(|anim| anim.name.as_ref().map(|n| n == name).unwrap_or(false)),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum AnimationError {
+    AnimationNotFound,
+}
+
+impl std::fmt::Display for AnimationError {
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::AnimationNotFound => write!(f, "Animation not found in Animations"),
+        } 
+    }
+}
+
+impl std::error::Error for AnimationError {}

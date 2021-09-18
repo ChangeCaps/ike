@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    Animation, AnimationChannel, AnimationProperty, AnimationSample, AnimationSampler,
+    Animation, AnimationChannel, AnimationProperty, AnimationSample, AnimationSampler, Animations,
     ChannelTarget, Interpolation, Mesh, PbrMaterial, PbrMesh, PbrNode, PbrScene, SampleInput,
     SampleOutput, Skeleton, Transform3d,
 };
@@ -322,7 +322,7 @@ impl PbrScene {
             root_nodes,
             nodes,
             skeletons,
-            animations,
+            animations: Animations { animations },
         })
     }
 }

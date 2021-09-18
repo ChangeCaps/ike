@@ -68,16 +68,18 @@ impl State for GameState {
 
     #[inline]
     fn render(&mut self, ctx: &mut UpdateCtx) {
+        let t = std::time::Instant::now();
         for x in -20..=20 {
             for z in -20..=20 {
                 let transform = Transform3d::from_xyz(x as f32 * 2.0, 0.0, z as f32 * 2.0);
-
+                
                 let mut scene = self.scene.transform(&transform);
-                scene.animate(0, (self.time * 0.2 + x as f32 * 0.4 + z as f32 * 0.1) % 0.95);
+                scene.animate("Walk", (self.time * 0.2 + x as f32 * 0.4 + z as f32 * 0.1) % 1.0).unwrap();
                 ctx.draw(&scene);
             }
-        }        
-        
+        }
+        println!("{:?}", std::time::Instant::now() - t);
+
         ctx.draw(&self.light);
 
         self.camera.projection.scale(ctx.window.size);
