@@ -37,7 +37,7 @@ impl GameState {
             },
             camera_rot: Vec2::new(0.4, 0.3),
             font: Font::load("assets/font.ttf", 100.0).unwrap(),
-            scene: PbrScene::load_gltf("assets/SciFiHelmet.gltf").unwrap(),
+            scene: PbrScene::load_gltf("assets/sponza/Sponza.gltf").unwrap(),
             time: 0.0,
             sky_texture: Texture::load("assets/hdr.png").unwrap(),
             num: 3,
