@@ -1,16 +1,13 @@
-use super::{
-    sprite::{BatchedSprite, Sprites},
-    transform2d::Transform2d,
-};
+use super::sprite::{BatchedSprite, Sprites};
 use crate::{
     id::{HasId, Id},
-    prelude::{Camera, Font},
+    prelude::{Camera, Font, Transform3d},
     renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat},
     texture::Texture,
 };
 use bytemuck::{cast_slice, Pod, Zeroable};
-use glam::Vec2;
-use std::collections::HashMap;
+use glam::{DAffine2, Vec2, Vec3};
+use std::{borrow::Cow, collections::HashMap};
 
 fn create_pipeline(
     ctx: &RenderCtx,
@@ -64,22 +61,22 @@ fn create_pipeline(
             vertex: ike_wgpu::VertexState {
                 module: &shader_module,
                 buffers: &[ike_wgpu::VertexBufferLayout {
-                    array_stride: 36,
+                    array_stride: 40,
                     step_mode: ike_wgpu::VertexStepMode::Vertex,
                     attributes: &[
                         ike_wgpu::VertexAttribute {
-                            format: ike_wgpu::VertexFormat::Float32x3,
+                            format: ike_wgpu::VertexFormat::Float32x4,
                             offset: 0,
                             shader_location: 0,
                         },
                         ike_wgpu::VertexAttribute {
                             format: ike_wgpu::VertexFormat::Float32x2,
-                            offset: 12,
+                            offset: 16,
                             shader_location: 1,
                         },
                         ike_wgpu::VertexAttribute {
                             format: ike_wgpu::VertexFormat::Float32x4,
-                            offset: 20,
+                            offset: 24,
                             shader_location: 2,
                         },
                     ],
@@ -113,21 +110,23 @@ fn create_pipeline(
 }
 
 pub struct TextSprite<'a> {
-    pub transform: Transform2d,
+    pub transform: Transform3d,
     pub depth: f32,
     pub size: f32,
-    pub text: &'a str,
+    pub text: Cow<'a, str>,
+    pub filter_mode: ike_wgpu::FilterMode,
     pub font: &'a Font,
 }
 
 impl<'a> TextSprite<'a> {
     #[inline]
-    pub fn new(font: &'a Font, transform: Transform2d) -> Self {
+    pub fn new(font: &'a Font, transform: Transform3d) -> Self {
         Self {
             transform,
             depth: 0.0,
             size: 10.0,
-            text: "",
+            text: Cow::Borrowed(""),
+            filter_mode: ike_wgpu::FilterMode::Linear,
             font,
         }
     }
@@ -148,8 +147,10 @@ impl Drawable for TextSprite<'_> {
                 continue;
             };
 
-            width += glyph.width() as f32 / self.font.texture.width() as f32;
             height = height.max(glyph.height() as f32);
+            width += glyph.size.x * self.size
+                + glyph.left_bearing * self.size
+                + glyph.right_bearing * self.size;
         }
 
         let texture = self.font.texture.texture(ctx);
@@ -163,40 +164,45 @@ impl Drawable for TextSprite<'_> {
                 continue;
             };
 
+            x += glyph.left_bearing * self.size + glyph.size.x / 2.0 * self.size;
+
             let mut transform = self.transform.clone();
+            transform.translation.y += glyph.line_height * self.size;
             transform.translation.x += x;
 
             let sprite = BatchedSprite {
                 transform: transform.matrix(),
                 depth: self.depth,
-                width: glyph.width() as f32 / height * self.size,
-                height: glyph.height() as f32 / height * self.size,
+                width: glyph.size.x * self.size,
+                height: glyph.size.y * self.size,
                 min: glyph.min.as_f32() / self.font.texture.size().as_f32(),
                 max: glyph.max.as_f32() / self.font.texture.size().as_f32(),
                 texture_id: self.font.texture.id(),
+                filter_mode: self.filter_mode,
                 view: texture.create_view(&Default::default()),
             };
 
             node.sprites.draw(sprite);
 
-            x += glyph.width() as f32 / height * self.size;
+            x += glyph.size.x / 2.0 * self.size + glyph.right_bearing * self.size;
         }
     }
 }
 
 pub struct Sprite<'a> {
-    pub transform: Transform2d,
+    pub transform: Transform3d,
     pub depth: f32,
     pub width: f32,
     pub height: f32,
     pub min: Vec2,
     pub max: Vec2,
+    pub filter_mode: ike_wgpu::FilterMode,
     pub texture: &'a Texture,
 }
 
 impl<'a> Sprite<'a> {
     #[inline]
-    pub fn new(texture: &'a Texture, transform: Transform2d) -> Self {
+    pub fn new(texture: &'a Texture, transform: Transform3d) -> Self {
         Self {
             transform: transform.clone(),
             depth: 0.0,
@@ -204,12 +210,13 @@ impl<'a> Sprite<'a> {
             height: texture.height() as f32,
             min: Vec2::ZERO,
             max: Vec2::ONE,
+            filter_mode: ike_wgpu::FilterMode::Nearest,
             texture,
         }
     }
 
     #[inline]
-    pub fn offset(&mut self, offset: Vec2) {
+    pub fn offset(&mut self, offset: Vec3) {
         self.transform.translation += offset;
     }
 }
@@ -227,6 +234,7 @@ impl Drawable for Sprite<'_> {
             min: self.min,
             max: self.max,
             texture_id: self.texture.id(),
+            filter_mode: self.filter_mode,
             view: self.texture.texture(ctx).create_view(&Default::default()),
         };
 
@@ -237,20 +245,21 @@ impl Drawable for Sprite<'_> {
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct Vertex2d {
-    position: [f32; 3],
+    position: [f32; 4],
     uv: [f32; 2],
     color: [f32; 4],
 }
 
 struct Draw {
     id: Id<Texture>,
+    filter_mode: ike_wgpu::FilterMode,
     vertex_count: u32,
     vertices: ike_wgpu::Buffer,
 }
 
 pub struct SpriteNode2d {
     draws: Vec<Draw>,
-    bind_groups: HashMap<Id<Texture>, ike_wgpu::BindGroup>,
+    bind_groups: HashMap<(Id<Texture>, ike_wgpu::FilterMode), ike_wgpu::BindGroup>,
     pipelines: HashMap<ike_wgpu::TextureFormat, ike_wgpu::RenderPipeline>,
     sprites: Sprites,
 }
@@ -306,6 +315,7 @@ impl<S> PassNode<S> for SpriteNode2d {
             id: Id<Texture>,
             depth: f32,
             vertices: [Vertex2d; 6],
+            filter_mode: ike_wgpu::FilterMode,
             view: &'a ike_wgpu::TextureView,
         }
 
@@ -318,20 +328,20 @@ impl<S> PassNode<S> for SpriteNode2d {
                 let w = sprite.width / 2.0;
                 let h = sprite.height / 2.0;
 
-                let bl = Vec2::new(-w, -h);
-                let tl = Vec2::new(-w, h);
-                let br = Vec2::new(w, -h);
-                let tr = Vec2::new(w, h);
+                let bl = Vec3::new(-w, -h, 0.0);
+                let tl = Vec3::new(-w, h, 0.0);
+                let br = Vec3::new(w, -h, 0.0);
+                let tr = Vec3::new(w, h, 0.0);
 
-                let bl = sprite.transform.transform_point2(bl);
-                let tl = sprite.transform.transform_point2(tl);
-                let br = sprite.transform.transform_point2(br);
-                let tr = sprite.transform.transform_point2(tr);
+                let bl = sprite.transform.transform_point3(bl);
+                let tl = sprite.transform.transform_point3(tl);
+                let br = sprite.transform.transform_point3(br);
+                let tr = sprite.transform.transform_point3(tr);
 
-                let bl = view_proj.transform_point3(bl.extend(sprite.depth));
-                let tl = view_proj.transform_point3(tl.extend(sprite.depth));
-                let br = view_proj.transform_point3(br.extend(sprite.depth));
-                let tr = view_proj.transform_point3(tr.extend(sprite.depth));
+                let bl = view_proj * bl.extend(1.0);
+                let tl = view_proj * tl.extend(1.0);
+                let br = view_proj * br.extend(1.0);
+                let tr = view_proj * tr.extend(1.0);
 
                 // calculate average depth
                 let depth = (bl.z + tl.z + br.z + tr.z) / 4.0;
@@ -371,6 +381,7 @@ impl<S> PassNode<S> for SpriteNode2d {
                             color: [1.0; 4],
                         },
                     ],
+                    filter_mode: sprite.filter_mode,
                     view: &sprite.view,
                 }
             })
@@ -378,14 +389,14 @@ impl<S> PassNode<S> for SpriteNode2d {
 
         sprites.sort_by(|a, b| b.depth.partial_cmp(&a.depth).unwrap());
 
-        let mut current_id: Option<Id<Texture>> = None;
+        let mut current_id: Option<(Id<Texture>, ike_wgpu::FilterMode)> = None;
         let mut vertices: Vec<Vertex2d> = Vec::new();
 
         let draw = |draws: &mut Vec<Draw>,
                     ctx: &mut PassNodeCtx,
                     vertices: &[Vertex2d],
-                    current_id: &Option<Id<Texture>>| {
-            if let Some(current_id) = current_id {
+                    current_id: &Option<(Id<Texture>, ike_wgpu::FilterMode)>| {
+            if let Some((current_id, filter_mode)) = current_id {
                 let vertex_buffer =
                     ctx.render_ctx
                         .device
@@ -398,6 +409,7 @@ impl<S> PassNode<S> for SpriteNode2d {
 
                 draws.push(Draw {
                     id: *current_id,
+                    filter_mode: *filter_mode,
                     vertices: vertex_buffer,
                     vertex_count: vertices.len() as u32,
                 });
@@ -405,11 +417,18 @@ impl<S> PassNode<S> for SpriteNode2d {
         };
 
         for sprite_draw in sprites {
-            if !self.bind_groups.contains_key(&sprite_draw.id) {
+            if !self
+                .bind_groups
+                .contains_key(&(sprite_draw.id, sprite_draw.filter_mode))
+            {
                 let sampler = ctx
                     .render_ctx
                     .device
-                    .create_sampler(&ike_wgpu::SamplerDescriptor::default());
+                    .create_sampler(&ike_wgpu::SamplerDescriptor {
+                        min_filter: sprite_draw.filter_mode,
+                        mag_filter: sprite_draw.filter_mode,
+                        ..Default::default()
+                    });
 
                 let layout = ctx.render_ctx.device.create_bind_group_layout(
                     &ike_wgpu::BindGroupLayoutDescriptor {
@@ -460,14 +479,15 @@ impl<S> PassNode<S> for SpriteNode2d {
                             ],
                         });
 
-                self.bind_groups.insert(sprite_draw.id, bind_group);
+                self.bind_groups
+                    .insert((sprite_draw.id, sprite_draw.filter_mode), bind_group);
             }
 
-            if current_id != Some(sprite_draw.id) {
+            if current_id != Some((sprite_draw.id, sprite_draw.filter_mode)) {
                 draw(&mut self.draws, ctx, &vertices, &current_id);
 
                 vertices.clear();
-                current_id = Some(sprite_draw.id);
+                current_id = Some((sprite_draw.id, sprite_draw.filter_mode));
             }
 
             vertices.push(sprite_draw.vertices[0]);
@@ -483,8 +503,11 @@ impl<S> PassNode<S> for SpriteNode2d {
         }
 
         for draw in &self.draws {
-            ctx.render_pass
-                .set_bind_group(0, self.bind_groups.get(&draw.id).unwrap(), &[]);
+            ctx.render_pass.set_bind_group(
+                0,
+                self.bind_groups.get(&(draw.id, draw.filter_mode)).unwrap(),
+                &[],
+            );
             ctx.render_pass
                 .set_vertex_buffer(0, draw.vertices.slice(..));
 

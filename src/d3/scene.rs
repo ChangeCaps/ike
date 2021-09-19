@@ -166,7 +166,7 @@ impl<'a> PosedPbrScene<'a> {
         let animation = self
             .animations
             .get(animation)
-            .ok_or_else(|| AnimationError::AnimationNotFound)?; 
+            .ok_or_else(|| AnimationError::AnimationNotFound)?;
 
         for channel in &animation.channels {
             let sampler = &animation.samplers[channel.sampler];
@@ -201,7 +201,8 @@ impl Drawable for PosedPbrScene<'_> {
         let inverse_global_transform = self.transform.matrix().inverse();
 
         for skeleton in self.skeletons.values() {
-            let mut matrices = skeleton.joint_matrices(inverse_global_transform, &global_transforms);
+            let mut matrices =
+                skeleton.joint_matrices(inverse_global_transform, &global_transforms);
 
             let joint_matrices = d3_node
                 .meshes

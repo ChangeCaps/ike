@@ -200,7 +200,7 @@ impl PbrNode {
                         position: positions[i],
                         normal: normals[i],
                         tangent: tangents[i],
-                        bitangent: tangents[i].cross(normals[i]),
+                        bitangent: normals[i].cross(tangents[i]),
                         uv: uvs[i],
                         color: colors[i],
                         joints: joints[i],

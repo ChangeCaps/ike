@@ -719,6 +719,7 @@ impl<S> PassNode<S> for D3Node {
     fn run<'a>(&'a mut self, ctx: &mut PassNodeCtx<'_, 'a>, _: &mut S) {
         self.create_default_texture(ctx.render_ctx);
         self.create_textures_layout(ctx.render_ctx);
+        self.create_default_joint_matrices_bind_group(ctx.render_ctx);
 
         let sample_count = ctx.data.get::<SampleCount>().unwrap_or(&SampleCount(1));
         let format = ctx

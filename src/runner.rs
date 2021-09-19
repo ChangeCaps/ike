@@ -31,7 +31,10 @@ async unsafe fn wgpu_init(window: &winit::window::Window) -> anyhow::Result<Rend
             &wgpu::DeviceDescriptor {
                 label: Some("main device"),
                 features: wgpu::Features::empty(),
-                limits: wgpu::Limits::default(),
+                limits: wgpu::Limits {
+                    max_texture_dimension_2d: 16_384,
+                    ..Default::default()
+                },
             },
             None,
         )

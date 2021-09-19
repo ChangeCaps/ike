@@ -5,10 +5,14 @@ use glam::{UVec2, Vec2};
 
 use crate::prelude::{Color, Color8, Texture};
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RawGlyph {
     pub min: UVec2,
     pub max: UVec2,
+    pub size: Vec2,
+    pub line_height: f32,
+    pub left_bearing: f32,
+    pub right_bearing: f32,
 }
 
 impl RawGlyph {
@@ -68,7 +72,8 @@ impl Font {
             }
         }
 
-        width = (width as f32).sqrt().round() as usize;
+        let area = width * row_height;
+        width = (area as f32).sqrt().round() as usize;
 
         row_height += 2;
 
@@ -80,7 +85,7 @@ impl Font {
 
         let mut glyphs = HashMap::new();
 
-        for (_glyph, c) in font.codepoint_ids() {
+        for (_, c) in font.codepoint_ids() {
             let glyph = font.scaled_glyph(c);
 
             if let Some(outlined) = font.outline_glyph(glyph) {
@@ -96,11 +101,20 @@ impl Font {
                     height += row_height;
                 }
 
+                let y_bound = bounds.min.y / row_height as f32;
+
+                let advance = font.h_advance(outlined.glyph().id) / row_height as f32;
+                let side_bearing = font.h_side_bearing(outlined.glyph().id) / row_height as f32;
+
                 glyphs.insert(
                     c,
                     RawGlyph {
                         min: UVec2::new(x as u32, y as u32),
                         max: UVec2::new(x_end as u32, y as u32 + bounds.height() as u32),
+                        size: Vec2::new(bounds.width(), bounds.height()) / row_height as f32,
+                        line_height: -y_bound / 2.0,
+                        left_bearing: side_bearing,
+                        right_bearing: advance - bounds.width() / row_height as f32 - side_bearing,
                     },
                 );
 

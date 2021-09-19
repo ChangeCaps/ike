@@ -43,7 +43,7 @@ pub mod prelude {
     #[cfg(feature = "3d")]
     pub use crate::d3::{
         Animation, D3Node, Mesh, MeshData, PbrMaterial, PbrMesh, PbrNode, PbrScene, PointLight,
-        Transform3d, Vertex,
+        SkyNode, Transform3d, Vertex, SkyTexture,
     };
     #[cfg(feature = "debug")]
     pub use crate::debug::{DebugLine, DebugMesh, DebugNode};
