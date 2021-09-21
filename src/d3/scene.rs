@@ -4,7 +4,7 @@ use bytemuck::bytes_of;
 use glam::Mat4;
 
 use crate::{
-    d3::{InstanceData, SampleOutput},
+    d3::SampleOutput,
     id::HasId,
     prelude::{Color, DebugLine, UpdateCtx},
     renderer::{Drawable, RenderCtx},
@@ -18,7 +18,7 @@ use super::{
 #[derive(Clone, Debug)]
 pub struct PbrMesh {
     pub mesh: Mesh,
-    pub material: PbrMaterial<'static>,
+    pub material: PbrMaterial,
 }
 
 #[derive(Clone)]
@@ -129,9 +129,9 @@ impl<'a> PosedPbrScene<'a> {
     }
 
     #[inline]
-    pub fn global_transforms(&self) -> Vec<Transform3d> {
+    pub fn node_transforms(&self) -> Vec<Transform3d> {
         #[inline]
-        fn global_transform(
+        fn recurse(
             nodes: &HashMap<usize, PosedPbrNode>,
             matrices: &mut [Transform3d],
             idx: &usize,
@@ -142,7 +142,7 @@ impl<'a> PosedPbrScene<'a> {
             let node_transform = transform * &node.transform;
 
             for idx in node.children {
-                global_transform(nodes, matrices, idx, &node_transform);
+                recurse(nodes, matrices, idx, &node_transform);
             }
 
             matrices[*idx] = node_transform;
@@ -151,7 +151,7 @@ impl<'a> PosedPbrScene<'a> {
         let mut transforms = vec![Transform3d::IDENTITY; self.nodes.len()];
 
         for idx in self.root_nodes {
-            global_transform(&self.nodes, &mut transforms, idx, &self.transform);
+            recurse(&self.nodes, &mut transforms, idx, &Transform3d::IDENTITY);
         }
 
         transforms
@@ -189,75 +189,123 @@ impl<'a> PosedPbrScene<'a> {
 
         Ok(())
     }
+
+    #[inline]
+    pub fn instanced<'b>(&'b self, instances: &'b [Mat4]) -> InstancedPosedPbrScene<'b, 'a> {
+        InstancedPosedPbrScene {
+            scene: self,
+            instances,
+        }
+    }
 }
 
 impl Drawable for PosedPbrScene<'_> {
-    type Node = D3Node;
+    type Node = &'static mut D3Node;
 
     #[inline]
-    fn draw(&self, ctx: &RenderCtx, d3_node: &mut Self::Node) {
-        let global_transforms = self.global_transforms();
+    fn draw(&self, ctx: &RenderCtx, d3_node: &mut D3Node) {
+        let node_transforms = self.node_transforms();
 
-        let inverse_global_transform = self.transform.matrix().inverse();
+        let global_transform = self.transform.matrix();
 
         for skeleton in self.skeletons.values() {
-            let mut matrices =
-                skeleton.joint_matrices(inverse_global_transform, &global_transforms);
+            let matrices = skeleton.joint_matrices(&node_transforms);
 
-            let joint_matrices = d3_node
+            d3_node
                 .meshes
-                .joint_matrices
-                .entry(skeleton.id())
-                .or_default();
-
-            joint_matrices.joint_matrices.append(&mut matrices)
+                .register_joint_matrices(skeleton.id(), &matrices);
         }
 
         for (idx, node) in &self.nodes {
+            let transform = &(node_transforms[*idx].matrix() * global_transform);
+
             if let Some(ref skeleton) = node.skeleton {
                 let skeleton = &self.skeletons[skeleton];
 
                 for mesh in node.meshes {
+                    d3_node.meshes.register_material(ctx, &mesh.material);
+
                     d3_node.meshes.add_instance(
                         ctx,
                         &mesh.mesh,
-                        bytes_of(&InstanceData {
-                            joint_count: skeleton.joints.len() as u32,
-                            ..InstanceData::new(
-                                global_transforms[*idx].matrix(),
-                                &mesh.material,
-                                PbrFlags::SKINNED,
-                            )
-                        }),
-                        mesh.material.filter_mode,
-                        Some(skeleton.id()),
-                        mesh.material.albedo_texture.as_ref().map(AsRef::as_ref),
-                        mesh.material
-                            .metallic_roughness_texture
-                            .as_ref()
-                            .map(AsRef::as_ref),
-                        mesh.material.normal_map.as_ref().map(AsRef::as_ref),
+                        &Some(&mesh.material),
+                        Some((skeleton.id(), skeleton.joints.len() as u32)),
+                        bytes_of(transform),
                     );
                 }
             } else {
                 for mesh in node.meshes {
+                    d3_node.meshes.register_material(ctx, &mesh.material);
+
                     d3_node.meshes.add_instance(
                         ctx,
                         &mesh.mesh,
-                        bytes_of(&InstanceData::new(
-                            global_transforms[*idx].matrix(),
-                            &mesh.material,
-                            PbrFlags::EMPTY,
-                        )),
-                        mesh.material.filter_mode,
+                        &Some(&mesh.material),
                         None,
-                        mesh.material.albedo_texture.as_ref().map(AsRef::as_ref),
-                        mesh.material
-                            .metallic_roughness_texture
-                            .as_ref()
-                            .map(AsRef::as_ref),
-                        mesh.material.normal_map.as_ref().map(AsRef::as_ref),
+                        bytes_of(transform),
                     );
+                }
+            }
+        }
+    }
+}
+
+pub struct InstancedPosedPbrScene<'a, 'b> {
+    pub scene: &'a PosedPbrScene<'b>,
+    pub instances: &'a [Mat4],
+}
+
+impl Drawable for InstancedPosedPbrScene<'_, '_> {
+    type Node = &'static mut D3Node;
+
+    #[inline]
+    fn draw(&self, ctx: &RenderCtx, d3_node: &mut D3Node) {
+        let node_transforms = self.scene.node_transforms();
+
+        let global_transform = self.scene.transform.matrix();
+
+        for skeleton in self.scene.skeletons.values() {
+            let matrices = skeleton.joint_matrices(&node_transforms);
+
+            for _instance in self.instances {
+                d3_node
+                    .meshes
+                    .register_joint_matrices(skeleton.id(), &matrices);
+            }
+        }
+
+        for (idx, node) in &self.scene.nodes {
+            let transform = &(node_transforms[*idx].matrix() * global_transform);
+
+            if let Some(ref skeleton) = node.skeleton {
+                let skeleton = &self.scene.skeletons[skeleton];
+
+                for mesh in node.meshes {
+                    d3_node.meshes.register_material(ctx, &mesh.material);
+
+                    for instance in self.instances {
+                        d3_node.meshes.add_instance(
+                            ctx,
+                            &mesh.mesh,
+                            &Some(&mesh.material),
+                            Some((skeleton.id(), skeleton.joints.len() as u32)),
+                            bytes_of(&(*instance * *transform)),
+                        );
+                    }
+                }
+            } else {
+                for mesh in node.meshes {
+                    d3_node.meshes.register_material(ctx, &mesh.material);
+
+                    for instance in self.instances {
+                        d3_node.meshes.add_instance(
+                            ctx,
+                            &mesh.mesh,
+                            &Some(&mesh.material),
+                            None,
+                            bytes_of(&(*instance * *transform)),
+                        );
+                    }
                 }
             }
         }

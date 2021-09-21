@@ -3,26 +3,38 @@ use std::collections::HashMap;
 use bytemuck::bytes_of;
 use glam::Mat4;
 
-use crate::{id::{HasId, Id}, prelude::{Camera, Texture}, renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat}};
+use crate::{cube_texture::CubeTexture, id::{HasId, Id}, prelude::{Camera, HdrTexture}, renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat}};
+
+use super::D3Node;
 
 pub struct SkyTexture<'a> {
-	pub texture: &'a Texture,
+    pub texture: &'a CubeTexture,
 }
 
 impl<'a> SkyTexture<'a> {
-	#[inline]
-	pub fn new(texture: &'a Texture) -> Self {
-		Self { texture }
-	}
+    #[inline]
+    pub fn new(texture: &'a CubeTexture) -> Self {
+        Self { texture }
+    }
 }
 
 impl Drawable for SkyTexture<'_> {
-	type Node = SkyNode;
+    type Node = (Option<&'static mut SkyNode>, Option<&'static mut D3Node>);
 
-	#[inline]
-	fn draw(&self, ctx: &RenderCtx, node: &mut Self::Node) {
-		node.set_texture(ctx, self.texture);
-	}
+    #[inline]
+    fn draw(
+        &self,
+        ctx: &RenderCtx,
+        (sky_node, d3_node): (Option<&mut SkyNode>, Option<&mut D3Node>),
+    ) {
+        if let Some(sky_node) = sky_node {
+            sky_node.set_texture(ctx, self.texture);
+        }
+
+        if let Some(d3_node) = d3_node {
+            d3_node.set_env_texture(ctx, self.texture);
+        }
+    }
 }
 
 #[repr(C)]
@@ -34,7 +46,7 @@ struct Uniforms {
 
 #[derive(Default)]
 pub struct SkyNode {
-    current_texture: Option<Id<Texture>>,
+    current_texture: Option<Id<CubeTexture>>,
     uniform_buffer: Option<ike_wgpu::Buffer>,
     bind_group_layout: Option<ike_wgpu::BindGroupLayout>,
     bind_group: Option<ike_wgpu::BindGroup>,
@@ -71,9 +83,9 @@ impl SkyNode {
                                 binding: 1,
                                 ty: ike_wgpu::BindingType::Texture {
                                     sample_type: ike_wgpu::TextureSampleType::Float {
-                                        filterable: true,
+                                        filterable: false,
                                     },
-                                    view_dimension: ike_wgpu::TextureViewDimension::D2,
+                                    view_dimension: ike_wgpu::TextureViewDimension::Cube,
                                     multisampled: false,
                                 },
                                 visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,
@@ -97,14 +109,14 @@ impl SkyNode {
     }
 
     #[inline]
-    fn set_texture(&mut self, ctx: &RenderCtx, texture: &Texture) {
-		if self.current_texture == Some(texture.id()) {
-			return;
-		}
-		
-		if self.bind_group_layout.is_none() {
-			self.create_resources(ctx);
-		}
+    fn set_texture(&mut self, ctx: &RenderCtx, texture: &CubeTexture) {
+        if self.current_texture == Some(texture.id()) {
+            return;
+        }
+
+        if self.bind_group_layout.is_none() {
+            self.create_resources(ctx);
+        }
 
         let bind_group = ctx
             .device
@@ -115,12 +127,12 @@ impl SkyNode {
                     ike_wgpu::BindGroupEntry {
                         binding: 0,
                         resource: self.uniform_buffer.as_ref().unwrap().as_entire_binding(),
-                    }, 
+                    },
                     ike_wgpu::BindGroupEntry {
                         binding: 1,
                         resource: ike_wgpu::BindingResource::TextureView(
-                            &texture.texture(ctx).create_view(&Default::default()),
-                        ), 
+                            &texture.view(ctx),
+                        ),
                     },
                     ike_wgpu::BindGroupEntry {
                         binding: 2,
@@ -191,11 +203,11 @@ impl SkyNode {
 impl<S> PassNode<S> for SkyNode {
     #[inline]
     fn run<'a>(&'a mut self, ctx: &mut PassNodeCtx<'_, 'a>, _: &mut S) {
-		let bind_group = if let Some(ref bind_group) = self.bind_group {
-			bind_group
-		} else {
-			return;
-		};
+        let bind_group = if let Some(ref bind_group) = self.bind_group {
+            bind_group
+        } else {
+            return;
+        };
 
         let sample_count = ctx.data.get::<SampleCount>().unwrap_or(&SampleCount(1));
         let format = ctx
@@ -227,8 +239,7 @@ impl<S> PassNode<S> for SkyNode {
 
         ctx.render_pass.set_pipeline(pipeline);
 
-        ctx.render_pass
-            .set_bind_group(0, bind_group, &[]);
+        ctx.render_pass.set_bind_group(0, bind_group, &[]);
 
         ctx.render_pass.draw(0..3, 0..1);
     }

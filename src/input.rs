@@ -74,6 +74,7 @@ impl<T: Eq + Hash + Clone> Default for Input<T> {
 pub struct Mouse {
     pub prev_position: Vec2,
     pub position: Vec2,
+    pub movement: Vec2,
     pub wheel_delta: Vec2,
 }
 
@@ -81,5 +82,12 @@ impl Mouse {
     #[inline]
     pub fn delta(&self) -> Vec2 {
         self.position - self.prev_position
+    }
+
+    #[inline]
+    pub fn update(&mut self) {
+        self.prev_position = self.position;
+        self.movement = Vec2::ZERO;
+        self.wheel_delta = Vec2::ZERO;
     }
 }

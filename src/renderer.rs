@@ -7,9 +7,9 @@ use std::{
 use crate::{type_name::TypeName, view::View};
 
 pub trait Drawable {
-    type Node;
+    type Node: for<'a> FramePassFetch<'a>;
 
-    fn draw(&self, ctx: &RenderCtx, node: &mut Self::Node);
+    fn draw(&self, ctx: &RenderCtx, node: <Self::Node as FramePassFetch<'_>>::Item);
 }
 
 pub struct PassNodeCtx<'a, 'b> {
@@ -329,10 +329,10 @@ impl<S> Default for Renderer<S> {
     }
 }
 
-trait FramePass {
+pub trait FramePass {
     fn clear(&mut self);
 
-    fn node_mut(&mut self, name: &'static str) -> Option<*mut u8>;
+    unsafe fn node_mut(&self, name: &'static str) -> Option<*mut u8>;
 }
 
 impl<S> FramePass for Pass<S> {
@@ -344,10 +344,10 @@ impl<S> FramePass for Pass<S> {
     }
 
     #[inline]
-    fn node_mut(&mut self, name: &'static str) -> Option<*mut u8> {
-        self.nodes.iter_mut().find_map(|(ident, node)| {
+    unsafe fn node_mut(&self, name: &'static str) -> Option<*mut u8> {
+        self.nodes.iter().find_map(|(ident, node)| {
             if *ident == name {
-                Some(node.as_mut() as *mut _ as *mut _)
+                Some(node.as_ref() as *const _ as *mut _)
             } else {
                 None
             }
@@ -363,12 +363,85 @@ impl<'a> RenderFrame<'a> {
     #[inline]
     pub fn draw<D: Drawable>(&mut self, ctx: &RenderCtx, drawable: &D) {
         for pass in self.passes.values_mut() {
-            if let Some(node) = pass.node_mut(type_name::<D::Node>()) {
-                // SAFETY: the implementation on FramePass ensures that the type is always valid
-                let node = unsafe { &mut *(node as *mut D::Node) };
-
-                drawable.draw(ctx, node);
+            if let Some(item) = unsafe { <D::Node as FramePassFetch<'_>>::fetch(*pass) } {
+                drawable.draw(ctx, item);
             }
         }
     }
 }
+
+pub trait FramePassFetch<'a> {
+    type Item;
+
+    unsafe fn fetch(pass: &dyn FramePass) -> Option<Self::Item>;
+}
+
+impl<'a, P: 'static> FramePassFetch<'a> for &mut P {
+    type Item = &'a mut P;
+
+    #[inline]
+    unsafe fn fetch(pass: &dyn FramePass) -> Option<Self::Item> {
+        let node = unsafe { pass.node_mut(type_name::<P>())? };
+
+        unsafe { Some(&mut *(node as *mut P)) }
+    }
+}
+
+impl<'a, P: 'static> FramePassFetch<'a> for Option<&mut P> {
+    type Item = Option<&'a mut P>;
+
+    #[inline]
+    unsafe fn fetch(pass: &dyn FramePass) -> Option<Self::Item> {
+        Some(unsafe {
+            pass.node_mut(type_name::<P>())
+                .map(|node| &mut *(node as *mut P))
+        })
+    }
+}
+
+macro_rules! check {
+    ($to_check:ident | $($ident:ident),*) => {
+        check!($to_check: $($ident),*);
+    };
+    ($to_check:ident $(,)? $($rest:ident),+ | $($ident:ident),*) => {
+        check!($to_check: $($ident),*);
+
+        check!($($rest),* | $($ident),*);
+    };
+    ($to_check:ident: $($ident:ident),*) => {
+        if $((TypeId::of::<$to_check>() == TypeId::of::<$ident>() && stringify!($to_check) != stringify!($ident)))||* {
+            panic!("invalid FramePassFetch, '{}' fetched twice", type_name::<$to_check>());
+        }
+    }
+}
+
+macro_rules! impl_pass_fetch {
+    ($($ident:ident),*) => {
+        impl<'a, $($ident: FramePassFetch<'a> + 'static),*> FramePassFetch<'a> for ($($ident,)*) {
+            type Item = ($(<$ident as FramePassFetch<'a>>::Item,)*);
+
+            #[inline]
+            unsafe fn fetch(pass: &dyn FramePass) -> Option<Self::Item> {
+                check!($($ident),* | $($ident),*);
+
+                Some(
+                    ($(unsafe { $ident::fetch(pass)? },)*)
+                )
+            }
+        }
+    };
+}
+
+impl_pass_fetch!(A);
+impl_pass_fetch!(A, B);
+impl_pass_fetch!(A, B, C);
+impl_pass_fetch!(A, B, C, D);
+impl_pass_fetch!(A, B, C, D, E);
+impl_pass_fetch!(A, B, C, D, E, F);
+impl_pass_fetch!(A, B, C, D, E, F, G);
+impl_pass_fetch!(A, B, C, D, E, F, G, H);
+impl_pass_fetch!(A, B, C, D, E, F, G, H, I);
+impl_pass_fetch!(A, B, C, D, E, F, G, H, I, J);
+impl_pass_fetch!(A, B, C, D, E, F, G, H, I, J, K);
+impl_pass_fetch!(A, B, C, D, E, F, G, H, I, J, K, L);
+impl_pass_fetch!(A, B, C, D, E, F, G, H, I, J, K, L, M);

@@ -71,6 +71,11 @@ impl<T> Id<T> {
     }
 
     #[inline]
+    pub fn num_ids() -> u64 {
+        NEXT_ID.load(Ordering::SeqCst) + 1
+    }
+
+    #[inline]
     pub fn cast<U>(self) -> Id<U> {
         Id(self.0, PhantomData)
     }

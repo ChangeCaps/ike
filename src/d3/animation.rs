@@ -22,7 +22,7 @@ pub struct AnimationChannel {
     pub sampler: usize,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SampleOutput {
     Translation(Vec3),
     Rotation(Quat),
@@ -81,7 +81,7 @@ impl Ord for SampleInput {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AnimationSample {
     pub input: f32,
     pub output: SampleOutput,
@@ -98,7 +98,7 @@ impl Interpolation {
     #[inline]
     pub fn interpolate(&self, s: f32, a: &SampleOutput, b: &SampleOutput) -> SampleOutput {
         match self {
-            Interpolation::Linear | Interpolation::CubicSpline => match a {
+            Interpolation::Linear => match a {
                 SampleOutput::Translation(a) => {
                     let b = b.unwrap_translation();
 
@@ -107,7 +107,11 @@ impl Interpolation {
                 SampleOutput::Rotation(a) => {
                     let b = b.unwrap_rotation();
 
-                    SampleOutput::Rotation(a.slerp(b, s))
+                    if a.dot(b) > 0.0 {
+                        SampleOutput::Rotation(a.slerp(b, s))
+                    } else {
+                        SampleOutput::Rotation((-*a).slerp(b, s))
+                    }
                 }
                 SampleOutput::Scale(a) => {
                     let b = b.unwrap_scale();
@@ -120,6 +124,7 @@ impl Interpolation {
                     SampleOutput::MorphTargetWeight(a + s * (b - a))
                 }
             },
+            Interpolation::CubicSpline => unimplemented!(),
             Interpolation::Step => a.clone(),
         }
     }
@@ -144,7 +149,7 @@ impl std::fmt::Debug for AnimationSampler {
 impl AnimationSampler {
     #[inline]
     pub fn sample(&self, t: f32) -> Option<SampleOutput> {
-        let less = self.samples.range(..SampleInput(t)).last();
+        let less = self.samples.range(..SampleInput(t)).next_back();
         let more = self.samples.range(SampleInput(t)..).next();
 
         let less = if let Some((_, less)) = less {

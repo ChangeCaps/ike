@@ -6,6 +6,11 @@ pub(crate) unsafe trait CommandEncoderTrait {
         desc: &crate::RenderPassDescriptor<'a, '_>,
     ) -> crate::RenderPass<'a>;
 
+    fn begin_compute_pass(
+        &mut self,
+        desc: &crate::ComputePassDescriptor<'_>,
+    ) -> crate::ComputePass<'_>;
+
     fn copy_texture_to_buffer(
         &mut self,
         source: crate::ImageCopyTexture<&crate::Texture>,
@@ -66,6 +71,16 @@ unsafe impl CommandEncoderTrait for wgpu::CommandEncoder {
     }
 
     #[inline]
+    fn begin_compute_pass(
+        &mut self,
+        desc: &crate::ComputePassDescriptor<'_>,
+    ) -> crate::ComputePass<'_> {
+        let pass = self.begin_compute_pass(&wgpu::ComputePassDescriptor { label: desc.label });
+
+        crate::ComputePass(Box::new(pass))
+    }
+
+    #[inline]
     fn copy_texture_to_buffer(
         &mut self,
         source: crate::ImageCopyTexture<&crate::Texture>,
@@ -102,6 +117,14 @@ impl CommandEncoder {
         desc: &crate::RenderPassDescriptor<'a, '_>,
     ) -> crate::RenderPass<'a> {
         self.0.begin_render_pass(desc)
+    }
+
+    #[inline]
+    pub fn begin_compute_pass(
+        &mut self,
+        desc: &crate::ComputePassDescriptor<'_>,
+    ) -> crate::ComputePass<'_> {
+        self.0.begin_compute_pass(desc)
     }
 
     #[inline]

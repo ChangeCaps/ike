@@ -6,11 +6,12 @@ pub struct PipelineLayoutDescriptor<'a> {
     pub push_constant_ranges: &'a [crate::PushConstantRange],
 }
 
-pub(crate) unsafe trait PipelineLayoutTrait {}
+pub(crate) unsafe trait PipelineLayoutTrait: std::fmt::Debug {}
 
 #[cfg(feature = "wgpu")]
 unsafe impl PipelineLayoutTrait for wgpu::PipelineLayout {}
 
+#[derive(Debug)]
 pub struct PipelineLayout(pub(crate) Box<dyn PipelineLayoutTrait>);
 
 pub struct VertexBufferLayout<'a> {

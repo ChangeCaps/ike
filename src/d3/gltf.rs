@@ -1,6 +1,6 @@
 use std::{borrow::Cow, collections::HashMap};
 
-use glam::{Mat4, Quat, Vec2, Vec3};
+use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
 use gltf::{
     animation::util::ReadOutputs,
     buffer,
@@ -10,7 +10,7 @@ use gltf::{
 
 use crate::{
     id::Id,
-    prelude::{Color, Color8, Texture, Vertex},
+    prelude::{Color, Color8, ColorSpace, Texture, Vertex},
 };
 
 use super::{
@@ -163,9 +163,9 @@ impl PbrNode {
                 };
 
                 let tangents = if let Some(tangents) = reader.read_tangents() {
-                    tangents.map(|v| Vec3::new(v[0], v[1], v[2])).collect()
+                    tangents.map(|v| v.into()).collect()
                 } else {
-                    vec![Vec3::X; len]
+                    vec![Vec4::X; len]
                 };
 
                 let uvs = if let Some(uvs) = reader.read_tex_coords(0) {
@@ -200,7 +200,6 @@ impl PbrNode {
                         position: positions[i],
                         normal: normals[i],
                         tangent: tangents[i],
-                        bitangent: normals[i].cross(tangents[i]),
                         uv: uvs[i],
                         color: colors[i],
                         joints: joints[i],
@@ -220,15 +219,17 @@ impl PbrNode {
 
                 let albedo_texture = pbr
                     .base_color_texture()
-                    .map(|info| Cow::Owned(texture(&images[info.texture().index()])));
+                    .map(|info| texture(&images[info.texture().source().index()]));
 
                 let metallic_roughness_texture = pbr
                     .metallic_roughness_texture()
-                    .map(|info| Cow::Owned(texture(&images[info.texture().index()])));
+                    .map(|info| texture(&images[info.texture().source().index()]));
 
-                let normal_map = material
-                    .normal_texture()
-                    .map(|info| Cow::Owned(texture(&images[info.texture().index()])));
+                let normal_map = material.normal_texture().map(|info| {
+                    let mut texture = texture(&images[info.texture().source().index()]);
+                    texture.set_color_space(ColorSpace::Linear);
+                    texture
+                });
 
                 let emissive = material.emissive_factor();
 
@@ -242,6 +243,8 @@ impl PbrNode {
                         roughness: pbr.roughness_factor(),
                         metallic: pbr.metallic_factor(),
                         emission: Color::rgba(emissive[0], emissive[1], emissive[2], 1.0),
+                        shadow_blocker_samples: 12,
+                        shadow_pcf_samples: 16,
                         ..Default::default()
                     },
                 });

@@ -6,8 +6,9 @@ use image::io::Reader;
 use once_cell::sync::OnceCell;
 
 use crate::{
+    color::Color16,
     id::{HasId, Id},
-    prelude::Color8,
+    prelude::{Color, Color8},
     renderer::RenderCtx,
 };
 
@@ -21,26 +22,86 @@ impl Default for TextureVersion {
     }
 }
 
-pub struct Texture {
+pub trait TextureFormat: Clone + Default {
+    type Data: bytemuck::Pod + bytemuck::Zeroable;
+
+    fn format(&self) -> ike_wgpu::TextureFormat;
+}
+
+#[derive(Clone)]
+pub struct Rgba8Unorm {
+    pub color_space: ColorSpace,
+}
+
+impl Default for Rgba8Unorm {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            color_space: ColorSpace::Gamma,
+        }
+    }
+}
+
+impl TextureFormat for Rgba8Unorm {
+    type Data = Color8;
+
+    #[inline]
+    fn format(&self) -> ike_wgpu::TextureFormat {
+        self.color_space.format()
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct Rgba32Float;
+
+impl TextureFormat for Rgba32Float {
+    type Data = Color;
+
+    #[inline]
+    fn format(&self) -> ike_wgpu::TextureFormat {
+        ike_wgpu::TextureFormat::Rgba32Float
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ColorSpace {
+    Linear,
+    Gamma,
+}
+
+impl ColorSpace {
+    fn format(&self) -> ike_wgpu::TextureFormat {
+        match self {
+            Self::Linear => ike_wgpu::TextureFormat::Rgba8Unorm,
+            Self::Gamma => ike_wgpu::TextureFormat::Rgba8UnormSrgb,
+        }
+    }
+}
+
+pub struct Texture<F: TextureFormat = Rgba8Unorm> {
     id: Id<Self>,
     version: u64,
+    local_version: u64,
     width: u32,
     height: u32,
-    synced: bool,
+    format: F,
     buffer: OnceCell<ike_wgpu::Buffer>,
-    data: OnceCell<Vec<Color8>>,
+    data: OnceCell<Vec<F::Data>>,
     texture: OnceCell<ike_wgpu::Texture>,
 }
 
-impl Default for Texture {
+pub type HdrTexture = Texture<Rgba32Float>;
+
+impl<F: TextureFormat> Default for Texture<F> {
     #[inline]
     fn default() -> Self {
         Self {
             id: Id::new(),
             version: 1,
+            local_version: 0,
             width: 1,
             height: 1,
-            synced: true,
+            format: F::default(),
             buffer: Default::default(),
             data: Default::default(),
             texture: Default::default(),
@@ -48,22 +109,23 @@ impl Default for Texture {
     }
 }
 
-impl HasId<Texture> for Texture {
+impl<F: TextureFormat> HasId<Texture<F>> for Texture<F> {
     #[inline]
-    fn id(&self) -> Id<Texture> {
+    fn id(&self) -> Id<Texture<F>> {
         self.id
     }
 }
 
-impl Clone for Texture {
+impl<F: TextureFormat> Clone for Texture<F> {
     #[inline]
     fn clone(&self) -> Self {
         Self {
             id: Id::new(),
             version: 1,
+            local_version: 0,
             width: self.width,
             height: self.height,
-            synced: true,
+            format: self.format.clone(),
             buffer: OnceCell::new(),
             data: self.data.clone(),
             texture: OnceCell::new(),
@@ -71,7 +133,7 @@ impl Clone for Texture {
     }
 }
 
-impl std::fmt::Debug for Texture {
+impl<F: TextureFormat> std::fmt::Debug for Texture<F> {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Texture")
@@ -80,6 +142,29 @@ impl std::fmt::Debug for Texture {
             .field("width", &self.width)
             .field("height", &self.height)
             .finish()
+    }
+}
+
+impl HdrTexture {
+    #[inline]
+    pub fn load(path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        let image = Reader::open(path.as_ref())?.decode()?;
+
+        let rgba = image.to_rgba16();
+
+        let data: Vec<Color> = rgba
+            .pixels()
+            .map(|pixel| {
+                Color::rgba(
+                    pixel[0] as f32 / 32_768.0,
+                    pixel[1] as f32 / 32_768.0,
+                    pixel[2] as f32 / 32_768.0,
+                    pixel[3] as f32 / 32_768.0,
+                )
+            })
+            .collect();
+
+        Ok(Self::from_data(data, rgba.width(), rgba.height()))
     }
 }
 
@@ -99,16 +184,26 @@ impl Texture {
     }
 
     #[inline]
-    pub fn from_data(data: Vec<Color8>, width: u32, height: u32) -> Self {
+    pub fn color_space(&self) -> ColorSpace {
+        self.format.color_space
+    }
+
+    #[inline]
+    pub fn set_color_space(&mut self, color_space: ColorSpace) {
+        self.version += 1;
+        self.format.color_space = color_space;
+        self.texture.take();
+    }
+}
+
+impl<F: TextureFormat> Texture<F> {
+    #[inline]
+    pub fn from_data(data: Vec<F::Data>, width: u32, height: u32) -> Self {
         Self {
-            id: Id::new(),
-            version: 1,
             width,
             height,
-            synced: true,
-            buffer: OnceCell::new(),
             data: OnceCell::from(data),
-            texture: OnceCell::new(),
+            ..Default::default()
         }
     }
 
@@ -138,13 +233,24 @@ impl Texture {
     }
 
     #[inline]
-    pub const fn format(&self) -> ike_wgpu::TextureFormat {
-        ike_wgpu::TextureFormat::Rgba8UnormSrgb
+    pub fn resize(&mut self, width: u32, height: u32) {
+        self.version += 1;
+        self.width = width;
+        self.height = height;
+
+        self.texture.take();
+        self.data.take();
+        self.buffer.take();
+    }
+
+    #[inline]
+    pub fn format(&self) -> ike_wgpu::TextureFormat {
+        self.format.format()
     }
 
     #[inline]
     pub fn sync_down(&mut self, ctx: &RenderCtx) {
-        self.synced = true;
+        self.local_version = self.version;
 
         let texture = if let Some(texture) = self.texture.get() {
             texture
@@ -208,12 +314,10 @@ impl Texture {
         pollster::block_on(fut).unwrap();
 
         if self.data.get().is_none() {
-            self.data
-                .set(vec![
-                    Color8::TRANSPARENT;
-                    self.width as usize * self.height as usize
-                ])
-                .unwrap();
+            let _ = self.data.set(vec![
+                bytemuck::Zeroable::zeroed();
+                self.width as usize * self.height as usize
+            ]);
         };
 
         let mapped = slice.get_mapped_range();
@@ -226,7 +330,7 @@ impl Texture {
                 let pixel_offset = row_offset as usize + pixel as usize * 4;
                 let pixel_data = &mapped[pixel_offset..pixel_offset + 4];
                 data[row as usize * self.width as usize + pixel as usize] =
-                    Color8::rgba(pixel_data[0], pixel_data[1], pixel_data[2], pixel_data[3]);
+                    cast_slice(pixel_data)[0];
             }
         }
 
@@ -235,11 +339,9 @@ impl Texture {
 
     #[inline]
     pub fn sync_up(&mut self, ctx: &RenderCtx) {
-        if self.synced || self.width == 0 || self.height == 0 {
+        if self.local_version == self.version || self.width == 0 || self.height == 0 {
             return;
         }
-
-        self.synced = true;
 
         self.data_mut();
 
@@ -271,29 +373,16 @@ impl Texture {
     }
 
     #[inline]
-    pub fn resize(&mut self, width: u32, height: u32) {
-        self.width = width;
-        self.height = height;
-
-        self.synced = false;
-        self.texture.take();
-        self.data.take();
-        self.buffer.take();
-    }
-
-    #[inline]
-    pub fn data_mut(&mut self) -> &mut Vec<Color8> {
+    pub fn data_mut(&mut self) -> &mut Vec<F::Data> {
         self.version += 1;
 
         if self.data.get().is_some() {
             self.data.get_mut().unwrap()
         } else {
-            self.data
-                .set(vec![
-                    Color8::TRANSPARENT;
-                    self.width as usize * self.height as usize
-                ])
-                .unwrap();
+            let _ = self.data.set(vec![
+                bytemuck::Zeroable::zeroed();
+                self.width as usize * self.height as usize
+            ]);
             self.data.get_mut().unwrap()
         }
     }
@@ -335,7 +424,7 @@ impl Texture {
                         mip_level_count: 1,
                         sample_count: 1,
                         dimension: ike_wgpu::TextureDimension::D2,
-                        format: ike_wgpu::TextureFormat::Rgba8UnormSrgb,
+                        format: self.format(),
                         usage: ike_wgpu::TextureUsages::COPY_DST
                             | ike_wgpu::TextureUsages::TEXTURE_BINDING,
                     },
@@ -354,7 +443,7 @@ impl Texture {
                     mip_level_count: 1,
                     sample_count: 1,
                     dimension: ike_wgpu::TextureDimension::D2,
-                    format: ike_wgpu::TextureFormat::Rgba8UnormSrgb,
+                    format: self.format(),
                     usage: ike_wgpu::TextureUsages::COPY_DST
                         | ike_wgpu::TextureUsages::TEXTURE_BINDING,
                 });

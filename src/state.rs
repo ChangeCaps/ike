@@ -9,6 +9,7 @@ use crate::{
 
 pub struct StartCtx<'a> {
     pub window: &'a mut Window,
+    pub render_ctx: &'a RenderCtx,
 }
 
 pub struct UpdateCtx<'a> {

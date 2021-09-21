@@ -1,6 +1,9 @@
+#![deny(unsafe_op_in_unsafe_fn)]
+
 pub mod app;
 pub mod camera;
 pub mod color;
+pub mod cube_texture;
 #[cfg(feature = "2d")]
 pub mod d2;
 #[cfg(feature = "3d")]
@@ -33,7 +36,7 @@ pub mod prelude {
     pub use crate::camera::{
         Camera, OrthographicProjection, PerspectiveCamera, PerspectiveProjection,
     };
-    pub use crate::color::{Color, Color8};
+    pub use crate::color::{Color, Color16, Color8};
     #[cfg(feature = "2d")]
     pub use crate::d2::{
         font::Font,
@@ -42,8 +45,8 @@ pub mod prelude {
     };
     #[cfg(feature = "3d")]
     pub use crate::d3::{
-        Animation, D3Node, Mesh, MeshData, PbrMaterial, PbrMesh, PbrNode, PbrScene, PointLight,
-        SkyNode, Transform3d, Vertex, SkyTexture,
+        Animation, D3Node, DirectionalLight, Mesh, MeshData, PbrMaterial, PbrMesh, PbrNode,
+        PbrScene, PointLight, SkyNode, SkyTexture, Transform3d, Vertex,
     };
     #[cfg(feature = "debug")]
     pub use crate::debug::{DebugLine, DebugMesh, DebugNode};
@@ -62,7 +65,10 @@ pub mod prelude {
     };
     pub use crate::state::{StartCtx, State, UpdateCtx};
     #[cfg(feature = "image")]
-    pub use crate::texture::Texture;
+    pub use crate::texture::{
+        ColorSpace, HdrTexture, Rgba32Float, Rgba8Unorm, Texture, TextureFormat, TextureVersion,
+    };
+    pub use crate::cube_texture::CubeTexture;
     pub use crate::ui_panel::UiPanel;
     pub use crate::view::{View, Views};
     pub use crate::wgpu;

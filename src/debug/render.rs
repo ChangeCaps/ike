@@ -114,10 +114,10 @@ impl DebugLine {
 }
 
 impl Drawable for DebugLine {
-    type Node = DebugNode;
+    type Node = &'static mut DebugNode;
 
     #[inline]
-    fn draw(&self, _ctx: &RenderCtx, node: &mut Self::Node) {
+    fn draw(&self, _ctx: &RenderCtx, node: &mut DebugNode) {
         node.lines.push(self.clone());
     }
 }
@@ -157,10 +157,10 @@ impl<'a> DebugMesh<'a> {
 }
 
 impl Drawable for DebugMesh<'_> {
-    type Node = DebugNode;
+    type Node = &'static mut DebugNode;
 
     #[inline]
-    fn draw(&self, _ctx: &RenderCtx, node: &mut Self::Node) {
+    fn draw(&self, _ctx: &RenderCtx, node: &mut DebugNode) {
         let transform = if let Some(transform) = self.transform {
             transform.matrix()
         } else {

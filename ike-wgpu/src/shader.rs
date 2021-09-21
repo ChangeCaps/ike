@@ -9,9 +9,10 @@ pub struct ShaderModuleDescriptor<'a> {
     pub source: ShaderSource<'a>,
 }
 
-pub(crate) trait ShaderModuleTrait {}
+pub(crate) trait ShaderModuleTrait: std::fmt::Debug {}
 
 #[cfg(feature = "wgpu")]
 impl ShaderModuleTrait for wgpu::ShaderModule {}
 
+#[derive(Debug)]
 pub struct ShaderModule(pub(crate) Box<dyn ShaderModuleTrait>);

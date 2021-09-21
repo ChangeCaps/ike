@@ -7,37 +7,26 @@ struct VertexInput {
 	// vertex
 	[[location(0)]] position: vec3<f32>;
 	[[location(1)]] normal: vec3<f32>;
-	[[location(2)]] tangent: vec3<f32>;
-	[[location(3)]] bitangent: vec3<f32>;
-	[[location(4)]] uv: vec2<f32>;
-	[[location(5)]] color: vec4<f32>;
-	[[location(6)]] joints: vec4<u32>;
-	[[location(7)]] weights: vec4<f32>;
+	[[location(2)]] uv: vec2<f32>;
+	[[location(3)]] tangent: vec4<f32>;
+	[[location(4)]] color: vec4<f32>;
+	[[location(5)]] joints: vec4<u32>;
+	[[location(6)]] weights: vec4<f32>;
 
 	// instance
 	[[location(8)]] transform_0: vec4<f32>;
 	[[location(9)]] transform_1: vec4<f32>;
 	[[location(10)]] transform_2: vec4<f32>;
 	[[location(11)]] transform_3: vec4<f32>;
-	[[location(12)]] albedo: vec4<f32>;
-	[[location(13)]] material: vec3<f32>;
-	[[location(14)]] flags: vec2<u32>;
-	[[location(15)]] emissive: vec3<f32>;
 };
 
 struct VertexOutput {
 	[[builtin(position)]] position: vec4<f32>;
 	[[location(0)]] w_position: vec4<f32>;
 	[[location(1)]] w_normal: vec3<f32>;
-	[[location(2)]] w_tangent: vec3<f32>;
-	[[location(3)]] w_bitangent: vec3<f32>;
-	[[location(4)]] uv: vec2<f32>;
-	[[location(5)]] color: vec4<f32>;
-	[[location(6)]] roughness: f32;
-	[[location(7)]] metallic: f32;
-	[[location(8)]] reflectance: f32;
-	[[location(9)]] flags: u32;
-	[[location(10)]] emissive: vec4<f32>;
+	[[location(2)]] w_tangent: vec4<f32>;
+	[[location(3)]] uv: vec2<f32>;
+	[[location(4)]] color: vec4<f32>;
 };
 
 struct PointLight {
@@ -46,18 +35,38 @@ struct PointLight {
 	params: vec4<f32>;
 };
 
-let max_point_lights: u32 = 64u32;
+let MAX_POINT_LIGHTS: u32 = 64u;
+
+struct DirectionalLight {
+	position: vec3<f32>;
+	direction: vec3<f32>;
+	color: vec4<f32>;
+	view_proj: mat4x4<f32>;
+	near: f32;
+	far: f32;
+	size: vec2<f32>; 
+};
+
+let MAX_DIRECTIONAL_LIGHTS: u32 = 16u;
 
 [[block]]
 struct Uniforms {
 	view_proj: mat4x4<f32>;
 	camera_position: vec3<f32>;
+	point_lights: array<PointLight, MAX_POINT_LIGHTS>;
+	directional_lights: array<DirectionalLight, MAX_DIRECTIONAL_LIGHTS>;
 	point_light_count: u32;
-	point_lights: array<PointLight, max_point_lights>;
-};
+	directional_light_count: u32;
+}; 
 
 [[group(0), binding(0)]] 
 var<uniform> uniforms: Uniforms;
+
+[[group(0), binding(1)]]
+var env_texture: texture_cube<f32>;
+
+[[group(0), binding(2)]]
+var env_sampler: sampler;
 
 [[block]]
 struct JointMatrices {
@@ -66,6 +75,46 @@ struct JointMatrices {
 
 [[group(2), binding(0)]]
 var<storage, read> joint_matrices: JointMatrices;
+
+struct Material {
+	albedo: vec4<f32>;
+	emission: vec4<f32>;
+	roughness: f32;
+	metallic: f32;
+	reflectance: f32;
+	shadow_softness: f32;
+	shadow_softness_falloff: f32;
+	shadow_blocker_samples: u32;
+	shadow_pcf_samples: u32;
+};
+
+[[block]]
+struct Mesh {
+	material: Material;
+	flags: u32;
+	joint_count: u32;
+};
+
+[[group(1), binding(0)]]
+var sampler: sampler;
+
+[[group(1), binding(1)]]
+var albedo_texture: texture_2d<f32>;
+
+[[group(1), binding(2)]]
+var metallic_roughness_texture: texture_2d<f32>;
+
+[[group(1), binding(3)]]
+var normal_map: texture_2d<f32>;
+
+[[group(1), binding(4)]]
+var<uniform> mesh: Mesh;
+
+[[group(3), binding(0)]]
+var directional_light_shadow_texture: texture_depth_2d_array;
+
+[[group(3), binding(1)]]
+var light_sampler: sampler;
 
 // since Scalar * Matrix isn't implemented this is necessary
 fn mul_mat(weight: f32, joint: mat4x4<f32>) -> mat4x4<f32> {
@@ -98,62 +147,119 @@ fn main(in: VertexInput) -> VertexOutput {
 		in.transform_3
 	);
 
-	if ((in.flags.x & SKINNED_FLAG_BIT) == 0u) {
+	let transform3x3 = mat3x3<f32>(
+		transform.x.xyz,
+		transform.y.xyz,
+		transform.z.xyz,
+	);
+
+	if ((mesh.flags & SKINNED_FLAG_BIT) == 0u) {
 		out.w_position = transform * vec4<f32>(in.position, 1.0);
-		out.w_normal = normalize((transform * vec4<f32>(in.normal, 0.0)).xyz);
-		out.w_tangent = normalize((transform * vec4<f32>(in.tangent, 0.0)).xyz);
-		out.w_bitangent = normalize((transform * vec4<f32>(in.bitangent, 0.0)).xyz);
+		out.w_normal = transform3x3 * in.normal.xyz;
+		out.w_tangent = vec4<f32>(transform3x3 * in.tangent.xyz, in.tangent.w);
 	} else {
-		let joint_offset = in.index * in.flags.y;
+		let joint_offset = in.index * mesh.joint_count;
 
 		let x = mul_mat(in.weights.x, joint_matrices.matrices[joint_offset + in.joints.x]);
 		let y = mul_mat(in.weights.y, joint_matrices.matrices[joint_offset + in.joints.y]);
 		let z = mul_mat(in.weights.z, joint_matrices.matrices[joint_offset + in.joints.z]);
 		let w = mul_mat(in.weights.w, joint_matrices.matrices[joint_offset + in.joints.w]);
 
-		let skinning_matrix = add_mat(add_mat(add_mat(x, y), z), w);
+		let skin = add_mat(add_mat(add_mat(x, y), z), w);
 
-		out.w_position = transform * skinning_matrix * vec4<f32>(in.position, 1.0);	
-		out.w_normal = normalize((transform * skinning_matrix * vec4<f32>(in.normal, 0.0)).xyz);
-		out.w_tangent = normalize((transform * skinning_matrix * vec4<f32>(in.tangent, 0.0)).xyz);
-		out.w_bitangent = normalize((transform * skinning_matrix * vec4<f32>(in.bitangent, 0.0)).xyz);
+		let skin3x3 = mat3x3<f32>(
+			skin.x.xyz,
+			skin.y.xyz,
+			skin.z.xyz,
+		);
+
+		out.w_position = transform * skin * vec4<f32>(in.position, 1.0);	
+		out.w_normal = transform3x3 * skin3x3 * in.normal.xyz;
+		out.w_tangent = vec4<f32>(transform3x3 * skin3x3 * in.tangent.xyz, in.tangent.w);
 	}
 
 	out.position = uniforms.view_proj * out.w_position;	
 	out.uv = in.uv;
-	out.color = in.color * in.albedo;
-	out.roughness = in.material.r;
-	out.metallic = in.material.g;
-	out.reflectance = in.material.b;
-	out.flags = in.flags.x; 
-	out.emissive = vec4<f32>(in.emissive, 1.0);
+	out.color = in.color * mesh.material.albedo;
 
 	return out;
 }
 
 struct FragmentInput {
 	[[builtin(front_facing)]] front: bool;
-	[[location(0)]] position: vec3<f32>;
+	[[location(0)]] position: vec4<f32>;
 	[[location(1)]] normal: vec3<f32>; 
-	[[location(2)]] tangent: vec3<f32>; 
-	[[location(3)]] bitangent: vec3<f32>; 
-	[[location(4)]] uv: vec2<f32>;
-	[[location(5)]] color: vec3<f32>;
-	[[location(6)]] roughness: f32;
-	[[location(7)]] metallic: f32;
-	[[location(8)]] reflectance: f32;
-	[[location(9)]] flags: u32;
-	[[location(10)]] emissive: vec4<f32>;
+	[[location(2)]] tangent: vec4<f32>; 
+	[[location(3)]] uv: vec2<f32>;
+	[[location(4)]] color: vec4<f32>;
 };
 
-[[group(1), binding(0)]]
-var sampler: sampler;
-[[group(1), binding(1)]]
-var albedo_texture: texture_2d<f32>;
-[[group(1), binding(2)]]
-var metallic_roughness_texture: texture_2d<f32>;
-[[group(1), binding(3)]]
-var normal_map: texture_2d<f32>;
+var poisson_offsets: array<vec2<f32>, 64> = array<vec2<f32>, 64>( 
+	vec2<f32>(0.0617981, 0.07294159),
+	vec2<f32>(0.6470215, 0.7474022), 
+	vec2<f32>(-0.5987766, -0.7512833),
+	vec2<f32>(-0.693034, 0.6913887),
+	vec2<f32>(0.6987045, -0.6843052),
+	vec2<f32>(-0.9402866, 0.04474335),
+	vec2<f32>(0.8934509, 0.07369385),
+	vec2<f32>(0.1592735, -0.9686295),
+	vec2<f32>(-0.05664673, 0.995282),
+	vec2<f32>(-0.1203411, -0.1301079),
+	vec2<f32>(0.1741608, -0.1682285),
+	vec2<f32>(-0.09369049, 0.3196758),
+	vec2<f32>(0.185363, 0.3213367),
+	vec2<f32>(-0.1493771, -0.3147511),
+	vec2<f32>(0.4452095, 0.2580113),
+	vec2<f32>(-0.1080467, -0.5329178),
+	vec2<f32>(0.1604507, 0.5460774),
+	vec2<f32>(-0.4037193, -0.2611179),
+	vec2<f32>(0.5947998, -0.2146744),
+	vec2<f32>(0.3276062, 0.9244621),
+	vec2<f32>(-0.6518704, -0.2503952),
+	vec2<f32>(-0.3580975, 0.2806469),
+	vec2<f32>(0.8587891, 0.4838005),
+	vec2<f32>(-0.1596546, -0.8791054),
+	vec2<f32>(-0.3096867, 0.5588146),
+	vec2<f32>(-0.5128918, 0.1448544),
+	vec2<f32>(0.8581337, -0.424046),
+	vec2<f32>(0.1562584, -0.5610626),
+	vec2<f32>(-0.7647934, 0.2709858),
+	vec2<f32>(-0.3090832, 0.9020988),
+	vec2<f32>(0.3935608, 0.4609676),
+	vec2<f32>(0.3929337, -0.5010948),
+	vec2<f32>(-0.8682281, -0.1990303),
+	vec2<f32>(-0.01973724, 0.6478714),
+	vec2<f32>(-0.3897587, -0.4665619),
+	vec2<f32>(-0.7416366, -0.4377831),
+	vec2<f32>(-0.5523247, 0.4272514),
+	vec2<f32>(-0.5325066, 0.8410385),
+	vec2<f32>(0.3085465, -0.7842533),
+	vec2<f32>(0.8400612, -0.200119),
+	vec2<f32>(0.6632416, 0.3067062),
+	vec2<f32>(-0.4462856, -0.04265022),
+	vec2<f32>(0.06892014, 0.812484),
+	vec2<f32>(0.5149567, -0.7502338),
+	vec2<f32>(0.6464897, -0.4666451),
+	vec2<f32>(-0.159861, 0.1038342),
+	vec2<f32>(0.6455986, 0.04419327),
+	vec2<f32>(-0.7445076, 0.5035095),
+	vec2<f32>(0.9430245, 0.3139912),
+	vec2<f32>(0.0349884, -0.7968109),
+	vec2<f32>(-0.9517487, 0.2963554),
+	vec2<f32>(-0.7304786, -0.01006928),
+	vec2<f32>(-0.5862702, -0.5531025),
+	vec2<f32>(0.3029106, 0.09497032),
+	vec2<f32>(0.09025345, -0.3503742),
+	vec2<f32>(0.4356628, -0.0710125),
+	vec2<f32>(0.4112572, 0.7500054),
+	vec2<f32>(0.3401214, -0.3047142),
+	vec2<f32>(-0.2192158, -0.6911137),
+	vec2<f32>(-0.4676369, 0.6570358),
+	vec2<f32>(0.6295372, 0.5629555),
+	vec2<f32>(0.1253822, 0.9892166),
+	vec2<f32>(-0.1154335, 0.8248222),
+	vec2<f32>(-0.4230408, -0.7129914),
+);
 
 let PI: f32 = 3.141592653589793;
 
@@ -269,6 +375,20 @@ fn reinhard_extended_luminance(color: vec3<f32>, max_white: f32) -> vec3<f32> {
 	return change_luminance(color, l_new);
 }
 
+
+fn noise(pos: vec3<f32>) -> f32 {
+	let s = pos + 0.2127 + pos.x * pos.y * pos.z * 0.3713;
+	let r = 4.789 * sin(489.123 * (s));
+	return fract(r.x * r.y * r.z * (1.0 + s.x));
+}
+
+fn rotate(pos: vec2<f32>, trig: vec2<f32>) -> vec2<f32> {
+	return vec2<f32>(
+		pos.x * trig.x - pos.y * trig.y,
+		pos.y * trig.x + pos.x * trig.y,
+	);
+}
+
 fn point_light(
 	light: PointLight, 
 	position: vec3<f32>,
@@ -310,63 +430,227 @@ fn point_light(
 
 	return ((diffuse + specular) * light.color.rgb) * (range_attenuation * nol);
 }
+
+fn directional_light(
+	light: DirectionalLight,
+	roughness: f32,
+	ndotv: f32,
+	normal: vec3<f32>,
+	view: vec3<f32>,
+	r: vec3<f32>,
+	f0: vec3<f32>,
+	diffuse_color: vec3<f32>,
+) -> vec3<f32> {
+	let incident_light = -light.direction;
+
+	let half = normalize(incident_light + view);
+	let nol = saturate(dot(normal, incident_light));
+	let noh = saturate(dot(normal, half));
+	let loh = saturate(dot(incident_light, half));
+
+	let diffuse = diffuse_color * fd_burley(roughness, ndotv, nol, loh);
+	let specular_intensity = 1.0;
+	let specular_light = specular(f0, roughness, ndotv, nol, noh, loh, specular_intensity);
+
+	return (specular_light + diffuse) * light.color.rgb * nol;
+}
+
+fn search_region_radius_uv(light: DirectionalLight, z: f32) -> vec2<f32> {
+	return mesh.material.shadow_softness / light.size * 0.15; 
+}
+
+fn penumbra_radius_uv(z_receiver: f32, z_blocker: f32) -> f32 {
+	return z_receiver - z_blocker;
+}
+
+fn z_clip_to_eye(light: DirectionalLight, z: f32) -> f32 {
+	return light.near - (light.far - light.near) * z;
+}
+
+fn find_blocker(
+	idx: u32, 
+	uv: vec2<f32>, 
+	z0: f32,
+	bias: f32,
+	radius: vec2<f32>,
+	trig: vec2<f32>,
+) -> vec2<f32> {
+	var blocker_sum: f32 = 0.0;
+	var num_blockers: f32 = 0.0;
+
+	let biased_depth = z0 - bias;
+
+	for (var i: u32 = 0u; i < mesh.material.shadow_blocker_samples; i = i + 1u) {
+		let offset = poisson_offsets[i] * radius;
+
+		let offset_uv = uv + rotate(offset, trig);
+
+		if (any(offset_uv < vec2<f32>(0.0)) || any(offset_uv > vec2<f32>(1.0))) {
+			continue;
+		}
+
+		let depth = textureSample(
+			directional_light_shadow_texture, 
+			light_sampler, 
+			offset_uv,
+			i32(idx)
+		);
+
+		if (depth < biased_depth) {
+			blocker_sum = blocker_sum + depth;
+			num_blockers = num_blockers + 1.0;
+		}	
+	}
+
+	let avg_blocker_depth = blocker_sum / num_blockers;
+
+	return vec2<f32>(avg_blocker_depth, num_blockers);
+}
+
+fn pcf_filter(idx: u32, uv: vec2<f32>, z0: f32, bias: f32, filter_radius: vec2<f32>, trig: vec2<f32>) -> f32 {
+	var sum: f32 = 0.0; 
+
+	let biased_depth = z0 - bias;
+
+	for (var i: u32 = 0u; i < mesh.material.shadow_pcf_samples; i = i + 1u) {
+		let offset = poisson_offsets[i] * filter_radius;
+
+		let offset_uv = uv + rotate(offset, trig);
+
+		if (any(offset_uv < vec2<f32>(0.0)) || any(offset_uv > vec2<f32>(1.0))) {
+			sum = sum + 1.0;
+			continue;
+		}
+
+		let depth = textureSample(
+			directional_light_shadow_texture,
+			light_sampler,
+			offset_uv,
+			i32(idx)
+		);
+
+		if (biased_depth <= depth) {
+			sum = sum + 1.0;
+		}	
+	}
+
+	sum = sum / f32(mesh.material.shadow_pcf_samples);
+
+	return sum;
+}
+
+fn pcss_filter(idx: u32, light: DirectionalLight, uv: vec2<f32>, z: f32, bias: f32, z_vs: f32, trig: vec2<f32>) -> f32 {
+	let search_radius = search_region_radius_uv(light, z_vs) * mesh.material.shadow_softness;
+	let blocker = find_blocker(idx, uv, z, bias, search_radius, trig);
+
+	if (blocker.y < 1.0) {
+		return 1.0;
+	}
+
+	let avg_blocker_depth_vs = z_clip_to_eye(light, blocker.x);
+	let penumbra = penumbra_radius_uv(z_vs, avg_blocker_depth_vs) * 0.005 * mesh.material.shadow_softness;
+	let penumbra = 1.0 - pow(1.0 - penumbra, mesh.material.shadow_softness_falloff);
+	let filter_radius = (penumbra - 0.015 * mesh.material.shadow_softness) / light.size;
+
+	return pcf_filter(idx, uv, z, bias, filter_radius, trig);
+}
+
+fn directional_shadow(idx: u32, position: vec4<f32>, normal: vec3<f32>) -> f32 {
+	let light = uniforms.directional_lights[idx]; 
+
+	let direction_to_light = -light.direction;
+
+	let light_space_pos = light.view_proj * position;
+
+	if (light_space_pos.w <= 0.0) {
+		return 1.0;
+	}
+
+	let proj_coords = light_space_pos.xyz / light_space_pos.w;
+
+	if (proj_coords.z < 0.0) {
+		return 1.0;
+	}
+
+	let flip_correction = vec2<f32>(0.5, -0.5);
+
+	let uv = proj_coords.xy * flip_correction + 0.5;
+
+	let z = proj_coords.z;
+	let z_vs = z_clip_to_eye(light, proj_coords.z);
+
+	let n = noise(position.xyz);
+	let angle = n * 2.0 * PI;
+
+	let trig = vec2<f32>(cos(angle), sin(angle));
+
+	return pcss_filter(idx, light, uv, z, 0.00005, z_vs, trig);
+}
  
 [[stage(fragment)]]
 fn main(in: FragmentInput) -> [[location(0)]] vec4<f32> {
-	let base_color = in.color * textureSample(albedo_texture, sampler, in.uv).rgb;
+	let base_color = in.color * textureSample(albedo_texture, sampler, in.uv);
 
 	let metallic_roughness = textureSample(metallic_roughness_texture, sampler, in.uv);
 
-	let perceptual_roughness = in.roughness;
-	let metallic = in.metallic * metallic_roughness.b;
-	let reflectance = in.reflectance;
-	let emissive = in.emissive;
+	let perceptual_roughness = mesh.material.roughness;
+	let metallic = mesh.material.metallic * metallic_roughness.b;
+	let reflectance = mesh.material.reflectance;
+	let emissive = mesh.material.emission;
 	let occlusion = 1.0;
 
 	let roughness = perceptual_roughness_to_roughness(perceptual_roughness * metallic_roughness.g);
 
-	var n: vec3<f32>;
-	var t: vec3<f32>;
-	var b: vec3<f32>;
+	var n: vec3<f32> = normalize(in.normal);
+	var t: vec3<f32> = normalize(in.tangent.xyz);
+	var b: vec3<f32> = cross(n, t) * in.tangent.w;
 
-	if (in.front) {
-		n = normalize(in.normal);
-		t = normalize(in.tangent);
-		b = normalize(in.bitangent);
-	} else {
-		n = normalize(-in.normal); 
-		t = normalize(-in.tangent);
-		b = normalize(-in.bitangent);
+	if (!in.front) {	
+		n = -n; 
+		t = -t;
+		b = -b;
 	}
 
 	let tbn = mat3x3<f32>(t, b, n);
 
 	let nm = normalize(textureSample(normal_map, sampler, in.uv).rgb * 2.0 - 1.0);
 
-	if ((in.flags & NORMAL_MAP_FLAG_BIT) != 0u) {
+	if ((mesh.flags & NORMAL_MAP_FLAG_BIT) != 0u) { 
 		n = tbn * nm;
 	}
 
 	var v: vec3<f32>;
 
 	if (uniforms.view_proj[3][3] != 1.0) {
-		v = normalize(uniforms.camera_position - in.position);
+		v = normalize(uniforms.camera_position - in.position.xyz);
 	} else {
 		v = normalize(vec3<f32>(-uniforms.view_proj[0][2], -uniforms.view_proj[1][2], -uniforms.view_proj[2][2]));
 	} 
 
 	let ndotv = max(dot(n, v), 0.0001);
 
-	let f0 = 0.16 * reflectance * reflectance * (1.0 - metallic) + base_color * metallic;
-
-	let diffuse_color = base_color * (1.0 - metallic);
+	let f0 = 0.16 * reflectance * reflectance * (1.0 - metallic) + base_color.rgb * metallic;
 
 	let r = reflect(-v, n);
 
+	let env = textureSample(env_texture, env_sampler, r).rgb;
+
+	let diffuse_color = base_color.rgb * (1.0 - metallic) + env * metallic;
+
 	var color: vec3<f32> = vec3<f32>(0.0);	
 
-	for (var i: u32 = 0u32; i < uniforms.point_light_count; i = i + 1u32) {
-		color = color + point_light(uniforms.point_lights[i], in.position, roughness, ndotv, n, v, r, f0, diffuse_color);
+	for (var i: u32 = 0u; i < uniforms.point_light_count; i = i + 1u) {
+		color = color + point_light(uniforms.point_lights[i], in.position.xyz, roughness, ndotv, n, v, r, f0, diffuse_color);
+	}
+
+	for (var i: u32 = 0u; i < uniforms.directional_light_count; i = i + 1u) {
+		let light = uniforms.directional_lights[i];
+
+		let shadow = directional_shadow(i, in.position, n); 
+
+		let l = directional_light(uniforms.directional_lights[i], roughness, ndotv, n, v, r, f0, diffuse_color);
+
+		color = color + l * shadow;
 	}
 
 	let diffuse_ambient = env_brdf_approx(diffuse_color, 1.0, ndotv);
@@ -377,5 +661,9 @@ fn main(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
 	color = reinhard_luminance(color);
 
-	return vec4<f32>(color, 1.0);
+	if (base_color.a < 0.1) {
+		discard;
+	} else {
+		return vec4<f32>(color, 1.0);
+	}
 }

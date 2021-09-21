@@ -23,19 +23,11 @@ impl HasId<Skeleton> for Skeleton {
 
 impl Skeleton {
     #[inline]
-    pub fn joint_matrices(
-        &self,
-        inverse_global_transform: Mat4,
-        global_node_matrices: &[Transform3d],
-    ) -> Vec<Mat4> {
+    pub fn joint_matrices(&self, node_matrices: &[Transform3d]) -> Vec<Mat4> {
         self.joints
             .iter()
             .enumerate()
-            .map(|(bind, joint)| {
-                inverse_global_transform
-                    * global_node_matrices[*joint].matrix()
-                    * self.inverse_bind_matrices[bind]
-            })
+            .map(|(bind, joint)| node_matrices[*joint].matrix() * self.inverse_bind_matrices[bind])
             .collect()
     }
 }

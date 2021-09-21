@@ -44,6 +44,11 @@ pub(crate) unsafe trait DeviceTrait: 'static {
         desc: &crate::RenderPipelineDescriptor,
     ) -> crate::RenderPipeline;
 
+    fn create_compute_pipeline(
+        &self,
+        desc: &crate::ComputePipelineDescriptor,
+    ) -> crate::ComputePipeline;
+
     fn create_command_encoder(
         &self,
         desc: &crate::CommandEncoderDescriptor<Option<&'static str>>,
@@ -135,6 +140,14 @@ impl Device {
         desc: &crate::RenderPipelineDescriptor,
     ) -> crate::RenderPipeline {
         self.0.create_render_pipeline(desc)
+    }
+
+    #[inline]
+    pub fn create_compute_pipeline(
+        &self,
+        desc: &crate::ComputePipelineDescriptor,
+    ) -> crate::ComputePipeline {
+        self.0.create_compute_pipeline(desc)
     }
 
     #[inline]
@@ -349,6 +362,27 @@ unsafe impl DeviceTrait for wgpu::Device {
         };
 
         crate::RenderPipeline(Box::new(self.create_render_pipeline(&desc)))
+    }
+
+    #[inline]
+    fn create_compute_pipeline(
+        &self,
+        desc: &crate::ComputePipelineDescriptor,
+    ) -> crate::ComputePipeline {
+        let layout = desc
+            .layout
+            .map(|layout| unsafe { &*(layout.0.as_ref() as *const _ as *const _) });
+
+        let module = unsafe { &*(desc.module.0.as_ref() as *const _ as *const _) };
+
+        let desc = wgpu::ComputePipelineDescriptor {
+            label: desc.label,
+            layout,
+            module,
+            entry_point: desc.entry_point,
+        };
+
+        crate::ComputePipeline(Box::new(self.create_compute_pipeline(&desc)))
     }
 
     #[inline]

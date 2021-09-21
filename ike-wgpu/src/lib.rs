@@ -1,6 +1,7 @@
 mod bind_group;
 mod buffer;
 mod command_encoder;
+mod compute;
 mod device;
 mod pipeline;
 mod queue;
@@ -18,6 +19,7 @@ pub use bind_group::{
 };
 pub use buffer::{Buffer, BufferInitDescriptor, BufferSlice, BufferView, MapMode};
 pub use command_encoder::{CommandBuffer, CommandEncoder};
+pub use compute::{ComputePass, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor};
 pub use device::{Device, Maintain};
 pub use pipeline::{
     FragmentState, PipelineLayout, PipelineLayoutDescriptor, RenderPipeline,

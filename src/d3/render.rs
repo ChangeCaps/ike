@@ -3,16 +3,11 @@ use std::collections::{BTreeMap, HashMap};
 use bytemuck::{bytes_of, cast_slice};
 use glam::{Mat4, Vec3};
 
-use crate::{
-    id::{HasId, Id},
-    prelude::{Camera, Color, Texture},
-    renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat},
-    texture::TextureVersion,
-};
+use crate::{cube_texture::CubeTexture, id::{HasId, Id}, prelude::{Camera, Color, HdrTexture, Texture}, renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat}};
 
 use super::{
     default_pipeline::default_pipeline, BufferVersion, Indices, Mesh, PbrFlags, PbrMaterial,
-    Skeleton, Transform3d, Vertices,
+    PbrMaterialRaw, Skeleton, Transform3d, Vertices,
 };
 
 pub(crate) struct SizedBuffer {
@@ -65,22 +60,42 @@ struct VersionedBuffer {
 struct InstancesId {
     vertex_buffer: Id<Vertices>,
     index_buffer: Id<Indices>,
-    filter_mode: ike_wgpu::FilterMode,
-    albedo_texture: Option<Id<Texture>>,
-    metallic_texture: Option<Id<Texture>>,
-    normal_map: Option<Id<Texture>>,
+    material: Id<PbrMaterial>,
 }
 
 #[derive(Default)]
 struct Instances {
     count: u32,
     data: Vec<u8>,
-    albedo_version: TextureVersion,
-    metallic_roughness_version: TextureVersion,
-    normal_map_version: TextureVersion,
     buffer: Option<SizedBuffer>,
-    texture_bind_group: Option<ike_wgpu::BindGroup>,
+    bind_group: Option<ike_wgpu::BindGroup>,
+    joint_count: u32,
     joint_matrices: Option<Id<Skeleton>>,
+    uniforms_buffer: Option<ike_wgpu::Buffer>,
+}
+
+struct Material {
+    pub albedo_texture: Option<Id<Texture>>,
+    pub metallic_roughness_texture: Option<Id<Texture>>,
+    pub normal_map: Option<Id<Texture>>,
+    pub raw: PbrMaterialRaw,
+    pub filter_mode: ike_wgpu::FilterMode,
+}
+
+impl From<&PbrMaterial> for Material {
+    #[inline]
+    fn from(pbr_material: &PbrMaterial) -> Self {
+        Self {
+            albedo_texture: pbr_material.albedo_texture.as_ref().map(|t| t.id()),
+            metallic_roughness_texture: pbr_material
+                .metallic_roughness_texture
+                .as_ref()
+                .map(|t| t.id()),
+            normal_map: pbr_material.normal_map.as_ref().map(|t| t.id()),
+            raw: pbr_material.raw(),
+            filter_mode: pbr_material.filter_mode,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -92,25 +107,66 @@ pub(crate) struct JointMatrices {
 
 #[derive(Default)]
 pub(crate) struct Meshes {
+    default_material: PbrMaterial,
     vertex_buffers: BTreeMap<Id<Vertices>, VersionedBuffer>,
     index_buffers: BTreeMap<Id<Indices>, VersionedBuffer>,
-    pub joint_matrices: BTreeMap<Id<Skeleton>, JointMatrices>,
-    pub textures: BTreeMap<Id<Texture>, ike_wgpu::TextureView>,
+    textures: BTreeMap<Id<Texture>, ike_wgpu::TextureView>,
+    materials: BTreeMap<Id<PbrMaterial>, Material>,
+    joint_matrices: BTreeMap<Id<Skeleton>, JointMatrices>,
     instances: HashMap<InstancesId, Instances>,
 }
 
 impl Meshes {
     #[inline]
+    pub fn register_texture(&mut self, ctx: &RenderCtx, texture: &Texture) {
+        if !self.textures.contains_key(&texture.id()) {
+            self.textures.insert(
+                texture.id(),
+                texture.texture(ctx).create_view(&Default::default()),
+            );
+        }
+    }
+
+    #[inline]
+    pub fn register_material(&mut self, ctx: &RenderCtx, material: &PbrMaterial) {
+        if !self.materials.contains_key(&material.id()) {
+            if let Some(ref texture) = material.albedo_texture {
+                self.register_texture(ctx, texture);
+            }
+
+            if let Some(ref texture) = material.metallic_roughness_texture {
+                self.register_texture(ctx, texture);
+            }
+
+            if let Some(ref texture) = material.normal_map {
+                self.register_texture(ctx, texture);
+            }
+
+            self.materials
+                .insert(material.id(), Material::from(material));
+        }
+    }
+
+    #[inline]
+    pub fn register_joint_matrices(&mut self, id: Id<Skeleton>, matrices: &[Mat4]) {
+        let joint_matrices = self.joint_matrices.entry(id).or_default();
+
+        let len = joint_matrices.joint_matrices.len();
+
+        joint_matrices
+            .joint_matrices
+            .resize(len + matrices.len(), Mat4::IDENTITY);
+        joint_matrices.joint_matrices[len..].copy_from_slice(matrices);
+    }
+
+    #[inline]
     pub fn add_instance<V: bytemuck::Pod>(
         &mut self,
         ctx: &RenderCtx,
         mesh: &Mesh<V>,
+        material: &Option<&PbrMaterial>,
+        skeleton: Option<(Id<Skeleton>, u32)>,
         data: &[u8],
-        filter_mode: ike_wgpu::FilterMode,
-        joint_matrices: Option<Id<Skeleton>>,
-        albedo_texture: Option<&Texture>,
-        metallic_roughness_texture: Option<&Texture>,
-        normal_map: Option<&Texture>,
     ) {
         let mesh_data = mesh.data();
 
@@ -158,13 +214,16 @@ impl Meshes {
             );
         }
 
+        let material_id = if let Some(material) = material {
+            material.id()
+        } else {
+            self.default_material.id()
+        };
+
         let id = InstancesId {
             vertex_buffer: mesh.vertices.id(),
             index_buffer: mesh.indices.id(),
-            filter_mode,
-            albedo_texture: albedo_texture.as_ref().map(|t| t.id()),
-            metallic_texture: metallic_roughness_texture.as_ref().map(|t| t.id()),
-            normal_map: normal_map.as_ref().map(|t| t.id()),
+            material: material_id,
         };
 
         let instances = self.instances.entry(id).or_default();
@@ -176,48 +235,9 @@ impl Meshes {
         instances.data.resize(len + data.len(), 0);
         instances.data[len..].copy_from_slice(data);
 
-        instances.joint_matrices = joint_matrices;
-
-        if let Some(ref texture) = albedo_texture {
-            let version = &mut instances.albedo_version;
-
-            if texture.outdated(*version) {
-                self.textures.insert(
-                    texture.id(),
-                    texture.texture(ctx).create_view(&Default::default()),
-                );
-
-                *version = texture.version();
-                instances.texture_bind_group = None;
-            }
-        }
-
-        if let Some(ref texture) = metallic_roughness_texture {
-            let version = &mut instances.metallic_roughness_version;
-
-            if texture.outdated(*version) {
-                self.textures.insert(
-                    texture.id(),
-                    texture.texture(ctx).create_view(&Default::default()),
-                );
-
-                *version = texture.version();
-                instances.texture_bind_group = None;
-            }
-        }
-
-        if let Some(ref texture) = normal_map {
-            let version = &mut instances.normal_map_version;
-
-            if texture.outdated(*version) {
-                self.textures.insert(
-                    texture.id(),
-                    texture.texture(ctx).create_view(&Default::default()),
-                );
-
-                *version = texture.version();
-                instances.texture_bind_group = None;
-            }
+        if let Some((skeleton, joint_count)) = skeleton {
+            instances.joint_matrices = Some(skeleton);
+            instances.joint_count = joint_count;
         }
     }
 
@@ -228,6 +248,11 @@ impl Meshes {
         textures_layout: &ike_wgpu::BindGroupLayout,
         default_texture: &ike_wgpu::TextureView,
     ) {
+        self.materials.insert(
+            self.default_material.id(),
+            Material::from(&self.default_material),
+        );
+
         for (id, instances) in &mut self.instances {
             // instance buffer
 
@@ -241,29 +266,64 @@ impl Meshes {
                 ));
             }
 
+            // material
+
+            let material = &self.materials[&id.material];
+
+            let mut flags = PbrFlags::EMPTY;
+
+            if material.normal_map.is_some() {
+                flags |= PbrFlags::NORMAL_MAP;
+            }
+
+            if instances.joint_matrices.is_some() {
+                flags |= PbrFlags::SKINNED;
+            }
+
+            let mesh = MeshUniforms {
+                material: material.raw,
+                padding: [0; 4],
+                flags,
+                joint_count: instances.joint_count,
+            };
+
+            if let Some(ref buffer) = instances.uniforms_buffer {
+                ctx.queue.write_buffer(buffer, 0, bytes_of(&mesh));
+            } else {
+                let buffer = ctx
+                    .device
+                    .create_buffer_init(&ike_wgpu::BufferInitDescriptor {
+                        label: None,
+                        contents: bytes_of(&mesh),
+                        usage: ike_wgpu::BufferUsages::COPY_DST | ike_wgpu::BufferUsages::UNIFORM,
+                    });
+
+                instances.uniforms_buffer = Some(buffer);
+            }
+
             // textures
 
-            if instances.texture_bind_group.is_none() {
+            if instances.bind_group.is_none() {
                 let sampler = ctx.device.create_sampler(&ike_wgpu::SamplerDescriptor {
                     address_mode_u: ike_wgpu::AddressMode::Repeat,
                     address_mode_v: ike_wgpu::AddressMode::Repeat,
                     address_mode_w: ike_wgpu::AddressMode::Repeat,
-                    min_filter: id.filter_mode,
-                    mag_filter: id.filter_mode,
+                    min_filter: material.filter_mode,
+                    mag_filter: material.filter_mode,
                     ..Default::default()
                 });
 
-                let albedo = match id.albedo_texture {
+                let albedo = match material.albedo_texture {
                     Some(ref id) => self.textures.get(id).unwrap(),
                     None => default_texture,
                 };
 
-                let metallic = match id.metallic_texture {
+                let metallic = match material.metallic_roughness_texture {
                     Some(ref id) => self.textures.get(id).unwrap(),
                     None => default_texture,
                 };
 
-                let normal_map = match id.normal_map {
+                let normal_map = match material.normal_map {
                     Some(ref id) => self.textures.get(id).unwrap(),
                     None => default_texture,
                 };
@@ -290,10 +350,18 @@ impl Meshes {
                                 binding: 3,
                                 resource: ike_wgpu::BindingResource::TextureView(normal_map),
                             },
+                            ike_wgpu::BindGroupEntry {
+                                binding: 4,
+                                resource: instances
+                                    .uniforms_buffer
+                                    .as_ref()
+                                    .unwrap()
+                                    .as_entire_binding(),
+                            },
                         ],
                     });
 
-                instances.texture_bind_group = Some(bind_group);
+                instances.bind_group = Some(bind_group);
             }
         }
 
@@ -386,10 +454,10 @@ pub struct PointLightRaw {
 }
 
 impl Drawable for PointLight {
-    type Node = D3Node;
+    type Node = &'static mut D3Node;
 
     #[inline]
-    fn draw(&self, _ctx: &RenderCtx, node: &mut Self::Node) {
+    fn draw(&self, _ctx: &RenderCtx, node: &mut D3Node) {
         let color = self.color * self.intensity;
 
         node.point_lights.push(PointLightRaw {
@@ -400,13 +468,75 @@ impl Drawable for PointLight {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct DirectionalLight {
+    pub direction: Vec3,
+    pub color: Color,
+    pub illuminance: f32,
+}
+
+impl Default for DirectionalLight {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            direction: -Vec3::Y,
+            color: Color::WHITE,
+            illuminance: 32000.0,
+        }
+    }
+}
+
+impl DirectionalLight {
+    #[inline]
+    pub fn intensity(&self) -> f32 {
+        const APERTURE: f32 = 4.0;
+        const SHUTTER_SPEED: f32 = 1.0 / 250.0;
+        const SENSITIVITY: f32 = 100.0;
+        let ev100 = f32::log2(APERTURE * APERTURE / SHUTTER_SPEED) - f32::log2(SENSITIVITY / 100.0);
+        let exposure = 1.0 / (f32::powf(2.0, ev100) * 1.2);
+        self.illuminance * exposure
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct DirectionalLightRaw {
+    pub position: [f32; 4],
+    pub direction: [f32; 4],
+    pub color: [f32; 4],
+    pub view_proj: [[f32; 4]; 4],
+    pub near: f32,
+    pub far: f32,
+    pub size: [f32; 2],
+}
+
+impl Drawable for DirectionalLight {
+    type Node = &'static mut D3Node;
+
+    #[inline]
+    fn draw(&self, _ctx: &RenderCtx, node: &mut D3Node) {
+        node.directional_lights.push(self.clone());
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Uniforms {
-    pub view_proj: Mat4,
-    pub camera_position: Vec3,
-    pub point_light_count: u32,
+    pub view_proj: [[f32; 4]; 4],
+    pub camera_position: [f32; 4],
     pub point_lights: [PointLightRaw; 64],
+    pub directional_lights: [DirectionalLightRaw; 16],
+    pub point_light_count: u32,
+    pub directional_light_count: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct MeshUniforms {
+    material: PbrMaterialRaw,
+    padding: [u8; 4],
+    flags: PbrFlags,
+    joint_count: u32,
 }
 
 #[inline]
@@ -420,116 +550,35 @@ fn point_lights(lights: &[PointLightRaw]) -> [PointLightRaw; 64] {
     point_lights
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub(crate) struct InstanceData {
-    pub transform: Mat4,
-    pub albedo: [f32; 4],
-    pub roughness: f32,
-    pub metallic: f32,
-    pub reflectance: f32,
-    pub flags: PbrFlags,
-    pub joint_count: u32,
-    pub emissive: [f32; 3],
-}
-
-impl Default for InstanceData {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            transform: Mat4::IDENTITY,
-            albedo: Color::WHITE.into(),
-            roughness: 0.089,
-            metallic: 0.01,
-            reflectance: 0.5,
-            flags: PbrFlags::EMPTY,
-            joint_count: 0,
-            emissive: [0.0; 3],
-        }
-    }
-}
-
-impl InstanceData {
-    #[inline]
-    pub fn new(transform: Mat4, material: &PbrMaterial, mut flags: PbrFlags) -> Self {
-        if material.normal_map.is_some() {
-            flags |= PbrFlags::NORMAL_MAP;
-        }
-
-        Self {
-            transform,
-            albedo: material.albedo.into(),
-            roughness: material.roughness,
-            metallic: material.metallic,
-            reflectance: material.reflectance,
-            flags,
-            joint_count: 0,
-            emissive: [
-                material.emission.r,
-                material.emission.g,
-                material.emission.b,
-            ],
-        }
-    }
-}
-
 impl Drawable for Mesh {
-    type Node = D3Node;
+    type Node = &'static mut D3Node;
 
     #[inline]
-    fn draw(&self, ctx: &RenderCtx, node: &mut Self::Node) {
-        node.meshes.add_instance(
-            ctx,
-            self,
-            bytes_of(&InstanceData::default()),
-            ike_wgpu::FilterMode::Linear,
-            None,
-            None,
-            None,
-            None,
-        );
+    fn draw(&self, ctx: &RenderCtx, node: &mut D3Node) {
+        node.meshes
+            .add_instance(ctx, self, &None, None, bytes_of(&Mat4::IDENTITY));
     }
 }
 
 impl Drawable for (&Mesh, &Transform3d) {
-    type Node = D3Node;
+    type Node = &'static mut D3Node;
 
     #[inline]
-    fn draw(&self, ctx: &RenderCtx, node: &mut Self::Node) {
-        node.meshes.add_instance(
-            ctx,
-            self.0,
-            bytes_of(&InstanceData {
-                transform: self.1.matrix(),
-                ..Default::default()
-            }),
-            ike_wgpu::FilterMode::Linear,
-            None,
-            None,
-            None,
-            None,
-        );
+    fn draw(&self, ctx: &RenderCtx, node: &mut D3Node) {
+        node.meshes
+            .add_instance(ctx, self.0, &None, None, bytes_of(&self.1.matrix()));
     }
 }
 
-impl Drawable for (&Mesh, &Transform3d, &PbrMaterial<'_>) {
-    type Node = D3Node;
+impl Drawable for (&Mesh, &Transform3d, &PbrMaterial) {
+    type Node = &'static mut D3Node;
 
     #[inline]
-    fn draw(&self, ctx: &RenderCtx, node: &mut Self::Node) {
-        node.meshes.add_instance(
-            ctx,
-            self.0,
-            bytes_of(&InstanceData::new(self.1.matrix(), self.2, PbrFlags::EMPTY)),
-            self.2.filter_mode,
-            None,
-            self.2.albedo_texture.as_ref().map(AsRef::as_ref),
-            self.2
-                .metallic_roughness_texture
-                .as_ref()
-                .map(AsRef::as_ref),
-            self.2.normal_map.as_ref().map(AsRef::as_ref),
-        );
+    fn draw(&self, ctx: &RenderCtx, node: &mut D3Node) {
+        node.meshes.register_material(ctx, self.2);
+
+        node.meshes
+            .add_instance(ctx, self.0, &Some(self.2), None, bytes_of(&self.1.matrix()));
     }
 }
 
@@ -549,34 +598,36 @@ impl Mesh {
     }
 }
 
+#[derive(Default)]
 pub struct D3Node {
     pub(crate) meshes: Meshes,
     pub(crate) point_lights: Vec<PointLightRaw>,
-    textures_layout: Option<ike_wgpu::BindGroupLayout>,
+    pub(crate) directional_lights: Vec<DirectionalLight>,
+    pub(crate) textures_layout: Option<ike_wgpu::BindGroupLayout>,
     default_texture: Option<ike_wgpu::TextureView>,
+    pub(crate) env_texture: Option<ike_wgpu::TextureView>,
+    pub(crate) env_texture_id: Option<Id<CubeTexture>>,
     uniforms_buffer: Option<ike_wgpu::Buffer>,
     uniforms_bind_group: Option<ike_wgpu::BindGroup>,
     default_joint_matrices_bind_group: Option<ike_wgpu::BindGroup>,
     default_pipelines: HashMap<ike_wgpu::TextureFormat, ike_wgpu::RenderPipeline>,
-}
-
-impl Default for D3Node {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            meshes: Default::default(),
-            point_lights: Vec::new(),
-            textures_layout: None,
-            default_texture: None,
-            uniforms_buffer: Default::default(),
-            uniforms_bind_group: Default::default(),
-            default_joint_matrices_bind_group: Default::default(),
-            default_pipelines: Default::default(),
-        }
-    }
+    pub(crate) depth_textures: Option<ike_wgpu::Texture>,
+    pub(crate) depth_view_buffer: Option<ike_wgpu::Buffer>,
+    pub(crate) depth_bind_group: Option<ike_wgpu::BindGroup>,
+    pub(crate) depth_pipeline: Option<ike_wgpu::RenderPipeline>,
+    pub(crate) shadow_map_layout: Option<ike_wgpu::BindGroupLayout>,
+    pub(crate) shadow_map_bind_group: Option<ike_wgpu::BindGroup>,
 }
 
 impl D3Node {
+    #[inline]
+    pub fn set_env_texture(&mut self, ctx: &RenderCtx, texture: &CubeTexture) {
+        if self.env_texture_id != Some(texture.id()) {
+            self.env_texture = Some(texture.view(ctx));
+            self.uniforms_bind_group = None; 
+        }
+    }
+
     #[inline]
     pub fn create_default_texture(&mut self, ctx: &RenderCtx) {
         if self.default_texture.is_none() {
@@ -700,6 +751,16 @@ impl D3Node {
                                 visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,
                                 count: None,
                             },
+                            ike_wgpu::BindGroupLayoutEntry {
+                                binding: 4,
+                                ty: ike_wgpu::BindingType::Buffer {
+                                    ty: ike_wgpu::BufferBindingType::Uniform,
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,
+                                count: None,
+                            },
                         ],
                     });
 
@@ -713,6 +774,7 @@ impl<S> PassNode<S> for D3Node {
     fn clear(&mut self) {
         self.meshes.clear();
         self.point_lights.clear();
+        self.directional_lights.clear();
     }
 
     #[inline]
@@ -720,6 +782,7 @@ impl<S> PassNode<S> for D3Node {
         self.create_default_texture(ctx.render_ctx);
         self.create_textures_layout(ctx.render_ctx);
         self.create_default_joint_matrices_bind_group(ctx.render_ctx);
+        self.create_depth_pipeline(&ctx.render_ctx.device);
 
         let sample_count = ctx.data.get::<SampleCount>().unwrap_or(&SampleCount(1));
         let format = ctx
@@ -731,20 +794,152 @@ impl<S> PassNode<S> for D3Node {
         let camera = ctx.data.get::<Camera>().unwrap_or_else(|| &ctx.view.camera);
 
         let textures_layout = self.textures_layout.as_ref().unwrap();
+        let shadow_map_layout = self.shadow_map_layout.as_ref().unwrap();
         let default_pipeline = self.default_pipelines.entry(format).or_insert_with(|| {
             default_pipeline(
                 &ctx.render_ctx.device,
                 textures_layout,
+                shadow_map_layout,
                 format,
                 sample_count.0,
             )
         });
 
+        self.meshes.prepare(
+            &ctx.render_ctx,
+            textures_layout,
+            self.default_texture.as_ref().unwrap(),
+        );
+
+        let depth_view_buffer = self.depth_view_buffer.as_ref().unwrap();
+        let depth_bind_group = self.depth_bind_group.as_ref().unwrap();
+        let depth_textures = self.depth_textures.as_ref().unwrap();
+        let depth_pipeline = self.depth_pipeline.as_ref().unwrap();
+        let mut encoder = ctx
+            .render_ctx
+            .device
+            .create_command_encoder(&Default::default());
+
+        let mut directional_lights: [DirectionalLightRaw; 16] = bytemuck::Zeroable::zeroed();
+
+        for (i, directional_light) in self.directional_lights.iter().enumerate() {
+            let mut transform = Transform3d::from_translation(camera.position);
+            transform.look_at(transform.translation + directional_light.direction, Vec3::Y);
+
+            let view = Mat4::orthographic_rh(-35.0, 35.0, -35.0, 35.0, -500.0, 500.0);
+            let view_proj = view * transform.matrix().inverse();
+
+            let raw = DirectionalLightRaw {
+                position: transform.translation.extend(0.0).into(),
+                direction: directional_light.direction.extend(0.0).into(),
+                color: (directional_light.color * directional_light.intensity()).into(),
+                view_proj: view_proj.to_cols_array_2d(),
+                near: -500.0,
+                far: 500.0,
+                size: [70.0, 70.0],
+            };
+
+            directional_lights[i] = raw;
+
+            ctx.render_ctx
+                .queue
+                .write_buffer(depth_view_buffer, 0, bytes_of(&view_proj));
+
+            let texture_view = depth_textures.create_view(&ike_wgpu::TextureViewDescriptor {
+                label: None,
+                base_array_layer: i as u32,
+                ..Default::default()
+            });
+
+            let mut render_pass = encoder.begin_render_pass(&ike_wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[],
+                depth_stencil_attachment: Some(ike_wgpu::RenderPassDepthStencilAttachment {
+                    view: &texture_view,
+                    depth_ops: Some(ike_wgpu::Operations {
+                        load: ike_wgpu::LoadOp::Clear(1.0),
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                }),
+            });
+
+            render_pass.set_pipeline(depth_pipeline);
+
+            for (id, instances) in &mut self.meshes.instances {
+                if instances.count == 0 {
+                    continue;
+                }
+
+                render_pass.set_bind_group(0, depth_bind_group, &[]);
+
+                render_pass.set_bind_group(1, instances.bind_group.as_ref().unwrap(), &[]);
+
+                if let Some(ref id) = instances.joint_matrices {
+                    render_pass.set_bind_group(
+                        2,
+                        self.meshes
+                            .joint_matrices
+                            .get(id)
+                            .unwrap()
+                            .bind_group
+                            .as_ref()
+                            .unwrap(),
+                        &[],
+                    );
+                } else {
+                    render_pass.set_bind_group(
+                        2,
+                        self.default_joint_matrices_bind_group.as_ref().unwrap(),
+                        &[],
+                    );
+                }
+
+                let vertex_buffer = self.meshes.vertex_buffers.get(&id.vertex_buffer).unwrap();
+                let index_buffer = self.meshes.index_buffers.get(&id.index_buffer).unwrap();
+
+                render_pass.set_vertex_buffer(
+                    0,
+                    vertex_buffer
+                        .buffer
+                        .buffer
+                        .slice(..vertex_buffer.buffer.len as u64),
+                );
+
+                let instance_buffer = instances.buffer.as_ref().unwrap();
+
+                render_pass.set_vertex_buffer(
+                    1,
+                    instance_buffer.buffer.slice(..instance_buffer.len as u64),
+                );
+
+                render_pass.set_index_buffer(
+                    index_buffer
+                        .buffer
+                        .buffer
+                        .slice(..index_buffer.buffer.len as u64),
+                    ike_wgpu::IndexFormat::Uint32,
+                );
+
+                render_pass.draw_indexed(
+                    0..index_buffer.buffer.len as u32 / 4,
+                    0,
+                    0..instances.count,
+                );
+            }
+        }
+
+        ctx.render_ctx
+            .queue
+            .submit(std::iter::once(encoder.finish()));
+
         let uniforms = Uniforms {
-            view_proj: camera.view_proj(),
-            camera_position: camera.position,
+            view_proj: camera.view_proj().to_cols_array_2d(),
+            camera_position: camera.position.extend(0.0).into(),
             point_light_count: self.point_lights.len() as u32,
             point_lights: point_lights(&self.point_lights),
+            directional_light_count: self.directional_lights.len() as u32,
+            directional_lights,
         };
 
         if let Some(ref buffer) = self.uniforms_buffer {
@@ -768,18 +963,47 @@ impl<S> PassNode<S> for D3Node {
             let bind_group_layout = ctx.render_ctx.device.create_bind_group_layout(
                 &ike_wgpu::BindGroupLayoutDescriptor {
                     label: None,
-                    entries: &[ike_wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        ty: ike_wgpu::BindingType::Buffer {
-                            ty: ike_wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
+                    entries: &[
+                        ike_wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            ty: ike_wgpu::BindingType::Buffer {
+                                ty: ike_wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,
+                            count: None,
                         },
-                        visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,
-                        count: None,
-                    }],
+                        ike_wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            ty: ike_wgpu::BindingType::Texture {
+                                sample_type: ike_wgpu::TextureSampleType::Float {
+                                    filterable: false,
+                                },
+                                view_dimension: ike_wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,
+                            count: None,
+                        },
+                        ike_wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            ty: ike_wgpu::BindingType::Sampler {
+                                filtering: true,
+                                comparison: false,
+                            },
+                            visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,
+                            count: None,
+                        },
+                    ],
                 },
             );
+
+            let env_texture = if let Some(ref texture) = self.env_texture {
+                texture
+            } else {
+                self.default_texture.as_ref().unwrap()
+            };
 
             let bind_group =
                 ctx.render_ctx
@@ -787,20 +1011,30 @@ impl<S> PassNode<S> for D3Node {
                     .create_bind_group(&ike_wgpu::BindGroupDescriptor {
                         label: None,
                         layout: &bind_group_layout,
-                        entries: &[ike_wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: self.uniforms_buffer.as_ref().unwrap().as_entire_binding(),
-                        }],
+                        entries: &[
+                            ike_wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: self
+                                    .uniforms_buffer
+                                    .as_ref()
+                                    .unwrap()
+                                    .as_entire_binding(),
+                            },
+                            ike_wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: ike_wgpu::BindingResource::TextureView(env_texture),
+                            },
+                            ike_wgpu::BindGroupEntry {
+                                binding: 2,
+                                resource: ike_wgpu::BindingResource::Sampler(
+                                    &ctx.render_ctx.device.create_sampler(&Default::default()),
+                                ),
+                            },
+                        ],
                     });
 
             self.uniforms_bind_group = Some(bind_group);
         }
-
-        self.meshes.prepare(
-            &ctx.render_ctx,
-            textures_layout,
-            self.default_texture.as_ref().unwrap(),
-        );
 
         ctx.render_pass.set_pipeline(default_pipeline);
 
@@ -808,6 +1042,10 @@ impl<S> PassNode<S> for D3Node {
             .set_bind_group(0, self.uniforms_bind_group.as_ref().unwrap(), &[]);
 
         for (id, instances) in &mut self.meshes.instances {
+            if instances.count == 0 {
+                continue;
+            }
+
             let vertex_buffer = self.meshes.vertex_buffers.get(&id.vertex_buffer).unwrap();
             let index_buffer = self.meshes.index_buffers.get(&id.index_buffer).unwrap();
 
@@ -827,7 +1065,7 @@ impl<S> PassNode<S> for D3Node {
             );
 
             ctx.render_pass
-                .set_bind_group(1, instances.texture_bind_group.as_ref().unwrap(), &[]);
+                .set_bind_group(1, instances.bind_group.as_ref().unwrap(), &[]);
 
             if let Some(ref id) = instances.joint_matrices {
                 ctx.render_pass.set_bind_group(
@@ -848,6 +1086,9 @@ impl<S> PassNode<S> for D3Node {
                     &[],
                 );
             }
+
+            ctx.render_pass
+                .set_bind_group(3, self.shadow_map_bind_group.as_ref().unwrap(), &[]);
 
             ctx.render_pass.set_index_buffer(
                 index_buffer

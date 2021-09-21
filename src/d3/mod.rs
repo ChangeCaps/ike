@@ -1,5 +1,6 @@
 pub mod animation;
 mod default_pipeline;
+mod depth;
 pub mod gltf;
 pub mod material;
 pub mod mesh;

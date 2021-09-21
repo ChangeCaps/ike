@@ -1,6 +1,7 @@
-use std::borrow::Cow;
-
-use crate::prelude::{Color, Texture};
+use crate::{
+    id::{HasId, Id},
+    prelude::{Color, Texture},
+};
 
 /// Bit flags for the pbr shader.
 #[repr(transparent)]
@@ -32,22 +33,35 @@ impl std::ops::BitOrAssign<PbrFlags> for PbrFlags {
 }
 
 #[derive(Clone, Debug)]
-pub struct PbrMaterial<'a> {
-    pub albedo_texture: Option<Cow<'a, Texture>>,
-    pub metallic_roughness_texture: Option<Cow<'a, Texture>>,
-    pub normal_map: Option<Cow<'a, Texture>>,
+pub struct PbrMaterial {
+    pub(crate) id: Id<PbrMaterial>,
+    pub albedo_texture: Option<Texture>,
+    pub metallic_roughness_texture: Option<Texture>,
+    pub normal_map: Option<Texture>,
     pub albedo: Color,
     pub roughness: f32,
     pub metallic: f32,
     pub reflectance: f32,
     pub emission: Color,
+    pub shadow_softness: f32,
+    pub shadow_softness_falloff: f32,
+    pub shadow_blocker_samples: u32,
+    pub shadow_pcf_samples: u32,
     pub filter_mode: ike_wgpu::FilterMode,
 }
 
-impl Default for PbrMaterial<'_> {
+impl HasId<PbrMaterial> for PbrMaterial {
+    #[inline]
+    fn id(&self) -> Id<PbrMaterial> {
+        self.id
+    }
+}
+
+impl Default for PbrMaterial {
     #[inline]
     fn default() -> Self {
         Self {
+            id: Id::new(),
             albedo_texture: None,
             metallic_roughness_texture: None,
             normal_map: None,
@@ -56,7 +70,60 @@ impl Default for PbrMaterial<'_> {
             metallic: 0.01,
             reflectance: 0.5,
             emission: Color::BLACK,
+            shadow_softness: 1.0,
+            shadow_softness_falloff: 4.0,
+            #[cfg(debug_assertions)]
+            shadow_blocker_samples: 8,
+            #[cfg(not(debug_assertions))]
+            shadow_blocker_samples: 24,
+            #[cfg(debug_assertions)]
+            shadow_pcf_samples: 16,
+            #[cfg(not(debug_assertions))]
+            shadow_pcf_samples: 64,
             filter_mode: ike_wgpu::FilterMode::Linear,
         }
     }
+}
+
+impl PbrMaterial {
+    #[inline]
+    pub fn metal() -> Self {
+        Self {
+            id: Id::new(),
+            metallic: 0.99,
+            reflectance: 0.9,
+            ..Default::default()
+        }
+    }
+}
+
+impl PbrMaterial {
+    #[inline]
+    pub fn raw(&self) -> PbrMaterialRaw {
+        PbrMaterialRaw {
+            albedo: self.albedo.into(),
+            emission: self.emission.into(),
+            roughness: self.roughness,
+            metallic: self.metallic,
+            reflectance: self.reflectance,
+            shadow_softness: self.shadow_softness,
+            shadow_softness_falloff: self.shadow_softness_falloff,
+            shadow_blocker_samples: self.shadow_blocker_samples,
+            shadow_pcf_samples: self.shadow_pcf_samples,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct PbrMaterialRaw {
+    pub albedo: [f32; 4],
+    pub emission: [f32; 4],
+    pub roughness: f32,
+    pub metallic: f32,
+    pub reflectance: f32,
+    pub shadow_softness: f32,
+    pub shadow_softness_falloff: f32,
+    pub shadow_blocker_samples: u32,
+    pub shadow_pcf_samples: u32,
 }

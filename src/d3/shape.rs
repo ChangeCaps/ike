@@ -1,6 +1,6 @@
 use super::{Mesh, Vertex};
 use crate::prelude::Color;
-use glam::{Vec2, Vec3};
+use glam::{Vec2, Vec3, Vec4};
 
 impl Mesh<Vertex> {
     #[inline]
@@ -236,8 +236,7 @@ impl Mesh<Vertex> {
         mesh.vertices.push(Vertex {
             position: Vec3::new(-size.x, -size.y, 0.0),
             normal: Vec3::Z,
-            tangent: Vec3::Y,
-            bitangent: Vec3::X,
+            tangent: Vec4::Y,
             color: Color::WHITE,
             uv: Vec2::ZERO,
             ..Default::default()
@@ -246,8 +245,7 @@ impl Mesh<Vertex> {
         mesh.vertices.push(Vertex {
             position: Vec3::new(size.x, -size.y, 0.0),
             normal: Vec3::Z,
-            tangent: Vec3::Y,
-            bitangent: Vec3::X,
+            tangent: Vec4::Y,
             color: Color::WHITE,
             uv: Vec2::new(1.0, 0.0),
             ..Default::default()
@@ -256,8 +254,7 @@ impl Mesh<Vertex> {
         mesh.vertices.push(Vertex {
             position: Vec3::new(-size.x, size.y, 0.0),
             normal: Vec3::Z,
-            tangent: Vec3::Y,
-            bitangent: Vec3::X,
+            tangent: Vec4::Y,
             color: Color::WHITE,
             uv: Vec2::new(0.0, 1.0),
             ..Default::default()
@@ -266,8 +263,7 @@ impl Mesh<Vertex> {
         mesh.vertices.push(Vertex {
             position: Vec3::new(size.x, size.y, 0.0),
             normal: Vec3::Z,
-            tangent: Vec3::Y,
-            bitangent: Vec3::X,
+            tangent: Vec4::Y,
             color: Color::WHITE,
             uv: Vec2::ONE,
             ..Default::default()
@@ -276,6 +272,50 @@ impl Mesh<Vertex> {
         mesh.indices.push(0);
         mesh.indices.push(1);
         mesh.indices.push(2);
+        mesh.indices.push(1);
+        mesh.indices.push(2);
+        mesh.indices.push(3);
+
+        mesh
+    }
+
+    #[inline]
+    pub fn plane(size: Vec2) -> Self {
+        let mut mesh = Self::new();
+
+        mesh.vertices.push(Vertex {
+            position: Vec3::new(-size.x, 0.0, -size.y),
+            normal: Vec3::Y,
+            tangent: Vec4::X,
+            uv: Vec2::ZERO,
+            ..Default::default()
+        });
+        mesh.vertices.push(Vertex {
+            position: Vec3::new(size.x, 0.0, -size.y),
+            normal: Vec3::Y,
+            tangent: Vec4::X,
+            uv: Vec2::new(1.0, 0.0),
+            ..Default::default()
+        });
+        mesh.vertices.push(Vertex {
+            position: Vec3::new(-size.x, 0.0, size.y),
+            normal: Vec3::Y,
+            tangent: Vec4::X,
+            uv: Vec2::new(0.0, 1.0),
+            ..Default::default()
+        });
+        mesh.vertices.push(Vertex {
+            position: Vec3::new(size.x, 0.0, size.y),
+            normal: Vec3::Y,
+            tangent: Vec4::X,
+            uv: Vec2::ONE,
+            ..Default::default()
+        });
+
+        mesh.indices.push(0);
+        mesh.indices.push(2);
+        mesh.indices.push(1);
+
         mesh.indices.push(1);
         mesh.indices.push(2);
         mesh.indices.push(3);

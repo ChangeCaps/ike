@@ -1,95 +1,63 @@
 use bytemuck::{Pod, Zeroable};
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Pod, Zeroable)]
-pub struct Color8 {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
-    pub a: u8,
-}
-
-impl Color8 {
-    pub const TRANSPARENT: Self = Self::rgba(0, 0, 0, 0);
-    pub const BLACK: Self = Self::rgb(0, 0, 0);
-    pub const WHITE: Self = Self::rgb(255, 255, 255);
-
-    #[inline]
-    pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
-        Self { r, g, b, a: 255 }
-    }
-
-    #[inline]
-    pub fn srgb(r: u8, g: u8, b: u8) -> Self {
-        Self {
-            r: ((r as f32 / 255.0).powf(2.2) * 255.0).round() as u8,
-            g: ((g as f32 / 255.0).powf(2.2) * 255.0).round() as u8,
-            b: ((b as f32 / 255.0).powf(2.2) * 255.0).round() as u8,
-            a: 255,
+macro_rules! impl_color {
+    ($ident:ident, $ty:ty, $zero:expr, $one:expr) => {
+        #[repr(C)]
+        #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
+        pub struct $ident {
+            pub r: $ty,
+            pub g: $ty,
+            pub b: $ty,
+            pub a: $ty,
         }
-    }
 
-    #[inline]
-    pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
-        Self { r, g, b, a }
-    }
+        impl $ident {
+            pub const TRANSPARENT: Self = Self::rgba($zero, $zero, $zero, $zero);
+            pub const BLACK: Self = Self::rgb($zero, $zero, $zero);
+            pub const WHITE: Self = Self::rgb($one, $one, $one);
+            pub const RED: Self = Self::rgb($zero, $one, $one);
+            pub const GREEN: Self = Self::rgb($one, $zero, $one);
+            pub const BLUE: Self = Self::rgb($one, $one, $zero);
+
+            #[inline]
+            pub const fn rgb(r: $ty, g: $ty, b: $ty) -> Self {
+                Self { r, g, b, a: $one }
+            }
+
+            #[inline]
+            pub const fn rgba(r: $ty, g: $ty, b: $ty, a: $ty) -> Self {
+                Self { r, g, b, a }
+            }
+        }
+
+        impl Into<[$ty; 4]> for $ident {
+            #[inline]
+            fn into(self) -> [$ty; 4] {
+                [self.r, self.g, self.b, self.a]
+            }
+        }
+
+        impl From<[$ty; 4]> for $ident {
+            #[inline]
+            fn from([r, g, b, a]: [$ty; 4]) -> Self {
+                Self::rgba(r, g, b, a)
+            }
+        }
+
+        impl std::ops::Mul<$ty> for $ident {
+            type Output = $ident;
+
+            #[inline]
+            fn mul(self, rhs: $ty) -> Self::Output {
+                Self::rgba(self.r * rhs, self.g * rhs, self.b * rhs, self.a * rhs)
+            }
+        }
+    };
 }
 
-impl From<[u8; 4]> for Color8 {
-    #[inline]
-    fn from([r, g, b, a]: [u8; 4]) -> Self {
-        Self { r, g, b, a }
-    }
-}
-
-impl From<Color> for Color8 {
-    #[inline]
-    fn from(color: Color) -> Self {
-        Self::from(Into::<[u8; 4]>::into(color))
-    }
-}
-
-impl Into<[u8; 4]> for Color8 {
-    #[inline]
-    fn into(self) -> [u8; 4] {
-        [self.r, self.g, self.b, self.a]
-    }
-}
-
-impl Into<Color> for Color8 {
-    #[inline]
-    fn into(self) -> Color {
-        Color::from(Into::<[u8; 4]>::into(self))
-    }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
-pub struct Color {
-    pub r: f32,
-    pub g: f32,
-    pub b: f32,
-    pub a: f32,
-}
-
-impl Color {
-    pub const TRANSPARENT: Self = Self::rgba(0.0, 0.0, 0.0, 0.0);
-    pub const BLACK: Self = Self::rgb(0.0, 0.0, 0.0);
-    pub const WHITE: Self = Self::rgb(1.0, 1.0, 1.0);
-    pub const RED: Self = Self::rgb(1.0, 0.0, 0.0);
-    pub const GREEN: Self = Self::rgb(0.0, 1.0, 0.0);
-    pub const BLUE: Self = Self::rgb(0.0, 0.0, 1.0);
-
-    #[inline]
-    pub const fn rgb(r: f32, g: f32, b: f32) -> Self {
-        Self { r, g, b, a: 1.0 }
-    }
-
-    #[inline]
-    pub const fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
-        Self { r, g, b, a }
-    }
-}
+impl_color!(Color, f32, 0.0, 1.0);
+impl_color!(Color8, u8, 0, 255);
+impl_color!(Color16, u16, 0, u16::MAX);
 
 impl Into<[u8; 4]> for Color {
     #[inline]
@@ -100,13 +68,6 @@ impl Into<[u8; 4]> for Color {
             (self.b * 255.0).round() as u8,
             (self.a * 255.0).round() as u8,
         ]
-    }
-}
-
-impl Into<[f32; 4]> for Color {
-    #[inline]
-    fn into(self) -> [f32; 4] {
-        [self.r, self.g, self.b, self.a]
     }
 }
 
@@ -122,10 +83,10 @@ impl From<[u8; 4]> for Color {
     }
 }
 
-impl From<[f32; 4]> for Color {
+impl From<Color> for Color8 {
     #[inline]
-    fn from([r, g, b, a]: [f32; 4]) -> Self {
-        Self::rgba(r, g, b, a)
+    fn from(color: Color) -> Self {
+        Color8::from(Into::<[u8; 4]>::into(color))
     }
 }
 
@@ -138,14 +99,5 @@ impl Into<ike_wgpu::Color> for Color {
             b: self.b as f64,
             a: self.a as f64,
         }
-    }
-}
-
-impl std::ops::Mul<f32> for Color {
-    type Output = Color;
-
-    #[inline]
-    fn mul(self, rhs: f32) -> Self::Output {
-        Color::rgba(self.r * rhs, self.g * rhs, self.b * rhs, self.a * rhs)
     }
 }

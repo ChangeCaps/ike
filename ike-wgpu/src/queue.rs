@@ -69,6 +69,11 @@ impl Queue {
     }
 
     #[inline]
+    pub fn submit_once(&self, command_buffer: crate::CommandBuffer) {
+        self.0.submit(vec![command_buffer]);
+    }
+
+    #[inline]
     pub fn write_buffer(&self, buffer: &crate::Buffer, offset: u64, data: &[u8]) {
         self.0.write_buffer(buffer, offset, data);
     }

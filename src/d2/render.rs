@@ -6,7 +6,7 @@ use crate::{
     texture::Texture,
 };
 use bytemuck::{cast_slice, Pod, Zeroable};
-use glam::{DAffine2, Vec2, Vec3};
+use glam::{Vec2, Vec3};
 use std::{borrow::Cow, collections::HashMap};
 
 fn create_pipeline(
@@ -133,10 +133,10 @@ impl<'a> TextSprite<'a> {
 }
 
 impl Drawable for TextSprite<'_> {
-    type Node = SpriteNode2d;
+    type Node = &'static mut SpriteNode2d;
 
     #[inline]
-    fn draw(&self, ctx: &RenderCtx, node: &mut Self::Node) {
+    fn draw(&self, ctx: &RenderCtx, node: &mut SpriteNode2d) {
         let mut height = 0.0f32;
         let mut width = 0.0;
 
@@ -222,10 +222,10 @@ impl<'a> Sprite<'a> {
 }
 
 impl Drawable for Sprite<'_> {
-    type Node = SpriteNode2d;
+    type Node = &'static mut SpriteNode2d;
 
     #[inline]
-    fn draw(&self, ctx: &RenderCtx, node: &mut Self::Node) {
+    fn draw(&self, ctx: &RenderCtx, node: &mut SpriteNode2d) {
         let sprite = BatchedSprite {
             transform: self.transform.matrix(),
             depth: self.depth,

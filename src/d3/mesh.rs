@@ -5,7 +5,7 @@ use std::{
 };
 
 use bytemuck::{cast_slice, Pod};
-use glam::{Vec2, Vec3};
+use glam::{Vec2, Vec3, Vec4, Vec4Swizzles};
 
 use crate::{
     id::{HasId, Id},
@@ -17,9 +17,8 @@ use crate::{
 pub struct Vertex {
     pub position: Vec3,
     pub normal: Vec3,
-    pub tangent: Vec3,
-    pub bitangent: Vec3,
     pub uv: Vec2,
+    pub tangent: Vec4,
     pub color: Color,
     pub joints: [u32; 4],
     pub weights: [f32; 4],
@@ -31,8 +30,7 @@ impl Default for Vertex {
         Self {
             position: Vec3::ZERO,
             normal: Vec3::Z,
-            tangent: Vec3::Y,
-            bitangent: Vec3::X,
+            tangent: Vec4::Y,
             uv: Vec2::ZERO,
             color: Color::WHITE,
             joints: [0; 4],
@@ -233,8 +231,7 @@ impl Mesh<Vertex> {
     #[inline]
     pub fn calculate_tangents(&mut self) {
         for vertex in self.vertices.iter_mut() {
-            vertex.tangent = Vec3::ZERO;
-            vertex.bitangent = Vec3::ZERO;
+            vertex.tangent = Vec4::ZERO;
         }
 
         for i in 0..self.indices.len() / 3 {
@@ -253,19 +250,15 @@ impl Mesh<Vertex> {
             let duv2 = v2.uv - v0.uv;
 
             let r = 1.0 / (duv1.x * duv2.y - duv1.y * duv2.x);
-            self.vertices[i0 as usize].tangent += (dp1 * duv2.y - dp2 * duv1.y) * r;
-            self.vertices[i0 as usize].bitangent += (dp2 * duv1.x - dp1 * duv2.x) * r;
+            self.vertices[i0 as usize].tangent += ((dp1 * duv2.y - dp2 * duv1.y) * r).extend(1.0);
 
-            self.vertices[i1 as usize].tangent += (dp1 * duv2.y - dp2 * duv1.y) * r;
-            self.vertices[i1 as usize].bitangent += (dp2 * duv1.x - dp1 * duv2.x) * r;
+            self.vertices[i1 as usize].tangent += ((dp1 * duv2.y - dp2 * duv1.y) * r).extend(1.0);
 
-            self.vertices[i2 as usize].tangent += (dp1 * duv2.y - dp2 * duv1.y) * r;
-            self.vertices[i2 as usize].bitangent += (dp2 * duv1.x - dp1 * duv2.x) * r;
+            self.vertices[i2 as usize].tangent += ((dp1 * duv2.y - dp2 * duv1.y) * r).extend(1.0);
         }
 
         for vertex in self.vertices.iter_mut() {
-            vertex.tangent = vertex.tangent.normalize();
-            vertex.bitangent = vertex.bitangent.normalize();
+            vertex.tangent = vertex.tangent.xyz().normalize().extend(1.0);
         }
     }
 }

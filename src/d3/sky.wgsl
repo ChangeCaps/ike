@@ -19,7 +19,7 @@ struct Uniforms {
 var<uniform> uniforms: Uniforms;
 
 [[group(0), binding(1)]]
-var texture: texture_2d<f32>;
+var texture: texture_cube<f32>;
 
 [[group(0), binding(2)]]
 var sampler: sampler;
@@ -44,15 +44,5 @@ let PI: f32 = 3.141592653589793;
 
 [[stage(fragment)]]
 fn main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
-	let view_dir = normalize(in.view_dir);
-
-	let x = atan2(view_dir.z, view_dir.x);	
-	let y = acos(dot(vec3<f32>(0.0, -1.0, 0.0), view_dir));
-
-	let u = x / PI / 2.0 + 0.5;
-	let v = y / PI;
-
-	let uv = vec2<f32>(u, v);
-
-	return textureSample(texture, sampler, uv);
+	return textureSample(texture, sampler, in.view_dir);
 }

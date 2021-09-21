@@ -1,6 +1,6 @@
 use glam::Vec2;
 use winit::{
-    event::{ElementState, Event, KeyboardInput, MouseScrollDelta, WindowEvent},
+    event::{DeviceEvent, ElementState, Event, KeyboardInput, MouseScrollDelta, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -78,6 +78,7 @@ impl<S: State> App<S> {
 
         let mut start_ctx = StartCtx {
             window: &mut window,
+            render_ctx: &render_ctx,
         };
 
         state.start(&mut start_ctx);
@@ -145,8 +146,7 @@ impl<S: State> App<S> {
                 key_input.update();
                 mouse_input.update();
                 char_input.clear();
-                mouse.prev_position = mouse.position;
-                mouse.wheel_delta = Vec2::ZERO;
+                mouse.update();
 
                 for view in views.views.values() {
                     self.renderer.render_view(&render_ctx, view, &mut state);
@@ -154,6 +154,12 @@ impl<S: State> App<S> {
 
                 self.renderer.clear_nodes();
             }
+            Event::DeviceEvent { event, .. } => match event {
+                DeviceEvent::MouseMotion { delta: (x, y) } => {
+                    mouse.movement += Vec2::new(x as f32, y as f32);
+                }
+                _ => {}
+            },
             Event::MainEventsCleared => {
                 winit_window.request_redraw();
             }
