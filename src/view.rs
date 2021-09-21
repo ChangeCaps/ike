@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use glam::UVec2;
+
 use crate::{
     camera::Camera,
     id::{HasId, Id},
@@ -11,6 +13,13 @@ pub struct View {
     pub width: u32,
     pub height: u32,
     pub format: ike_wgpu::TextureFormat,
+}
+
+impl View {
+    #[inline]
+    pub fn size(&self) -> UVec2 {
+        UVec2::new(self.width, self.height)
+    }
 }
 
 pub struct Views {

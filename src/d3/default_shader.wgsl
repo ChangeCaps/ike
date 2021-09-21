@@ -671,9 +671,9 @@ fn main(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 	color = color + diffuse_ambient * occlusion * 0.2;
 	color = color + emissive.rgb;
 
-	color = reinhard_luminance(color);
+	//color = reinhard_luminance(color);
 
-	color = pow(color, vec3<f32>(1.0/2.2));
+	//color = pow(color, vec3<f32>(1.0/2.2));
 
 	if (base_color.a < 0.1) {
 		discard;

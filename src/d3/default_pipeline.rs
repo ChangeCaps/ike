@@ -153,7 +153,7 @@ pub fn default_pipeline(
             module: &module,
             targets: &[ike_wgpu::ColorTargetState {
                 format,
-                blend: Some(ike_wgpu::BlendState::ALPHA_BLENDING),
+                blend: None,
                 write_mask: ike_wgpu::ColorWrites::ALL,
             }],
             entry_point: "main",

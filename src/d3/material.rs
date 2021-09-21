@@ -67,7 +67,7 @@ impl Default for PbrMaterial {
             normal_map: None,
             albedo: Color::WHITE,
             roughness: 0.089,
-            metallic: 0.01,
+            metallic: 0.3,
             reflectance: 0.5,
             emission: Color::BLACK,
             shadow_softness: 1.0,

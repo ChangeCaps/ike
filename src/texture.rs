@@ -150,7 +150,7 @@ impl HdrTexture {
         let file = std::fs::File::open(path.as_ref())?;
         let buf_reader = BufReader::new(file);
 
-        let image = HdrDecoder::new(buf_reader)?; 
+        let image = HdrDecoder::new(buf_reader)?;
 
         let meta = image.metadata();
 
@@ -158,14 +158,7 @@ impl HdrTexture {
 
         let data: Vec<Color> = rgba
             .into_iter()
-            .map(|pixel| {
-                Color::rgba(
-                    pixel[0],
-                    pixel[1],
-                    pixel[2],
-                    1.0,
-                )
-            })
+            .map(|pixel| Color::rgba(pixel[0], pixel[1], pixel[2], 1.0))
             .collect();
 
         Ok(Self::from_data(data, meta.width, meta.height))

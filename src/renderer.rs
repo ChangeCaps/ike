@@ -5,6 +5,8 @@ use std::{
     sync::Arc,
 };
 
+use glam::UVec2;
+
 use crate::{type_name::TypeName, view::View};
 
 pub trait Drawable {
@@ -25,6 +27,20 @@ pub trait PassNode<S>: TypeName {
     fn clear(&mut self) {}
 
     fn run<'a>(&'a mut self, ctx: &mut PassNodeCtx<'_, 'a>, state: &mut S);
+}
+
+pub struct RenderNodeCtx<'a> {
+    pub data: &'a mut PassData,
+    pub view: &'a View,
+    pub render_ctx: &'a RenderCtx,
+    pub encoder: &'a mut ike_wgpu::CommandEncoder,
+}
+
+pub trait RenderNode<S>: TypeName {
+    #[inline]
+    fn clear(&mut self) {}
+
+    fn run(&mut self, ctx: &mut RenderNodeCtx);
 }
 
 pub trait RenderPass<S>: TypeName {
@@ -89,10 +105,7 @@ impl Default for SampleCount {
 pub struct TargetFormat(pub ike_wgpu::TextureFormat);
 
 #[derive(Clone)]
-pub struct TargetSize {
-    pub width: u32,
-    pub height: u32,
-}
+pub struct TargetSize(pub UVec2);
 
 pub struct RenderCtx {
     pub device: Arc<ike_wgpu::Device>,
@@ -102,7 +115,6 @@ pub struct RenderCtx {
 }
 
 pub struct Pass<S: ?Sized> {
-    data: PassData,
     pass: Box<dyn RenderPass<S>>,
     nodes: Vec<(&'static str, Box<dyn PassNode<S>>)>,
 }
@@ -111,7 +123,6 @@ impl<S> Pass<S> {
     #[inline]
     pub fn new<P: RenderPass<S> + 'static>(pass: P) -> Self {
         Self {
-            data: PassData::default(),
             pass: Box::new(pass),
             nodes: Vec::new(),
         }
@@ -178,14 +189,13 @@ impl<S> Pass<S> {
         encoder: &mut ike_wgpu::CommandEncoder,
         render_ctx: &RenderCtx,
         view: &View,
+        data: &mut PassData,
         state: &mut S,
     ) {
-        let mut render_pass = self
-            .pass
-            .run(encoder, render_ctx, view, &mut self.data, state);
+        let mut render_pass = self.pass.run(encoder, render_ctx, view, data, state);
 
         let mut ctx = PassNodeCtx {
-            data: &mut self.data,
+            data,
             view,
             render_ctx,
             render_pass: &mut render_pass,
@@ -247,12 +257,44 @@ impl<'a, S, P> std::ops::DerefMut for PassGuard<'a, S, P> {
     }
 }
 
+enum Node<S: ?Sized> {
+    Pass(Pass<S>),
+    Node(Box<dyn RenderNode<S>>),
+}
+
 pub struct Renderer<S: ?Sized> {
+    pass_data: PassData,
     order: Vec<&'static str>,
-    passes: HashMap<&'static str, Pass<S>>,
+    nodes: HashMap<&'static str, Node<S>>,
 }
 
 impl<S> Renderer<S> {
+    #[inline]
+    #[cfg(feature = "3d")]
+    pub fn default_pbr_pipeline(&mut self) {
+        use crate::prelude::*;
+
+        let mut main_pass = MainPass::default();
+        main_pass.sample_count = 4;
+        main_pass.clear_color = Color::BLUE;
+
+        let mut main_pass = Pass::new(main_pass);
+
+        main_pass.push(HdrCombineNode::default());
+        main_pass.push(SpriteNode2d::new());
+
+        let mut hdr_pass = Pass::new(HdrPass::default());
+
+        hdr_pass.push(SkyNode::default());
+        hdr_pass.push(DebugNode::default());
+        hdr_pass.push(D3Node::default());
+
+        self.push_pass(hdr_pass);
+        self.push_node(BloomNode::default());
+        self.push_node(AvgLuminanceNode::default());
+        self.push_pass(main_pass);
+    }
+
     #[inline]
     pub fn render_view(&mut self, render_ctx: &RenderCtx, view: &View, state: &mut S) {
         let mut encoder = render_ctx
@@ -260,10 +302,23 @@ impl<S> Renderer<S> {
             .create_command_encoder(&Default::default());
 
         for pass in &self.order {
-            self.passes
-                .get_mut(pass)
-                .unwrap()
-                .run(&mut encoder, render_ctx, view, state);
+            let node = self.nodes.get_mut(pass).unwrap();
+
+            match node {
+                Node::Pass(pass) => {
+                    pass.run(&mut encoder, render_ctx, view, &mut self.pass_data, state);
+                }
+                Node::Node(node) => {
+                    let mut ctx = RenderNodeCtx {
+                        data: &mut self.pass_data,
+                        view,
+                        render_ctx,
+                        encoder: &mut encoder,
+                    };
+
+                    node.run(&mut ctx);
+                }
+            }
         }
 
         render_ctx.queue.submit(std::iter::once(encoder.finish()));
@@ -272,9 +327,12 @@ impl<S> Renderer<S> {
     #[inline]
     pub fn frame(&mut self) -> RenderFrame<'_> {
         let passes = self
-            .passes
+            .nodes
             .iter_mut()
-            .map(|(name, pass)| (*name, pass as &mut dyn FramePass))
+            .filter_map(|(name, node)| match node {
+                Node::Pass(pass) => Some((*name, pass as &mut dyn FramePass)),
+                Node::Node(_) => None,
+            })
             .collect();
 
         RenderFrame { passes }
@@ -282,13 +340,16 @@ impl<S> Renderer<S> {
 
     #[inline]
     pub fn clear_nodes(&mut self) {
-        for pass in self.passes.values_mut() {
-            pass.clear();
+        for node in self.nodes.values_mut() {
+            match node {
+                Node::Pass(pass) => pass.clear(),
+                Node::Node(node) => node.clear(),
+            }
         }
     }
 
     #[inline]
-    pub fn insert_before<Before: RenderPass<S>>(&mut self, pass: Pass<S>) {
+    pub fn pass_before<Before: RenderPass<S>>(&mut self, pass: Pass<S>) {
         let idx = self
             .order
             .iter()
@@ -296,22 +357,32 @@ impl<S> Renderer<S> {
             .unwrap_or(0);
 
         self.order.insert(idx, pass.name());
-        self.passes.insert(pass.name(), pass);
+        self.nodes.insert(pass.name(), Node::Pass(pass));
     }
 
     #[inline]
-    pub fn push(&mut self, pass: Pass<S>) {
+    pub fn push_pass(&mut self, pass: Pass<S>) {
         self.order.push(pass.name());
-        self.passes.insert(pass.name(), pass);
+        self.nodes.insert(pass.name(), Node::Pass(pass));
+    }
+
+    #[inline]
+    pub fn push_node(&mut self, node: impl RenderNode<S> + 'static) {
+        self.order.push(node.type_name());
+        self.nodes
+            .insert(node.type_name(), Node::Node(Box::new(node)));
     }
 
     #[inline]
     pub fn pass_mut<P: RenderPass<S>>(&mut self) -> Option<PassGuard<S, P>> {
-        if let Some(pass) = self.passes.get_mut(type_name::<P>()) {
-            Some(PassGuard {
-                pass,
-                marker: PhantomData,
-            })
+        if let Some(node) = self.nodes.get_mut(type_name::<P>()) {
+            match node {
+                Node::Pass(pass) => Some(PassGuard {
+                    pass,
+                    marker: PhantomData,
+                }),
+                Node::Node(_) => None,
+            }
         } else {
             None
         }
@@ -322,8 +393,9 @@ impl<S> Default for Renderer<S> {
     #[inline]
     fn default() -> Self {
         let renderer = Self {
+            pass_data: Default::default(),
             order: Default::default(),
-            passes: Default::default(),
+            nodes: Default::default(),
         };
 
         renderer
@@ -371,14 +443,21 @@ impl<'a> RenderFrame<'a> {
     }
 }
 
-pub trait FramePassFetch<'a> {
+pub unsafe trait FramePassFetch<'a> {
     type Item;
+
+    fn fetch_ids() -> Vec<TypeId>;
 
     unsafe fn fetch(pass: &dyn FramePass) -> Option<Self::Item>;
 }
 
-impl<'a, P: 'static> FramePassFetch<'a> for &mut P {
+unsafe impl<'a, P: 'static> FramePassFetch<'a> for &mut P {
     type Item = &'a mut P;
+
+    #[inline]
+    fn fetch_ids() -> Vec<TypeId> {
+        vec![TypeId::of::<P>()]
+    }
 
     #[inline]
     unsafe fn fetch(pass: &dyn FramePass) -> Option<Self::Item> {
@@ -388,8 +467,13 @@ impl<'a, P: 'static> FramePassFetch<'a> for &mut P {
     }
 }
 
-impl<'a, P: 'static> FramePassFetch<'a> for Option<&mut P> {
+unsafe impl<'a, P: 'static> FramePassFetch<'a> for Option<&mut P> {
     type Item = Option<&'a mut P>;
+
+    #[inline]
+    fn fetch_ids() -> Vec<TypeId> {
+        vec![TypeId::of::<P>()]
+    }
 
     #[inline]
     unsafe fn fetch(pass: &dyn FramePass) -> Option<Self::Item> {
@@ -410,16 +494,28 @@ macro_rules! check {
         check!($($rest),* | $($ident),*);
     };
     ($to_check:ident: $($ident:ident),*) => {
-        if $((TypeId::of::<$to_check>() == TypeId::of::<$ident>() && stringify!($to_check) != stringify!($ident)))||* {
-            panic!("invalid FramePassFetch, '{}' fetched twice", type_name::<$to_check>());
+        for id in $to_check::fetch_ids() {
+            if $(($ident::fetch_ids().contains(&id) && stringify!($to_check) != stringify!($ident)))||* {
+                panic!("invalid FramePassFetch, '{}' fetched twice", type_name::<$to_check>());
+            }
         }
     }
 }
 
 macro_rules! impl_pass_fetch {
     ($($ident:ident),*) => {
-        impl<'a, $($ident: FramePassFetch<'a> + 'static),*> FramePassFetch<'a> for ($($ident,)*) {
+        unsafe impl<'a, $($ident: FramePassFetch<'a> + 'static),*> FramePassFetch<'a> for ($($ident,)*) {
             type Item = ($(<$ident as FramePassFetch<'a>>::Item,)*);
+
+            fn fetch_ids() -> Vec<TypeId> {
+                let mut v = Vec::new();
+
+                $(
+                    v.append(&mut $ident::fetch_ids());
+                )*
+
+                return v;
+            }
 
             #[inline]
             unsafe fn fetch(pass: &dyn FramePass) -> Option<Self::Item> {

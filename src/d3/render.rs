@@ -1,9 +1,14 @@
 use std::collections::{BTreeMap, HashMap};
 
 use bytemuck::{bytes_of, cast_slice};
-use glam::{Mat4, Vec3};
+use glam::{Mat4, UVec2, Vec3};
 
-use crate::{cube_texture::{CubeTexture, Environment}, id::{HasId, Id}, prelude::{Camera, Color, HdrTexture, Texture}, renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat}};
+use crate::{
+    cube_texture::{CubeTexture, Environment},
+    id::{HasId, Id},
+    prelude::{Camera, Color, HdrTexture, Texture},
+    renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat, TargetSize},
+};
 
 use super::{
     default_pipeline::default_pipeline, BufferVersion, Indices, Mesh, PbrFlags, PbrMaterial,
@@ -1080,7 +1085,9 @@ impl<S> PassNode<S> for D3Node {
                             },
                             ike_wgpu::BindGroupEntry {
                                 binding: 2,
-                                resource: ike_wgpu::BindingResource::TextureView(irradiance_texture),
+                                resource: ike_wgpu::BindingResource::TextureView(
+                                    irradiance_texture,
+                                ),
                             },
                             ike_wgpu::BindGroupEntry {
                                 binding: 3,

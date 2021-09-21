@@ -17,6 +17,13 @@ pub(crate) unsafe trait CommandEncoderTrait {
         destination: crate::ImageCopyBuffer<&crate::Buffer>,
         copy_size: crate::Extent3d,
     );
+
+    fn copy_texture_to_texture(
+        &mut self,
+        source: crate::ImageCopyTexture<&crate::Texture>,
+        destination: crate::ImageCopyTexture<&crate::Texture>,
+        copy_size: crate::Extent3d,
+    );
 }
 
 #[cfg(feature = "wgpu")]
@@ -101,6 +108,30 @@ unsafe impl CommandEncoderTrait for wgpu::CommandEncoder {
             copy_size,
         );
     }
+
+    #[inline]
+    fn copy_texture_to_texture(
+        &mut self,
+        source: crate::ImageCopyTexture<&crate::Texture>,
+        destination: crate::ImageCopyTexture<&crate::Texture>,
+        copy_size: crate::Extent3d,
+    ) {
+        self.copy_texture_to_texture(
+            wgpu::ImageCopyTexture {
+                texture: unsafe { &*(source.texture.0.as_ref() as *const _ as *const _) },
+                mip_level: source.mip_level,
+                origin: source.origin,
+                aspect: source.aspect,
+            },
+            wgpu::ImageCopyTexture {
+                texture: unsafe { &*(destination.texture.0.as_ref() as *const _ as *const _) },
+                mip_level: destination.mip_level,
+                origin: destination.origin,
+                aspect: destination.aspect,
+            },
+            copy_size,
+        );
+    }
 }
 
 pub struct CommandEncoder(pub(crate) Box<dyn CommandEncoderTrait>);
@@ -136,6 +167,17 @@ impl CommandEncoder {
     ) {
         self.0
             .copy_texture_to_buffer(source, destination, copy_size);
+    }
+
+    #[inline]
+    pub fn copy_texture_to_texture(
+        &mut self,
+        source: crate::ImageCopyTexture<&crate::Texture>,
+        destination: crate::ImageCopyTexture<&crate::Texture>,
+        copy_size: crate::Extent3d,
+    ) {
+        self.0
+            .copy_texture_to_texture(source, destination, copy_size);
     }
 }
 

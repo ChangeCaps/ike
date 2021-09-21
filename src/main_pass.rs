@@ -1,3 +1,5 @@
+use glam::UVec2;
+
 use crate::{
     prelude::{Color, View},
     renderer::{PassData, RenderCtx, RenderPass, SampleCount, TargetFormat, TargetSize},
@@ -37,10 +39,7 @@ impl<S> RenderPass<S> for MainPass {
     ) -> ike_wgpu::RenderPass<'a> {
         data.insert(SampleCount(self.sample_count));
         data.insert(TargetFormat(view.format));
-        data.insert(TargetSize {
-            width: view.width,
-            height: view.height,
-        });
+        data.insert(TargetSize(UVec2::new(view.width, view.height)));
         data.insert(view.camera.clone());
 
         let depth = if let Some(ref mut depth) = self.depth_texture {

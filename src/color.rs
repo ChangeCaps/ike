@@ -15,9 +15,9 @@ macro_rules! impl_color {
             pub const TRANSPARENT: Self = Self::rgba($zero, $zero, $zero, $zero);
             pub const BLACK: Self = Self::rgb($zero, $zero, $zero);
             pub const WHITE: Self = Self::rgb($one, $one, $one);
-            pub const RED: Self = Self::rgb($zero, $one, $one);
-            pub const GREEN: Self = Self::rgb($one, $zero, $one);
-            pub const BLUE: Self = Self::rgb($one, $one, $zero);
+            pub const RED: Self = Self::rgb($one, $zero, $zero);
+            pub const GREEN: Self = Self::rgb($zero, $one, $zero);
+            pub const BLUE: Self = Self::rgb($zero, $zero, $one);
 
             #[inline]
             pub const fn rgb(r: $ty, g: $ty, b: $ty) -> Self {

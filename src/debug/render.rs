@@ -279,10 +279,7 @@ impl<S> PassNode<S> for DebugNode {
             .data
             .get::<TargetSize>()
             .cloned()
-            .unwrap_or_else(|| TargetSize {
-                width: ctx.view.width,
-                height: ctx.view.height,
-            });
+            .unwrap_or_else(|| TargetSize(ctx.view.size()));
         let camera = ctx.data.get::<Camera>().unwrap_or_else(|| &ctx.view.camera);
 
         let pipeline = self
@@ -291,7 +288,7 @@ impl<S> PassNode<S> for DebugNode {
             .or_insert_with(|| create_pipeline(&ctx.render_ctx.device, format, sample_count));
 
         let view_proj = camera.view_proj();
-        let aspect = target_size.width as f32 / target_size.height as f32;
+        let aspect = target_size.0.x as f32 / target_size.0.y as f32;
 
         let data = self
             .lines

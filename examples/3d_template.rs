@@ -24,6 +24,9 @@ impl GameState {
         camera.transform.translation = Vec3::new(0.0, 1.0, 2.0);
         camera.transform.look_at(Vec3::ZERO, Vec3::Y);
 
+        let mut material = PbrMaterial::default();
+        material.emission = Color::rgb(1.0, 0.6, 0.3) * 14.0;
+
         Self {
             mesh: Mesh::sphere(0.5, 20, 20),
             transform: Transform3d::IDENTITY,
@@ -44,7 +47,7 @@ impl GameState {
             num: 0,
             agent: true,
             ground: Mesh::plane(Vec2::splat(500.0)),
-            metal: PbrMaterial::metal(),
+            metal: material,
         }
     }
 }
@@ -141,10 +144,12 @@ impl State for GameState {
 
         ctx.draw(&scene.instanced(&instances));
 
+        /*
         ctx.draw(&DirectionalLight {
             direction: Vec3::new(-1.0, -1.0, -1.0),
             ..Default::default()
         });
+        */
 
         let fps_transform = Transform3d::from_xyz(0.0, 1.2, 0.0);
 
@@ -173,18 +178,7 @@ fn main() {
 
     let mut app = App::new();
 
-    let mut main_pass = MainPass::default();
-    main_pass.sample_count = 4;
-    main_pass.clear_color = Color::BLUE;
-
-    let mut main_pass = Pass::new(main_pass);
-
-    main_pass.push(SkyNode::default());
-    main_pass.push(DebugNode::default());
-    main_pass.push(D3Node::default());
-    main_pass.push(SpriteNode2d::new());
-
-    app.renderer.push(main_pass);
+    app.renderer.default_pbr_pipeline();
 
     app.run(GameState::new());
 }

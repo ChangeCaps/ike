@@ -1,6 +1,8 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 pub mod app;
+pub mod avg_luminance_node;
+pub mod bloom_node;
 pub mod camera;
 pub mod color;
 pub mod cube_texture;
@@ -12,6 +14,7 @@ pub mod d3;
 pub mod debug;
 pub mod editor;
 pub mod frame_buffer;
+pub mod hdr_pass;
 pub mod id;
 pub mod input;
 pub mod main_pass;
@@ -33,6 +36,8 @@ pub use ike_wgpu as wgpu;
 
 pub mod prelude {
     pub use crate::app::App;
+    pub use crate::avg_luminance_node::AvgLuminanceNode;
+    pub use crate::bloom_node::BloomNode;
     pub use crate::camera::{
         Camera, OrthographicProjection, PerspectiveCamera, PerspectiveProjection,
     };
@@ -53,6 +58,7 @@ pub mod prelude {
     pub use crate::debug::{DebugLine, DebugMesh, DebugNode};
     pub use crate::export_app;
     pub use crate::frame_buffer::{FrameBuffer, FrameBufferDescriptor};
+    pub use crate::hdr_pass::{HdrCombineNode, HdrPass, HdrTarget};
     pub use crate::id::{HasId, Id};
     pub use crate::input::{Input, Mouse};
     pub use crate::main_pass::MainPass;
@@ -61,8 +67,8 @@ pub mod prelude {
         view_panel::MainViewPanel,
     };
     pub use crate::renderer::{
-        Pass, PassData, PassNode, PassNodeCtx, RenderCtx, RenderPass, Renderer, SampleCount,
-        TargetFormat, TargetSize,
+        Pass, PassData, PassNode, PassNodeCtx, RenderCtx, RenderNode, RenderNodeCtx, RenderPass,
+        Renderer, SampleCount, TargetFormat, TargetSize,
     };
     pub use crate::state::{StartCtx, State, UpdateCtx};
     #[cfg(feature = "image")]

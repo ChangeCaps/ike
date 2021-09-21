@@ -26,7 +26,6 @@ bytemuck = { version = "^1.7", features = ["derive"] }
 ab_glyph = { version = "^0.2", optional = true }
 once_cell = { version = "^1.8" }
 gltf = "^0.16"
-ike = { path = "." }
 
 [dev-dependencies]
 log = "^0.4"
