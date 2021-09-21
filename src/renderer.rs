@@ -2,6 +2,7 @@ use std::{
     any::{type_name, Any, TypeId},
     collections::{BTreeMap, HashMap},
     marker::PhantomData,
+    sync::Arc,
 };
 
 use crate::{type_name::TypeName, view::View};
@@ -94,8 +95,8 @@ pub struct TargetSize {
 }
 
 pub struct RenderCtx {
-    pub device: ike_wgpu::Device,
-    pub queue: ike_wgpu::Queue,
+    pub device: Arc<ike_wgpu::Device>,
+    pub queue: Arc<ike_wgpu::Queue>,
     pub surface: ike_wgpu::Surface,
     pub config: ike_wgpu::SurfaceConfiguration,
 }

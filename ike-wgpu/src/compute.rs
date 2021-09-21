@@ -6,7 +6,7 @@ pub struct ComputePipelineDescriptor<'a> {
     pub entry_point: &'a str,
 }
 
-pub(crate) unsafe trait ComputePipelineTrait {}
+pub(crate) unsafe trait ComputePipelineTrait: Send + Sync {}
 
 #[cfg(feature = "wgpu")]
 unsafe impl ComputePipelineTrait for wgpu::ComputePipeline {}

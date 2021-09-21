@@ -75,11 +75,11 @@ impl Default for PbrMaterial {
             #[cfg(debug_assertions)]
             shadow_blocker_samples: 8,
             #[cfg(not(debug_assertions))]
-            shadow_blocker_samples: 24,
+            shadow_blocker_samples: 16,
             #[cfg(debug_assertions)]
             shadow_pcf_samples: 16,
             #[cfg(not(debug_assertions))]
-            shadow_pcf_samples: 64,
+            shadow_pcf_samples: 32,
             filter_mode: ike_wgpu::FilterMode::Linear,
         }
     }

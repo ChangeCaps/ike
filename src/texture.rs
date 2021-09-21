@@ -1,12 +1,11 @@
-use std::{fmt::Debug, num::NonZeroU32, path::Path};
+use std::{fmt::Debug, io::BufReader, num::NonZeroU32, path::Path};
 
 use bytemuck::cast_slice;
 use glam::UVec2;
-use image::io::Reader;
+use image::{hdr::HdrDecoder, io::Reader};
 use once_cell::sync::OnceCell;
 
 use crate::{
-    color::Color16,
     id::{HasId, Id},
     prelude::{Color, Color8},
     renderer::RenderCtx,
@@ -148,23 +147,28 @@ impl<F: TextureFormat> std::fmt::Debug for Texture<F> {
 impl HdrTexture {
     #[inline]
     pub fn load(path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        let image = Reader::open(path.as_ref())?.decode()?;
+        let file = std::fs::File::open(path.as_ref())?;
+        let buf_reader = BufReader::new(file);
 
-        let rgba = image.to_rgba16();
+        let image = HdrDecoder::new(buf_reader)?; 
+
+        let meta = image.metadata();
+
+        let rgba = image.read_image_hdr()?;
 
         let data: Vec<Color> = rgba
-            .pixels()
+            .into_iter()
             .map(|pixel| {
                 Color::rgba(
-                    pixel[0] as f32 / 32_768.0,
-                    pixel[1] as f32 / 32_768.0,
-                    pixel[2] as f32 / 32_768.0,
-                    pixel[3] as f32 / 32_768.0,
+                    pixel[0],
+                    pixel[1],
+                    pixel[2],
+                    1.0,
                 )
             })
             .collect();
 
-        Ok(Self::from_data(data, rgba.width(), rgba.height()))
+        Ok(Self::from_data(data, meta.width, meta.height))
     }
 }
 

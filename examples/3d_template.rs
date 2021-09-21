@@ -10,7 +10,7 @@ struct GameState {
     scene: PbrScene,
     time: f32,
     sky_texture: HdrTexture,
-    env_texture: CubeTexture,
+    env: Environment,
     num: i32,
     agent: bool,
     ground: Mesh,
@@ -40,7 +40,7 @@ impl GameState {
             scene: PbrScene::load_gltf("assets/wa.glb").unwrap(),
             time: 0.0,
             sky_texture: HdrTexture::load("assets/hdr.hdr").unwrap(),
-            env_texture: CubeTexture::default(),
+            env: Environment::default(),
             num: 0,
             agent: true,
             ground: Mesh::plane(Vec2::splat(500.0)),
@@ -54,8 +54,7 @@ impl State for GameState {
     fn start(&mut self, ctx: &mut StartCtx) {
         self.mesh.calculate_tangents();
 
-        self.env_texture
-            .load_hdr_texture(ctx.render_ctx, &self.sky_texture);
+        self.env.load(ctx.render_ctx, &self.sky_texture);
     }
 
     #[inline]
@@ -157,7 +156,7 @@ impl State for GameState {
             ctx.draw(&text);
         }
 
-        ctx.draw(&SkyTexture::new(&self.env_texture));
+        ctx.draw(&SkyTexture::new(&self.env));
 
         ctx.draw(&self.ground);
 

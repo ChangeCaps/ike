@@ -35,7 +35,7 @@ pub enum SurfaceError {
     OutOfMemory,
 }
 
-pub(crate) unsafe trait SurfaceTrait {
+pub(crate) unsafe trait SurfaceTrait: Send + Sync {
     fn configure(&self, device: &crate::Device, config: &crate::SurfaceConfiguration);
 
     fn get_current_frame(&self) -> Result<SurfaceFrame, SurfaceError>;

@@ -1,4 +1,4 @@
-pub(crate) unsafe trait QueueTrait {
+pub(crate) unsafe trait QueueTrait: Send + Sync {
     fn submit(&self, command_buffers: Vec<crate::CommandBuffer>);
 
     fn write_buffer(&self, buffer: &crate::Buffer, offset: u64, data: &[u8]);

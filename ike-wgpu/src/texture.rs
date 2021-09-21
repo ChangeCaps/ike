@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-pub(crate) unsafe trait TextureTrait: std::fmt::Debug {
+pub(crate) unsafe trait TextureTrait: Send + Sync + std::fmt::Debug {
     fn create_view(&self, desc: &TextureViewDescriptor) -> TextureView;
 }
 

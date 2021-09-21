@@ -53,8 +53,8 @@ async unsafe fn wgpu_init(window: &winit::window::Window) -> anyhow::Result<Rend
     surface.configure(&device, &config);
 
     Ok(RenderCtx {
-        device: ike_wgpu::Device::new(device),
-        queue: ike_wgpu::Queue::new(queue),
+        device: ike_wgpu::Device::new(device).into(),
+        queue: ike_wgpu::Queue::new(queue).into(),
         surface: ike_wgpu::Surface::new(surface),
         config,
     })

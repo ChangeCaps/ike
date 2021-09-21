@@ -4,7 +4,7 @@ pub enum Maintain {
     Poll,
 }
 
-pub(crate) unsafe trait DeviceTrait: 'static {
+pub(crate) unsafe trait DeviceTrait: Send + Sync + 'static {
     fn poll(&self, maintain: Maintain);
 
     fn create_buffer(&self, desc: &crate::BufferDescriptor<Option<&'static str>>) -> crate::Buffer;

@@ -4,9 +4,17 @@ var eq_texture: texture_2d<f32>;
 [[group(1), binding(0)]]
 var cube_texture: texture_storage_2d_array<rgba32float, write>;
 
+[[block]]
+struct Uniforms {
+	offset: u32;
+};
+
+[[group(1), binding(1)]]
+var<uniform> uniforms: Uniforms;
+
 let INV_ATAN: vec2<f32> = vec2<f32>(0.1591, 0.3183);
 
-[[stage(compute), workgroup_size(8, 8, 1)]]
+[[stage(compute), workgroup_size(32, 32, 1)]]
 fn main([[builtin(global_invocation_id)]] param: vec3<u32>) {
 	let cube_size = vec2<f32>(textureDimensions(cube_texture));
 	let texture_size = vec2<f32>(textureDimensions(eq_texture));
@@ -15,7 +23,7 @@ fn main([[builtin(global_invocation_id)]] param: vec3<u32>) {
 
 	var dir: vec3<f32>;
 	
-	switch (i32(param.z)) {
+	switch (i32(param.z + uniforms.offset)) {
 		case 0: {
 			dir = vec3<f32>(1.0, uv.y, -uv.x);
 		}
@@ -34,7 +42,7 @@ fn main([[builtin(global_invocation_id)]] param: vec3<u32>) {
 		case 5: {
 			dir = vec3<f32>(-uv.x, uv.y, -1.0);
 		}
-	}
+	} 
 
 	dir = normalize(dir);
 

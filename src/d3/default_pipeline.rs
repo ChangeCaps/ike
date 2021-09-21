@@ -33,6 +33,16 @@ pub fn default_pipeline(
             },
             ike_wgpu::BindGroupLayoutEntry {
                 binding: 2,
+                ty: ike_wgpu::BindingType::Texture {
+                    sample_type: ike_wgpu::TextureSampleType::Float { filterable: false },
+                    view_dimension: ike_wgpu::TextureViewDimension::Cube,
+                    multisampled: false,
+                },
+                visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,
+                count: None,
+            },
+            ike_wgpu::BindGroupLayoutEntry {
+                binding: 3,
                 ty: ike_wgpu::BindingType::Sampler {
                     filtering: true,
                     comparison: false,

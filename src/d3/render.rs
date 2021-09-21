@@ -3,12 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 use bytemuck::{bytes_of, cast_slice};
 use glam::{Mat4, Vec3};
 
-use crate::{
-    cube_texture::CubeTexture,
-    id::{HasId, Id},
-    prelude::{Camera, Color, HdrTexture, Texture},
-    renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat},
-};
+use crate::{cube_texture::{CubeTexture, Environment}, id::{HasId, Id}, prelude::{Camera, Color, HdrTexture, Texture}, renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat}};
 
 use super::{
     default_pipeline::default_pipeline, BufferVersion, Indices, Mesh, PbrFlags, PbrMaterial,
@@ -610,8 +605,11 @@ pub struct D3Node {
     pub(crate) directional_lights: Vec<DirectionalLight>,
     pub(crate) textures_layout: Option<ike_wgpu::BindGroupLayout>,
     default_texture: Option<ike_wgpu::TextureView>,
+    default_env_texture: Option<ike_wgpu::TextureView>,
     pub(crate) env_texture: Option<ike_wgpu::TextureView>,
+    pub(crate) irradiance_texture: Option<ike_wgpu::TextureView>,
     pub(crate) env_texture_id: Option<Id<CubeTexture>>,
+    pub(crate) irradiance_texture_id: Option<Id<CubeTexture>>,
     uniforms_buffer: Option<ike_wgpu::Buffer>,
     uniforms_bind_group: Option<ike_wgpu::BindGroup>,
     default_joint_matrices_bind_group: Option<ike_wgpu::BindGroup>,
@@ -626,9 +624,16 @@ pub struct D3Node {
 
 impl D3Node {
     #[inline]
-    pub fn set_env_texture(&mut self, ctx: &RenderCtx, texture: &CubeTexture) {
-        if self.env_texture_id != Some(texture.id()) {
-            self.env_texture = Some(texture.view(ctx));
+    pub fn set_env(&mut self, ctx: &RenderCtx, env: &Environment) {
+        if self.env_texture_id != Some(env.env_texture.id()) {
+            self.env_texture_id = Some(env.env_texture.id());
+            self.env_texture = Some(env.env_texture.view(ctx));
+            self.uniforms_bind_group = None;
+        }
+
+        if self.irradiance_texture_id != Some(env.irradiance_texture.id()) {
+            self.irradiance_texture_id = Some(env.irradiance_texture.id());
+            self.irradiance_texture = Some(env.irradiance_texture.view(ctx));
             self.uniforms_bind_group = None;
         }
     }
@@ -658,6 +663,32 @@ impl D3Node {
             let texture_view = texture.create_view(&Default::default());
 
             self.default_texture = Some(texture_view);
+
+            let texture = ctx.device.create_texture_with_data(
+                &ctx.queue,
+                &ike_wgpu::TextureDescriptor {
+                    label: None,
+                    size: ike_wgpu::Extent3d {
+                        width: 1,
+                        height: 1,
+                        depth_or_array_layers: 6,
+                    },
+                    dimension: ike_wgpu::TextureDimension::D2,
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    format: ike_wgpu::TextureFormat::Rgba8UnormSrgb,
+                    usage: ike_wgpu::TextureUsages::COPY_DST
+                        | ike_wgpu::TextureUsages::TEXTURE_BINDING,
+                },
+                &[255; 24],
+            );
+
+            let texture_view = texture.create_view(&ike_wgpu::TextureViewDescriptor {
+                dimension: Some(ike_wgpu::TextureViewDimension::Cube),
+                ..Default::default()
+            });
+
+            self.default_env_texture = Some(texture_view);
         }
     }
 
@@ -993,6 +1024,18 @@ impl<S> PassNode<S> for D3Node {
                         },
                         ike_wgpu::BindGroupLayoutEntry {
                             binding: 2,
+                            ty: ike_wgpu::BindingType::Texture {
+                                sample_type: ike_wgpu::TextureSampleType::Float {
+                                    filterable: false,
+                                },
+                                view_dimension: ike_wgpu::TextureViewDimension::Cube,
+                                multisampled: false,
+                            },
+                            visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,
+                            count: None,
+                        },
+                        ike_wgpu::BindGroupLayoutEntry {
+                            binding: 3,
                             ty: ike_wgpu::BindingType::Sampler {
                                 filtering: true,
                                 comparison: false,
@@ -1007,7 +1050,13 @@ impl<S> PassNode<S> for D3Node {
             let env_texture = if let Some(ref texture) = self.env_texture {
                 texture
             } else {
-                self.default_texture.as_ref().unwrap()
+                self.default_env_texture.as_ref().unwrap()
+            };
+
+            let irradiance_texture = if let Some(ref texture) = self.irradiance_texture {
+                texture
+            } else {
+                self.default_env_texture.as_ref().unwrap()
             };
 
             let bind_group =
@@ -1031,6 +1080,10 @@ impl<S> PassNode<S> for D3Node {
                             },
                             ike_wgpu::BindGroupEntry {
                                 binding: 2,
+                                resource: ike_wgpu::BindingResource::TextureView(irradiance_texture),
+                            },
+                            ike_wgpu::BindGroupEntry {
+                                binding: 3,
                                 resource: ike_wgpu::BindingResource::Sampler(
                                     &ctx.render_ctx.device.create_sampler(&Default::default()),
                                 ),

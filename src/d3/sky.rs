@@ -4,7 +4,7 @@ use bytemuck::bytes_of;
 use glam::Mat4;
 
 use crate::{
-    cube_texture::CubeTexture,
+    cube_texture::{CubeTexture, Environment},
     id::{HasId, Id},
     prelude::Camera,
     renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat},
@@ -13,13 +13,13 @@ use crate::{
 use super::D3Node;
 
 pub struct SkyTexture<'a> {
-    pub texture: &'a CubeTexture,
+    pub env: &'a Environment,
 }
 
 impl<'a> SkyTexture<'a> {
     #[inline]
-    pub fn new(texture: &'a CubeTexture) -> Self {
-        Self { texture }
+    pub fn new(env: &'a Environment) -> Self {
+        Self { env }
     }
 }
 
@@ -33,11 +33,11 @@ impl Drawable for SkyTexture<'_> {
         (sky_node, d3_node): (Option<&mut SkyNode>, Option<&mut D3Node>),
     ) {
         if let Some(sky_node) = sky_node {
-            sky_node.set_texture(ctx, self.texture);
+            sky_node.set_texture(ctx, &self.env.env_texture);
         }
 
         if let Some(d3_node) = d3_node {
-            d3_node.set_env_texture(ctx, self.texture);
+            d3_node.set_env(ctx, &self.env);
         }
     }
 }

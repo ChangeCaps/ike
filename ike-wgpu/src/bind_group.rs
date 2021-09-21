@@ -37,7 +37,7 @@ pub struct BindGroupDescriptor<'a> {
     pub entries: &'a [BindGroupEntry<'a>],
 }
 
-pub(crate) unsafe trait BindGroupTrait {}
+pub(crate) unsafe trait BindGroupTrait: Send + Sync {}
 
 #[cfg(feature = "wgpu")]
 unsafe impl BindGroupTrait for wgpu::BindGroup {}

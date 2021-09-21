@@ -37,6 +37,7 @@ pub mod prelude {
         Camera, OrthographicProjection, PerspectiveCamera, PerspectiveProjection,
     };
     pub use crate::color::{Color, Color16, Color8};
+    pub use crate::cube_texture::{CubeTexture, Environment};
     #[cfg(feature = "2d")]
     pub use crate::d2::{
         font::Font,
@@ -68,7 +69,6 @@ pub mod prelude {
     pub use crate::texture::{
         ColorSpace, HdrTexture, Rgba32Float, Rgba8Unorm, Texture, TextureFormat, TextureVersion,
     };
-    pub use crate::cube_texture::CubeTexture;
     pub use crate::ui_panel::UiPanel;
     pub use crate::view::{View, Views};
     pub use crate::wgpu;

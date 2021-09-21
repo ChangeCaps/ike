@@ -66,6 +66,9 @@ var<uniform> uniforms: Uniforms;
 var env_texture: texture_cube<f32>;
 
 [[group(0), binding(2)]]
+var irradiance_texture: texture_cube<f32>;
+
+[[group(0), binding(3)]]
 var env_sampler: sampler;
 
 [[block]]
@@ -299,6 +302,10 @@ fn f_schlick3(f0: vec3<f32>, f90: f32, voh: f32) -> vec3<f32> {
 
 fn f_schlick(f0: f32, f90: f32, voh: f32) -> f32 {
 	return f0 + (f90 - f0) * pow(1.0 - voh, 5.0);
+}
+
+fn f_schlick_roughness(f0: vec3<f32>, ndotv: f32, roughness: f32) -> vec3<f32> {
+	return f0 + (max(vec3<f32>(1.0 - roughness), f0) - f0) * pow(saturate(1.0 - ndotv), 5.0);
 }
 
 fn fresnel(f0: vec3<f32>, loh: f32) -> vec3<f32> {
@@ -634,6 +641,7 @@ fn main(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 	let r = reflect(-v, n);
 
 	let env = textureSample(env_texture, env_sampler, r).rgb;
+	let irradiance = textureSample(irradiance_texture, env_sampler, n).rbg;
 
 	let diffuse_color = base_color.rgb * (1.0 - metallic) + env * metallic;
 
@@ -648,18 +656,24 @@ fn main(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
 		let shadow = directional_shadow(i, in.position, n); 
 
-		let l = directional_light(uniforms.directional_lights[i], roughness, ndotv, n, v, r, f0, diffuse_color);
-
-		color = color + l * shadow;
+		if (shadow > 0.0) {
+			let l = directional_light(uniforms.directional_lights[i], roughness, ndotv, n, v, r, f0, diffuse_color);
+			color = color + l * shadow;
+		}
 	}
 
-	let diffuse_ambient = env_brdf_approx(diffuse_color, 1.0, ndotv);
-	let specular_ambient = env_brdf_approx(f0, perceptual_roughness, ndotv);
+	let ks = f_schlick_roughness(f0, ndotv, roughness);  
+	let kd = 1.0 - ks;
+	let diffuse = irradiance * diffuse_color;
 
-	color = color + (diffuse_ambient + specular_ambient) * vec3<f32>(0.05) * occlusion;
+	let diffuse_ambient = kd * diffuse;
+
+	color = color + diffuse_ambient * occlusion * 0.2;
 	color = color + emissive.rgb;
 
 	color = reinhard_luminance(color);
+
+	color = pow(color, vec3<f32>(1.0/2.2));
 
 	if (base_color.a < 0.1) {
 		discard;
