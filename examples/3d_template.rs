@@ -157,7 +157,7 @@ impl State for GameState {
             ctx.draw(&text);
         }
 
-        ctx.draw(&SkyTexture::new(&self.sky_texture));
+        ctx.draw(&SkyTexture::new(&self.env_texture));
 
         ctx.draw(&self.ground);
 

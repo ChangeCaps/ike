@@ -3,7 +3,12 @@ use std::collections::{BTreeMap, HashMap};
 use bytemuck::{bytes_of, cast_slice};
 use glam::{Mat4, Vec3};
 
-use crate::{cube_texture::CubeTexture, id::{HasId, Id}, prelude::{Camera, Color, HdrTexture, Texture}, renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat}};
+use crate::{
+    cube_texture::CubeTexture,
+    id::{HasId, Id},
+    prelude::{Camera, Color, HdrTexture, Texture},
+    renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat},
+};
 
 use super::{
     default_pipeline::default_pipeline, BufferVersion, Indices, Mesh, PbrFlags, PbrMaterial,
@@ -624,7 +629,7 @@ impl D3Node {
     pub fn set_env_texture(&mut self, ctx: &RenderCtx, texture: &CubeTexture) {
         if self.env_texture_id != Some(texture.id()) {
             self.env_texture = Some(texture.view(ctx));
-            self.uniforms_bind_group = None; 
+            self.uniforms_bind_group = None;
         }
     }
 
@@ -980,7 +985,7 @@ impl<S> PassNode<S> for D3Node {
                                 sample_type: ike_wgpu::TextureSampleType::Float {
                                     filterable: false,
                                 },
-                                view_dimension: ike_wgpu::TextureViewDimension::D2,
+                                view_dimension: ike_wgpu::TextureViewDimension::Cube,
                                 multisampled: false,
                             },
                             visibility: ike_wgpu::ShaderStages::VERTEX_FRAGMENT,

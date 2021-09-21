@@ -3,7 +3,12 @@ use std::collections::HashMap;
 use bytemuck::bytes_of;
 use glam::Mat4;
 
-use crate::{cube_texture::CubeTexture, id::{HasId, Id}, prelude::{Camera, HdrTexture}, renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat}};
+use crate::{
+    cube_texture::CubeTexture,
+    id::{HasId, Id},
+    prelude::Camera,
+    renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat},
+};
 
 use super::D3Node;
 
@@ -130,9 +135,7 @@ impl SkyNode {
                     },
                     ike_wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: ike_wgpu::BindingResource::TextureView(
-                            &texture.view(ctx),
-                        ),
+                        resource: ike_wgpu::BindingResource::TextureView(&texture.view(ctx)),
                     },
                     ike_wgpu::BindGroupEntry {
                         binding: 2,
