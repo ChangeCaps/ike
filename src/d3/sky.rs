@@ -12,18 +12,7 @@ use crate::{
 
 use super::D3Node;
 
-pub struct SkyTexture<'a> {
-    pub env: &'a Environment,
-}
-
-impl<'a> SkyTexture<'a> {
-    #[inline]
-    pub fn new(env: &'a Environment) -> Self {
-        Self { env }
-    }
-}
-
-impl Drawable for SkyTexture<'_> {
+impl Drawable for Environment {
     type Node = (Option<&'static mut SkyNode>, Option<&'static mut D3Node>);
 
     #[inline]
@@ -33,11 +22,11 @@ impl Drawable for SkyTexture<'_> {
         (sky_node, d3_node): (Option<&mut SkyNode>, Option<&mut D3Node>),
     ) {
         if let Some(sky_node) = sky_node {
-            sky_node.set_texture(ctx, &self.env.env_texture);
+            sky_node.set_texture(ctx, &self.env_texture);
         }
 
         if let Some(d3_node) = d3_node {
-            d3_node.set_env(ctx, &self.env);
+            d3_node.set_env(ctx, self);
         }
     }
 }

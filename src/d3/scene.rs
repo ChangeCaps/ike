@@ -6,7 +6,7 @@ use glam::Mat4;
 use crate::{
     d3::SampleOutput,
     id::HasId,
-    prelude::{Color, DebugLine, UpdateCtx},
+    prelude::{Color, UpdateCtx},
     renderer::{Drawable, RenderCtx},
 };
 
@@ -103,6 +103,7 @@ pub struct PosedPbrScene<'a> {
 
 impl<'a> PosedPbrScene<'a> {
     #[inline]
+    #[cfg(feature = "debug")]
     pub fn debug_skeletons(&self, ctx: &mut UpdateCtx) {
         fn debug_joint(
             nodes: &HashMap<usize, PosedPbrNode>,
@@ -117,7 +118,7 @@ impl<'a> PosedPbrScene<'a> {
             for idx in nodes[idx].children {
                 let b = (&transform * &nodes[idx].transform).translation;
 
-                ctx.draw(&DebugLine::color(a, b, Color::GREEN));
+                ctx.draw(&crate::prelude::DebugLine::color(a, b, Color::GREEN));
 
                 debug_joint(nodes, ctx, idx, &transform, skeleton);
             }

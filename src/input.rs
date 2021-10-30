@@ -70,12 +70,13 @@ impl<T: Eq + Hash + Clone> Default for Input<T> {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Mouse {
     pub prev_position: Vec2,
     pub position: Vec2,
     pub movement: Vec2,
     pub wheel_delta: Vec2,
+    pub contained: bool,
 }
 
 impl Mouse {

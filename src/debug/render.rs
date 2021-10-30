@@ -4,16 +4,16 @@ use bytemuck::cast_slice;
 use glam::{Mat4, Vec2, Vec3, Vec4Swizzles};
 
 use crate::{
-    d3::SizedBuffer,
-    prelude::{Camera, Color, Mesh, Transform3d},
-    renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat, TargetSize},
+    buffer::Buffer,
+    prelude::{Camera, Color},
+    render_texture::RenderTexture,
+    renderer::{render_device, EdgeSlotInfo, GraphError, NodeEdge, RenderCtx, RenderNode},
+    transform::Transform,
 };
 
-fn create_pipeline(
-    device: &ike_wgpu::Device,
-    format: ike_wgpu::TextureFormat,
-    sample_count: u32,
-) -> ike_wgpu::RenderPipeline {
+fn create_pipeline(format: ike_wgpu::TextureFormat, sample_count: u32) -> ike_wgpu::RenderPipeline {
+    let device = render_device();
+
     let module = device.create_shader_module(&ike_wgpu::include_wgsl!("shader.wgsl"));
 
     device.create_render_pipeline(&ike_wgpu::RenderPipelineDescriptor {
@@ -113,19 +113,11 @@ impl DebugLine {
     }
 }
 
-impl Drawable for DebugLine {
-    type Node = &'static mut DebugNode;
-
-    #[inline]
-    fn draw(&self, _ctx: &RenderCtx, node: &mut DebugNode) {
-        node.lines.push(self.clone());
-    }
-}
-
+/*
 #[derive(Clone, Debug)]
 pub struct DebugMesh<'a> {
     pub mesh: &'a Mesh,
-    pub transform: Option<&'a Transform3d>,
+    pub transform: Option<&'a Transform>,
     pub vertex_normals: Option<Color>,
     pub face_normals: Option<Color>,
     pub faces: Option<Color>,
@@ -148,14 +140,16 @@ impl<'a> DebugMesh<'a> {
     }
 
     #[inline]
-    pub fn with_transform(mesh: &'a Mesh, transform: &'a Transform3d) -> Self {
+    pub fn with_transform(mesh: &'a Mesh, transform: &'a Transform) -> Self {
         Self {
             transform: Some(transform),
             ..Self::new(mesh)
         }
     }
 }
+*/
 
+/*
 impl Drawable for DebugMesh<'_> {
     type Node = &'static mut DebugNode;
 
@@ -245,6 +239,7 @@ impl Drawable for DebugMesh<'_> {
         }
     }
 }
+*/
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -258,37 +253,42 @@ struct RawDebugLine {
 #[derive(Default)]
 pub struct DebugNode {
     pub(crate) lines: Vec<DebugLine>,
-    vertex_buffer: Option<SizedBuffer>,
+    vertex_buffer: Option<Buffer>,
     pipelines: HashMap<ike_wgpu::TextureFormat, ike_wgpu::RenderPipeline>,
 }
 
-impl<S> PassNode<S> for DebugNode {
+impl DebugNode {
+    pub const HDR_TEXTURE: &'static str = "hdr_texture";
+    pub const DEPTH_TEXTURE: &'static str = "depth_texture";
+    pub const CAMERA: &'static str = "camera";
+}
+
+impl RenderNode for DebugNode {
     #[inline]
-    fn clear(&mut self) {
-        self.lines.clear();
+    fn input(&self) -> Vec<EdgeSlotInfo> {
+        vec![
+            EdgeSlotInfo::new::<RenderTexture>(Self::HDR_TEXTURE),
+            EdgeSlotInfo::new::<Camera>(Self::CAMERA),
+        ]
     }
 
     #[inline]
-    fn run<'a>(&'a mut self, ctx: &mut PassNodeCtx<'_, 'a>, _: &mut S) {
-        let format = ctx
-            .data
-            .get::<TargetFormat>()
-            .map_or_else(|| ctx.view.format, |f| f.0);
-        let sample_count = ctx.data.get::<SampleCount>().map_or(0, |f| f.0);
-        let target_size = ctx
-            .data
-            .get::<TargetSize>()
-            .cloned()
-            .unwrap_or_else(|| TargetSize(ctx.view.size()));
-        let camera = ctx.data.get::<Camera>().unwrap_or_else(|| &ctx.view.camera);
+    fn run(
+        &mut self,
+        encoder: &mut ike_wgpu::CommandEncoder,
+        input: &NodeEdge,
+        output: &mut NodeEdge,
+    ) -> Result<(), GraphError> {
+        let target = input.get::<RenderTexture>(Self::HDR_TEXTURE)?;
+        let camera = input.get::<Camera>(Self::CAMERA)?;
 
         let pipeline = self
             .pipelines
-            .entry(format)
-            .or_insert_with(|| create_pipeline(&ctx.render_ctx.device, format, sample_count));
+            .entry(target.format)
+            .or_insert_with(|| create_pipeline(target.format, target.samples));
 
         let view_proj = camera.view_proj();
-        let aspect = target_size.0.x as f32 / target_size.0.y as f32;
+        let aspect = target.size.x as f32 / target.size.y as f32;
 
         let data = self
             .lines
@@ -312,12 +312,12 @@ impl<S> PassNode<S> for DebugNode {
                 from.z = 0.0;
                 to.z = 0.0;
 
-                let mut transform = Transform3d::from_translation((from + to) / 2.0);
+                let mut transform = Transform::from_translation((from + to) / 2.0);
                 transform.look_at(transform.translation + Vec3::Z, to - transform.translation);
                 transform.scale.x = line.width;
                 transform.scale.y = from.distance(to) / 2.0;
 
-                let transform = Transform3d::from_scale(Vec3::new(1.0 / aspect, 1.0, 1.0)).matrix()
+                let transform = Transform::from_scale(Vec3::new(1.0 / aspect, 1.0, 1.0)).matrix()
                     * transform.matrix();
 
                 RawDebugLine {
@@ -330,30 +330,32 @@ impl<S> PassNode<S> for DebugNode {
             .collect::<Vec<_>>();
 
         let buffer = if let Some(ref mut buffer) = self.vertex_buffer {
-            buffer.write(
-                &ctx.render_ctx.device,
-                &ctx.render_ctx.queue,
-                cast_slice(&data),
-            );
+            buffer.write(cast_slice(&data));
 
             buffer
         } else {
-            let vertex_buffer = SizedBuffer::new(
-                &ctx.render_ctx.device,
-                cast_slice(&data),
-                ike_wgpu::BufferUsages::COPY_DST | ike_wgpu::BufferUsages::VERTEX,
-            );
+            let mut vertex_buffer =
+                Buffer::new(ike_wgpu::BufferUsages::COPY_DST | ike_wgpu::BufferUsages::VERTEX);
+
+            vertex_buffer.write(cast_slice(&data));
 
             self.vertex_buffer = Some(vertex_buffer);
 
-            self.vertex_buffer.as_ref().unwrap()
+            self.vertex_buffer.as_mut().unwrap()
         };
 
-        ctx.render_pass.set_pipeline(pipeline);
+        let mut render_pass = encoder.begin_render_pass(&ike_wgpu::RenderPassDescriptor {
+            label: Some("debug pass"),
+            color_attachments: &[],
+            depth_stencil_attachment: None,
+        });
 
-        ctx.render_pass
-            .set_vertex_buffer(0, buffer.buffer.slice(..));
+        render_pass.set_pipeline(pipeline);
 
-        ctx.render_pass.draw(0..6, 0..self.lines.len() as u32);
+        render_pass.set_vertex_buffer(0, buffer.raw().slice(..));
+
+        render_pass.draw(0..6, 0..self.lines.len() as u32);
+
+        Ok(())
     }
 }

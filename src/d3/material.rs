@@ -66,8 +66,8 @@ impl Default for PbrMaterial {
             metallic_roughness_texture: None,
             normal_map: None,
             albedo: Color::WHITE,
-            roughness: 0.089,
-            metallic: 0.3,
+            roughness: 0.8,
+            metallic: 0.01,
             reflectance: 0.5,
             emission: Color::BLACK,
             shadow_softness: 1.0,
@@ -91,7 +91,7 @@ impl PbrMaterial {
         Self {
             id: Id::new(),
             metallic: 0.99,
-            reflectance: 0.9,
+            reflectance: 0.5,
             ..Default::default()
         }
     }

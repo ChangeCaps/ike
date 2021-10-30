@@ -54,10 +54,10 @@ fn main(in: ComputeInput) {
 		let hdr_color = textureLoad(texture, vec2<i32>(in.global.xy), 0).rgb;
 		let bin_index = color_to_bin(hdr_color, uniforms.min_log_lum, uniforms.inv_log_lum_range);
 
-		histogram_shared[bin_index] = histogram_shared[bin_index] + 1u;
+		let _ = atomicAdd(&histogram_shared[bin_index], 1u);
 	}
 
 	workgroupBarrier();
 	
-	histogram.histogram[in.local] = histogram.histogram[in.local] + histogram_shared[in.local];
+	let _ = atomicAdd(&histogram.histogram[in.local], histogram_shared[in.local]);
 }

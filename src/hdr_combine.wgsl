@@ -8,7 +8,15 @@ var VERTICES: array<vec2<f32>, 3> = array<vec2<f32>, 3>(
 var texture: texture_2d<f32>;
 
 [[group(0), binding(1)]]
-var depth: texture_depth_2d;
+var depth: texture_depth_multisampled_2d;
+
+[[block]]
+struct AvgLum {
+	lum: f32;
+};
+
+[[group(0), binding(2)]]
+var<uniform> avg_lum: AvgLum;
 
 struct VertexOutput {
 	[[builtin(position)]] position: vec4<f32>;
@@ -52,6 +60,41 @@ fn tonemap_aces(x: f32) -> f32 {
     return (x * (a * x + b)) / (x * (c * x + d) + e);
 }
 
+let RGBTOXYZ = mat3x3<f32>(
+	vec3<f32>(0.4124564, 0.2126729, 0.0193339),
+	vec3<f32>(0.3575761, 0.7151522, 0.1191920),
+	vec3<f32>(0.1804375, 0.0721750, 0.9503041),
+);
+
+let XYZTORGB = mat3x3<f32>(
+	vec3<f32>(3.2404542, -0.9692660, 0.0556434),
+	vec3<f32>(-1.5371385, 1.8760108, -0.2040259),
+	vec3<f32>(-0.4985314, 0.0415560, 1.0572252),
+);
+
+fn rgb_to_yxy(rgb: vec3<f32>) -> vec3<f32> {
+	let xyz = RGBTOXYZ * rgb;
+
+	let x = xyz.r / (xyz.r + xyz.g + xyz.b);
+	let y = xyz.g / (xyz.r + xyz.g + xyz.b);
+
+	return vec3<f32>(xyz.g, x, y);
+}
+
+fn yxy_to_rgb(yxy: vec3<f32>) -> vec3<f32> {
+	let xyz = vec3<f32>(
+		yxy.r * yxy.g / yxy.b,
+		yxy.r,
+		(1.0 - yxy.g -  yxy.b) * (yxy.r / yxy.b),
+	);
+
+	return XYZTORGB * xyz;
+}
+
+fn gamma_correct(rgb: vec3<f32>) -> vec3<f32> {
+	return pow(rgb, vec3<f32>(1.0/2.2));
+}
+
 struct FragmentOuput {
 	[[builtin(frag_depth)]] depth: f32;
 	[[location(0)]] color: vec4<f32>;
@@ -61,11 +104,18 @@ struct FragmentOuput {
 fn main(in: VertexOutput) -> FragmentOuput {
 	var out: FragmentOuput;
 
-	out.color = textureLoad(texture, vec2<i32>(vec2<f32>(textureDimensions(texture)) * in.uv), 0);
+	var rgb = textureLoad(texture, vec2<i32>(vec2<f32>(textureDimensions(texture)) * in.uv), 0).rgb;
 	out.depth = textureLoad(depth, vec2<i32>(vec2<f32>(textureDimensions(depth)) * in.uv), 0);
 
-	out.color = vec4<f32>(pow(out.color.rgb, vec3<f32>(1.0/2.2)), out.color.a);
-	out.color = vec4<f32>(reinhard_luminance(out.color.rgb), out.color.a);
+	var yxy = rgb_to_yxy(rgb);
+
+	let lp = yxy.r / (9.6 * avg_lum.lum + 0.00001);
+
+	yxy = vec3<f32>(tonemap_aces(lp), yxy.gb);
+
+	rgb = yxy_to_rgb(yxy);
+
+	out.color = vec4<f32>(gamma_correct(rgb), 1.0);
 
 	return out;
 }

@@ -2,7 +2,7 @@ use glam::{Mat4, UVec2, Vec3};
 
 use crate::{
     id::{HasId, Id},
-    prelude::Transform3d,
+    prelude::Transform,
 };
 
 #[derive(Clone, Debug)]
@@ -134,8 +134,8 @@ impl OrthographicProjection {
 #[derive(Clone, Debug, Default)]
 pub struct PerspectiveCamera {
     pub projection: PerspectiveProjection,
-    pub transform: Transform3d,
-    pub global_transform: Option<Transform3d>,
+    pub transform: Transform,
+    pub global_transform: Option<Transform>,
 }
 
 impl HasId<Camera> for PerspectiveCamera {
@@ -147,12 +147,59 @@ impl HasId<Camera> for PerspectiveCamera {
 
 impl PerspectiveCamera {
     #[inline]
-    pub fn transform(&mut self, transform: &Transform3d) {
+    pub fn new(transform: Transform, projection: PerspectiveProjection) -> Self {
+        Self {
+            transform,
+            global_transform: None,
+            projection,
+        }
+    }
+
+    #[inline]
+    pub fn transform(&mut self, transform: &Transform) {
         self.global_transform = Some(transform * &self.transform);
     }
 
     #[inline]
-    pub fn global_transform(&self) -> &Transform3d {
+    pub fn global_transform(&self) -> &Transform {
+        self.global_transform.as_ref().unwrap_or(&self.transform)
+    }
+
+    #[inline]
+    pub fn camera(&self) -> Camera {
+        let transform = self.global_transform();
+
+        Camera {
+            id: self.id(),
+            position: self.transform.translation,
+            view: transform.matrix(),
+            proj: self.projection.proj_matrix(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct OrthographicCamera {
+    pub projection: OrthographicProjection,
+    pub transform: Transform,
+    pub global_transform: Option<Transform>,
+}
+
+impl HasId<Camera> for OrthographicCamera {
+    #[inline]
+    fn id(&self) -> Id<Camera> {
+        self.projection.id()
+    }
+}
+
+impl OrthographicCamera {
+    #[inline]
+    pub fn transform(&mut self, transform: &Transform) {
+        self.global_transform = Some(transform * &self.transform);
+    }
+
+    #[inline]
+    pub fn global_transform(&self) -> &Transform {
         self.global_transform.as_ref().unwrap_or(&self.transform)
     }
 

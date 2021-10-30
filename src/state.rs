@@ -1,15 +1,36 @@
+use std::collections::HashMap;
+
+use egui::CtxRef;
 use winit::event::{MouseButton, VirtualKeyCode};
 
 use crate::{
+    editor_data::EditorData,
+    id::Id,
     input::{Input, Mouse},
-    renderer::{Drawable, RenderCtx, RenderFrame},
+    texture::Texture,
     view::Views,
     window::Window,
 };
 
 pub struct StartCtx<'a> {
     pub window: &'a mut Window,
-    pub render_ctx: &'a RenderCtx,
+}
+
+pub struct EditorCtx<'a> {
+    pub delta_time: f32,
+    pub outer_window: &'a mut Window,
+    pub inner_window: &'a mut Window,
+    pub outer_key_input: &'a Input<VirtualKeyCode>,
+    pub inner_key_input: &'a mut Input<VirtualKeyCode>,
+    pub outer_mouse_input: &'a Input<MouseButton>,
+    pub inner_mouse_input: &'a mut Input<MouseButton>,
+    pub outer_mouse: &'a mut Mouse,
+    pub inner_mouse: &'a mut Mouse,
+    pub char_input: &'a [char],
+    pub views: &'a mut Views,
+    pub textures: &'a mut HashMap<Id<Texture>, Texture>,
+    pub egui_ctx: &'a CtxRef,
+    pub editor_data: &'a mut EditorData,
 }
 
 pub struct UpdateCtx<'a> {
@@ -17,18 +38,9 @@ pub struct UpdateCtx<'a> {
     pub window: &'a mut Window,
     pub key_input: &'a Input<VirtualKeyCode>,
     pub mouse_input: &'a Input<MouseButton>,
-    pub mouse: &'a Mouse,
+    pub mouse: &'a mut Mouse,
     pub char_input: &'a [char],
-    pub render_ctx: &'a RenderCtx,
-    pub frame: RenderFrame<'a>,
     pub views: &'a mut Views,
-}
-
-impl<'a> UpdateCtx<'a> {
-    #[inline]
-    pub fn draw<D: Drawable>(&mut self, drawable: &D) {
-        self.frame.draw(self.render_ctx, drawable);
-    }
 }
 
 pub trait State {

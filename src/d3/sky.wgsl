@@ -28,7 +28,7 @@ var sampler: sampler;
 fn main([[builtin(vertex_index)]] idx: u32) -> VertexOutput {
 	var out: VertexOutput;
 
-	let position_clip = vec4<f32>(verts[idx], 0.0, 1.0);
+	let position_clip = vec4<f32>(verts[idx], 1.0, 1.0);
 
 	var position_view = uniforms.clip_to_view * position_clip;
 	position_view.w = 0.0;	
@@ -44,5 +44,7 @@ let PI: f32 = 3.141592653589793;
 
 [[stage(fragment)]]
 fn main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
-	return textureSample(texture, sampler, in.view_dir);
+	let color = textureSample(texture, sampler, in.view_dir);
+
+	return color;
 }

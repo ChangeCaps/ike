@@ -3,7 +3,11 @@ use std::num::NonZeroU32;
 use bytemuck::bytes_of;
 use glam::UVec2;
 
-use crate::prelude::*;
+use crate::{
+    prelude::*,
+    render_texture::RenderTexture,
+    renderer::{render_device, render_queue, GraphError, NodeEdge},
+};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -11,11 +15,13 @@ struct Uniforms {
     pre_filter: i32,
     threshold: f32,
     knee: f32,
+    scale: f32,
 }
 
 pub struct BloomNode {
     pub threshold: f32,
     pub knee: f32,
+    pub scale: f32,
     size: UVec2,
     mips: u32,
     tex_down_layout: Option<wgpu::BindGroupLayout>,
@@ -37,8 +43,9 @@ impl Default for BloomNode {
     #[inline]
     fn default() -> Self {
         Self {
-            threshold: 1.0,
+            threshold: 2.0,
             knee: 0.1,
+            scale: 1.0,
             size: Default::default(),
             mips: Default::default(),
             tex_down_layout: Default::default(),
@@ -59,21 +66,44 @@ impl Default for BloomNode {
 }
 
 impl BloomNode {
+    pub const HDR_TEXTURE: &'static str = "hdr_texture";
+
     fn uniforms(&self, pre_filter: bool) -> Uniforms {
         Uniforms {
             pre_filter: pre_filter as i32,
             threshold: self.threshold,
             knee: self.knee,
+            scale: self.scale * self.scale_factor(),
         }
     }
 
-    fn create_texture(&mut self, ctx: &RenderCtx, target_size: UVec2) {
+    #[inline]
+    fn calculate_mips(&mut self) {
+        let size = self.size.min_element();
+        self.mips = 1;
+
+        while size / 2u32.pow(self.mips) > 8 {
+            self.mips += 1;
+        }
+
+        self.mips += 1;
+    }
+
+    fn scale_factor(&self) -> f32 {
+        let size = self.size.min_element();
+
+        (size / 2u32.pow(self.mips)) as f32 / 8.0
+    }
+
+    fn create_texture(&mut self, target_size: UVec2) {
         if self.size != target_size {
             self.size = target_size;
 
-            self.mips = 8;
+            let device = render_device();
 
-            self.tex_0 = Some(ctx.device.create_texture(&ike_wgpu::TextureDescriptor {
+            self.calculate_mips();
+
+            self.tex_0 = Some(device.create_texture(&ike_wgpu::TextureDescriptor {
                 label: None,
                 size: ike_wgpu::Extent3d {
                     width: target_size.x,
@@ -89,7 +119,7 @@ impl BloomNode {
                     | ike_wgpu::TextureUsages::TEXTURE_BINDING,
             }));
 
-            self.tex_1 = Some(ctx.device.create_texture(&ike_wgpu::TextureDescriptor {
+            self.tex_1 = Some(device.create_texture(&ike_wgpu::TextureDescriptor {
                 label: None,
                 size: ike_wgpu::Extent3d {
                     width: target_size.x,
@@ -106,7 +136,7 @@ impl BloomNode {
                     | ike_wgpu::TextureUsages::TEXTURE_BINDING,
             }));
 
-            self.tex_2 = Some(ctx.device.create_texture(&ike_wgpu::TextureDescriptor {
+            self.tex_2 = Some(device.create_texture(&ike_wgpu::TextureDescriptor {
                 label: None,
                 size: ike_wgpu::Extent3d {
                     width: target_size.x,
@@ -124,80 +154,78 @@ impl BloomNode {
 
             let tex_down_layout = self.tex_down_layout.get_or_insert_with(|| {
                 let tex_layout =
-                    ctx.device
-                        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                            label: None,
-                            entries: &[
-                                wgpu::BindGroupLayoutEntry {
-                                    binding: 0,
-                                    ty: wgpu::BindingType::Texture {
-                                        sample_type: wgpu::TextureSampleType::Float {
-                                            filterable: false,
-                                        },
-                                        view_dimension: wgpu::TextureViewDimension::D2,
-                                        multisampled: false,
+                    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: None,
+                        entries: &[
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 0,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: false,
                                     },
-                                    visibility: wgpu::ShaderStages::COMPUTE,
-                                    count: None,
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    multisampled: false,
                                 },
-                                wgpu::BindGroupLayoutEntry {
-                                    binding: 1,
-                                    ty: wgpu::BindingType::StorageTexture {
-                                        access: wgpu::StorageTextureAccess::WriteOnly,
-                                        format: wgpu::TextureFormat::Rgba32Float,
-                                        view_dimension: wgpu::TextureViewDimension::D2,
-                                    },
-                                    visibility: wgpu::ShaderStages::COMPUTE,
-                                    count: None,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 1,
+                                ty: wgpu::BindingType::StorageTexture {
+                                    access: wgpu::StorageTextureAccess::WriteOnly,
+                                    format: wgpu::TextureFormat::Rgba32Float,
+                                    view_dimension: wgpu::TextureViewDimension::D2,
                                 },
-                            ],
-                        });
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                count: None,
+                            },
+                        ],
+                    });
 
                 tex_layout
             });
 
             let tex_up_layout = self.tex_up_layout.get_or_insert_with(|| {
                 let tex_layout =
-                    ctx.device
-                        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                            label: None,
-                            entries: &[
-                                wgpu::BindGroupLayoutEntry {
-                                    binding: 0,
-                                    ty: wgpu::BindingType::Texture {
-                                        sample_type: wgpu::TextureSampleType::Float {
-                                            filterable: false,
-                                        },
-                                        view_dimension: wgpu::TextureViewDimension::D2,
-                                        multisampled: false,
+                    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: None,
+                        entries: &[
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 0,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: false,
                                     },
-                                    visibility: wgpu::ShaderStages::COMPUTE,
-                                    count: None,
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    multisampled: false,
                                 },
-                                wgpu::BindGroupLayoutEntry {
-                                    binding: 1,
-                                    ty: wgpu::BindingType::Texture {
-                                        sample_type: wgpu::TextureSampleType::Float {
-                                            filterable: false,
-                                        },
-                                        view_dimension: wgpu::TextureViewDimension::D2,
-                                        multisampled: false,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 1,
+                                ty: wgpu::BindingType::Texture {
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: false,
                                     },
-                                    visibility: wgpu::ShaderStages::COMPUTE,
-                                    count: None,
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    multisampled: false,
                                 },
-                                wgpu::BindGroupLayoutEntry {
-                                    binding: 2,
-                                    ty: wgpu::BindingType::StorageTexture {
-                                        access: wgpu::StorageTextureAccess::WriteOnly,
-                                        format: wgpu::TextureFormat::Rgba32Float,
-                                        view_dimension: wgpu::TextureViewDimension::D2,
-                                    },
-                                    visibility: wgpu::ShaderStages::COMPUTE,
-                                    count: None,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 2,
+                                ty: wgpu::BindingType::StorageTexture {
+                                    access: wgpu::StorageTextureAccess::WriteOnly,
+                                    format: wgpu::TextureFormat::Rgba32Float,
+                                    view_dimension: wgpu::TextureViewDimension::D2,
                                 },
-                            ],
-                        });
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                count: None,
+                            },
+                        ],
+                    });
 
                 tex_layout
             });
@@ -225,7 +253,7 @@ impl BloomNode {
                             ..Default::default()
                         });
 
-                let tex_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                let tex_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: None,
                     layout: &tex_down_layout,
                     entries: &[
@@ -278,7 +306,7 @@ impl BloomNode {
                             ..Default::default()
                         });
 
-                let tex_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                let tex_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: None,
                     layout: &tex_up_layout,
                     entries: &[
@@ -304,31 +332,32 @@ impl BloomNode {
         }
     }
 
-    fn create_resources(&mut self, ctx: &RenderCtx) {
+    fn create_resources(&mut self) {
         if self.uniform_bind_group.is_none() {
-            let uniforms_layout =
-                ctx.device
-                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                        label: None,
-                        entries: &[wgpu::BindGroupLayoutEntry {
-                            binding: 0,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            visibility: wgpu::ShaderStages::COMPUTE,
-                            count: None,
-                        }],
-                    });
+            let device = render_device();
 
-            let buffer = ctx.device.create_buffer_init(&wgpu::BufferInitDescriptor {
+            let uniforms_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: None,
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        count: None,
+                    }],
+                });
+
+            let buffer = device.create_buffer_init(&wgpu::BufferInitDescriptor {
                 label: None,
                 contents: bytes_of(&self.uniforms(true)),
                 usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
             });
 
-            let bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
                 layout: &uniforms_layout,
                 entries: &[wgpu::BindGroupEntry {
@@ -340,13 +369,13 @@ impl BloomNode {
             self.pre_filter_buffer = Some(buffer);
             self.pre_filter_bind_group = Some(bind_group);
 
-            let buffer = ctx.device.create_buffer_init(&wgpu::BufferInitDescriptor {
+            let buffer = device.create_buffer_init(&wgpu::BufferInitDescriptor {
                 label: None,
                 contents: bytes_of(&self.uniforms(false)),
                 usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
             });
 
-            let bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
                 layout: &uniforms_layout,
                 entries: &[wgpu::BindGroupEntry {
@@ -358,76 +387,61 @@ impl BloomNode {
             self.uniform_buffer = Some(buffer);
             self.uniform_bind_group = Some(bind_group);
 
-            let layout = ctx
-                .device
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: None,
-                    bind_group_layouts: &[self.tex_down_layout.as_ref().unwrap(), &uniforms_layout],
-                    push_constant_ranges: &[],
-                });
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: None,
+                bind_group_layouts: &[self.tex_down_layout.as_ref().unwrap(), &uniforms_layout],
+                push_constant_ranges: &[],
+            });
 
-            let module = ctx
-                .device
-                .create_shader_module(&ike_wgpu::include_wgsl!("bloom_down.comp.wgsl"));
+            let module =
+                device.create_shader_module(&ike_wgpu::include_wgsl!("bloom_down.comp.wgsl"));
 
-            let down_pipeline =
-                ctx.device
-                    .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                        label: None,
-                        layout: Some(&layout),
-                        module: &module,
-                        entry_point: "main",
-                    });
+            let down_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: None,
+                layout: Some(&layout),
+                module: &module,
+                entry_point: "main",
+            });
 
             self.down_pipeline = Some(down_pipeline);
 
-            let layout = ctx
-                .device
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: None,
-                    bind_group_layouts: &[self.tex_up_layout.as_ref().unwrap()],
-                    push_constant_ranges: &[],
-                });
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: None,
+                bind_group_layouts: &[self.tex_up_layout.as_ref().unwrap()],
+                push_constant_ranges: &[],
+            });
 
-            let module = ctx
-                .device
-                .create_shader_module(&ike_wgpu::include_wgsl!("bloom_up.comp.wgsl"));
+            let module =
+                device.create_shader_module(&ike_wgpu::include_wgsl!("bloom_up.comp.wgsl"));
 
-            let up_pipeline =
-                ctx.device
-                    .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                        label: None,
-                        layout: Some(&layout),
-                        module: &module,
-                        entry_point: "main",
-                    });
+            let up_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: None,
+                layout: Some(&layout),
+                module: &module,
+                entry_point: "main",
+            });
 
             self.up_pipeline = Some(up_pipeline);
         }
     }
 }
 
-impl<S> RenderNode<S> for BloomNode {
+impl RenderNode for BloomNode {
     #[inline]
-    fn run(&mut self, ctx: &mut RenderNodeCtx) {
-        let target = if let Some(target) = ctx.data.get::<HdrTarget>() {
-            target
-        } else {
-            return;
-        };
+    fn run(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        input: &NodeEdge,
+        output: &mut NodeEdge,
+    ) -> Result<(), GraphError> {
+        let target = input.get::<RenderTexture>(Self::HDR_TEXTURE)?;
 
-        let target_size = ctx
-            .data
-            .get::<TargetSize>()
-            .cloned()
-            .unwrap_or(TargetSize(ctx.view.size()));
+        self.create_texture(target.size);
+        self.create_resources();
 
-        self.create_texture(ctx.render_ctx, target_size.0);
-        self.create_resources(ctx.render_ctx);
-
-        ctx.encoder.copy_texture_to_texture(
+        encoder.copy_texture_to_texture(
             wgpu::ImageCopyTexture {
-                texture: &target.texture,
+                texture: &target.texture(),
                 mip_level: 0,
                 origin: Default::default(),
                 aspect: wgpu::TextureAspect::All,
@@ -445,12 +459,14 @@ impl<S> RenderNode<S> for BloomNode {
             },
         );
 
-        ctx.render_ctx.queue.write_buffer(
+        let queue = render_queue();
+
+        queue.write_buffer(
             self.pre_filter_buffer.as_ref().unwrap(),
             0,
             bytes_of(&self.uniforms(true)),
         );
-        ctx.render_ctx.queue.write_buffer(
+        queue.write_buffer(
             self.uniform_buffer.as_ref().unwrap(),
             0,
             bytes_of(&self.uniforms(false)),
@@ -459,7 +475,7 @@ impl<S> RenderNode<S> for BloomNode {
         let tex_groups = self.tex_down_bind_groups.as_ref().unwrap();
 
         for mip in 0..self.mips - 1 {
-            let mut compute_pass = ctx.encoder.begin_compute_pass(&Default::default());
+            let mut compute_pass = encoder.begin_compute_pass(&Default::default());
 
             compute_pass.set_pipeline(self.down_pipeline.as_ref().unwrap());
 
@@ -481,7 +497,7 @@ impl<S> RenderNode<S> for BloomNode {
                 break;
             }
 
-            ctx.encoder.copy_texture_to_texture(
+            encoder.copy_texture_to_texture(
                 wgpu::ImageCopyTexture {
                     texture: self.tex_1.as_ref().unwrap(),
                     mip_level: mip as u32 + 1,
@@ -505,7 +521,7 @@ impl<S> RenderNode<S> for BloomNode {
         let tex_groups = self.tex_up_bind_groups.as_ref().unwrap();
 
         for mip in (0..self.mips - 1).rev() {
-            let mut compute_pass = ctx.encoder.begin_compute_pass(&Default::default());
+            let mut compute_pass = encoder.begin_compute_pass(&Default::default());
 
             compute_pass.set_pipeline(self.up_pipeline.as_ref().unwrap());
 
@@ -521,7 +537,7 @@ impl<S> RenderNode<S> for BloomNode {
                 break;
             }
 
-            ctx.encoder.copy_texture_to_texture(
+            encoder.copy_texture_to_texture(
                 wgpu::ImageCopyTexture {
                     texture: self.tex_2.as_ref().unwrap(),
                     mip_level: mip as u32,
@@ -542,7 +558,7 @@ impl<S> RenderNode<S> for BloomNode {
             );
         }
 
-        ctx.encoder.copy_texture_to_texture(
+        encoder.copy_texture_to_texture(
             wgpu::ImageCopyTexture {
                 texture: self.tex_2.as_ref().unwrap(),
                 mip_level: 0,
@@ -550,7 +566,7 @@ impl<S> RenderNode<S> for BloomNode {
                 aspect: wgpu::TextureAspect::All,
             },
             wgpu::ImageCopyTexture {
-                texture: &target.texture,
+                texture: &target.texture(),
                 mip_level: 0,
                 origin: Default::default(),
                 aspect: wgpu::TextureAspect::All,
@@ -561,5 +577,7 @@ impl<S> RenderNode<S> for BloomNode {
                 depth_or_array_layers: 1,
             },
         );
+
+        Ok(())
     }
 }

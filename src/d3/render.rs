@@ -1,13 +1,13 @@
 use std::collections::{BTreeMap, HashMap};
 
 use bytemuck::{bytes_of, cast_slice};
-use glam::{Mat4, UVec2, Vec3};
+use glam::{Mat4, Quat, UVec2, Vec3};
 
 use crate::{
     cube_texture::{CubeTexture, Environment},
     id::{HasId, Id},
     prelude::{Camera, Color, HdrTexture, Texture},
-    renderer::{Drawable, PassNode, PassNodeCtx, RenderCtx, SampleCount, TargetFormat, TargetSize},
+    renderer::RenderCtx,
 };
 
 use super::{
@@ -486,7 +486,7 @@ impl Default for DirectionalLight {
         Self {
             direction: -Vec3::Y,
             color: Color::WHITE,
-            illuminance: 32000.0,
+            illuminance: 24000.0,
         }
     }
 }
@@ -865,7 +865,8 @@ impl<S> PassNode<S> for D3Node {
 
         for (i, directional_light) in self.directional_lights.iter().enumerate() {
             let mut transform = Transform3d::from_translation(camera.position);
-            transform.look_at(transform.translation + directional_light.direction, Vec3::Y);
+            transform.rotation =
+                Quat::from_rotation_arc_colinear(-Vec3::Z, directional_light.direction.normalize());
 
             let view = Mat4::orthographic_rh(-35.0, 35.0, -35.0, 35.0, -500.0, 500.0);
             let view_proj = view * transform.matrix().inverse();

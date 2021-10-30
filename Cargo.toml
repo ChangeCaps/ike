@@ -1,43 +1,42 @@
 [package]
 name = "ike"
 version = "0.0.1"
-edition = "2018"
+edition = "2021"
 description = "Small game engine with a simple editor"
-resolver = "2"
 repository = "https://github.com/ChangeCaps/ike"
 license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-members = ["ike-derive", "ike-editor", "ike-wgpu"]
+members = ["crates/*"]
 
 [dependencies]
 anyhow = "^1.0"
 egui = "^0.13"
 glam = { version = "^0.17", features = ["bytemuck"] }
 pollster = "0.2.4"
-wgpu = { version = "^0.10", optional = true }
+wgpu = { version = "^0.11", optional = true }
 winit = { version = "^0.25", features = ["serde"] }
-ike-derive = { version = "0.0.1", path = "ike-derive" }
-ike-wgpu = { version = "0.0.1", path = "ike-wgpu" }
-image = { version = "^0.23", optional = true }
+ike-derive = { version = "0.0.1", path = "crates/ike-derive" }
+ike-wgpu = { version = "0.0.1", path = "crates/ike-wgpu" }
+image = { version = "^0.23" }
 bytemuck = { version = "^1.7", features = ["derive"] }
 ab_glyph = { version = "^0.2", optional = true }
 once_cell = { version = "^1.8" }
 gltf = "^0.16"
+log = { version = "^0.4", features = ["std"] }
+thiserror = "1.0"
 
 [dev-dependencies]
-log = "^0.4"
 simple_logger = "^1.13"
 
 [features]
-default = ["editor", "3d", "2d", "debug"]
+default = ["editor", "2d", "debug"]
 runner = ["ike-wgpu/wgpu", "wgpu"]
 editor = []
 debug = []
-3d = ["image"]
-2d = ["image", "ab_glyph"]
+2d = ["ab_glyph"]
 
 [[example]]
 name = "3d-template"

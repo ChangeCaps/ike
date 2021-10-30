@@ -195,6 +195,15 @@ impl Texture {
 
 impl<F: TextureFormat> Texture<F> {
     #[inline]
+    pub fn from_size(size: UVec2) -> Self {
+        Self {
+            width: size.x,
+            height: size.y,
+            ..Default::default()
+        }
+    }
+
+    #[inline]
     pub fn from_data(data: Vec<F::Data>, width: u32, height: u32) -> Self {
         Self {
             width,
@@ -231,13 +240,15 @@ impl<F: TextureFormat> Texture<F> {
 
     #[inline]
     pub fn resize(&mut self, width: u32, height: u32) {
-        self.version += 1;
-        self.width = width;
-        self.height = height;
+        if self.width != width || self.height != height {
+            self.version += 1;
+            self.width = width;
+            self.height = height;
 
-        self.texture.take();
-        self.data.take();
-        self.buffer.take();
+            self.texture.take();
+            self.data.take();
+            self.buffer.take();
+        }
     }
 
     #[inline]
@@ -423,7 +434,8 @@ impl<F: TextureFormat> Texture<F> {
                         dimension: ike_wgpu::TextureDimension::D2,
                         format: self.format(),
                         usage: ike_wgpu::TextureUsages::COPY_DST
-                            | ike_wgpu::TextureUsages::TEXTURE_BINDING,
+                            | ike_wgpu::TextureUsages::TEXTURE_BINDING
+                            | ike_wgpu::TextureUsages::RENDER_ATTACHMENT,
                     },
                     data,
                 );
@@ -442,7 +454,8 @@ impl<F: TextureFormat> Texture<F> {
                     dimension: ike_wgpu::TextureDimension::D2,
                     format: self.format(),
                     usage: ike_wgpu::TextureUsages::COPY_DST
-                        | ike_wgpu::TextureUsages::TEXTURE_BINDING,
+                        | ike_wgpu::TextureUsages::TEXTURE_BINDING
+                        | ike_wgpu::TextureUsages::RENDER_ATTACHMENT,
                 });
 
                 texture

@@ -7,6 +7,7 @@ use crate::{
     id::{HasId, Id},
 };
 
+#[derive(Debug)]
 pub struct View {
     pub camera: Camera,
     pub target: ike_wgpu::TextureView,
@@ -22,6 +23,7 @@ impl View {
     }
 }
 
+#[derive(Debug)]
 pub struct Views {
     pub target: Option<ike_wgpu::TextureView>,
     pub width: u32,
@@ -33,16 +35,18 @@ pub struct Views {
 
 impl Views {
     pub fn render_main_view(&mut self, camera: Camera) {
-        self.target_id = Some(camera.id());
-        self.views.insert(
-            camera.id(),
-            View {
-                camera,
-                target: self.target.take().unwrap(),
-                width: self.width,
-                height: self.height,
-                format: self.format,
-            },
-        );
+        if let Some(target) = self.target.take() {
+            self.target_id = Some(camera.id());
+            self.views.insert(
+                camera.id(),
+                View {
+                    camera,
+                    target,
+                    width: self.width,
+                    height: self.height,
+                    format: self.format,
+                },
+            );
+        }
     }
 }

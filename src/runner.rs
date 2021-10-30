@@ -1,25 +1,30 @@
 use glam::Vec2;
 use winit::{
+    dpi::PhysicalPosition,
     event::{DeviceEvent, ElementState, Event, KeyboardInput, MouseScrollDelta, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
 
 use crate::{
+    input::Mouse,
     prelude::App,
-    renderer::RenderCtx,
+    renderer::{set_render_ctx, RenderCtx, RenderSurface},
     state::{StartCtx, State, UpdateCtx},
     view::Views,
     window::Window,
 };
 
-async unsafe fn wgpu_init(window: &winit::window::Window) -> anyhow::Result<RenderCtx> {
+async unsafe fn wgpu_init(
+    window: &winit::window::Window,
+) -> anyhow::Result<(RenderCtx, RenderSurface)> {
     let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
 
     let surface = unsafe { instance.create_surface(window) };
 
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
+            force_fallback_adapter: false,
             power_preference: wgpu::PowerPreference::HighPerformance,
             compatible_surface: Some(&surface),
         })
@@ -52,25 +57,29 @@ async unsafe fn wgpu_init(window: &winit::window::Window) -> anyhow::Result<Rend
 
     surface.configure(&device, &config);
 
-    Ok(RenderCtx {
-        device: ike_wgpu::Device::new(device).into(),
-        queue: ike_wgpu::Queue::new(queue).into(),
-        surface: ike_wgpu::Surface::new(surface),
-        config,
-    })
+    Ok((
+        RenderCtx {
+            device: ike_wgpu::Device::new(device),
+            queue: ike_wgpu::Queue::new(queue),
+        },
+        RenderSurface::new(ike_wgpu::Surface::new(surface), config),
+    ))
 }
 
 impl<S: State> App<S> {
     #[inline]
-    pub fn run(mut self, mut state: S) -> ! {
+    pub fn run(self, mut state: S) -> ! {
         let event_loop = EventLoop::new();
         let winit_window = WindowBuilder::new().build(&event_loop).unwrap();
 
-        let mut render_ctx = pollster::block_on(unsafe { wgpu_init(&winit_window) }).unwrap();
+        let (render_ctx, mut surface) =
+            pollster::block_on(unsafe { wgpu_init(&winit_window) }).unwrap();
+
+        set_render_ctx(render_ctx);
 
         let mut key_input = Default::default();
         let mut mouse_input = Default::default();
-        let mut mouse = Default::default();
+        let mut mouse = Mouse::default();
         let mut char_input = Vec::new();
         let mut window = Window::default();
 
@@ -78,7 +87,6 @@ impl<S: State> App<S> {
 
         let mut start_ctx = StartCtx {
             window: &mut window,
-            render_ctx: &render_ctx,
         };
 
         state.start(&mut start_ctx);
@@ -94,15 +102,8 @@ impl<S: State> App<S> {
                 let delta_time = (now - last_frame).as_secs_f32();
                 last_frame = now;
 
-                let target = match render_ctx.surface.get_current_frame() {
+                let target = match surface.surface().get_current_texture() {
                     Ok(target) => target,
-                    Err(ike_wgpu::SurfaceError::Outdated) => {
-                        render_ctx
-                            .surface
-                            .configure(&render_ctx.device, &render_ctx.config);
-
-                        return;
-                    }
                     Err(ike_wgpu::SurfaceError::OutOfMemory) => {
                         eprintln!("ran out of gpu memory");
 
@@ -113,28 +114,27 @@ impl<S: State> App<S> {
                     Err(e) => panic!("{:?}", e),
                 };
 
-                let target_view = target.output.create_view(&Default::default());
+                let target_view = target.texture().create_view(&Default::default());
 
                 let mut views = Views {
                     target: Some(target_view),
-                    width: render_ctx.config.width,
-                    height: render_ctx.config.height,
-                    format: render_ctx.config.format,
+                    width: surface.config().width,
+                    height: surface.config().height,
+                    format: surface.config().format,
                     target_id: None,
                     views: Default::default(),
                 };
 
                 window.pre_update(&winit_window);
+                let mouse_pos = mouse.position;
 
                 let mut update_ctx = UpdateCtx {
                     delta_time,
                     window: &mut window,
                     key_input: &key_input,
                     mouse_input: &mouse_input,
-                    mouse: &mouse,
+                    mouse: &mut mouse,
                     char_input: &char_input,
-                    render_ctx: &render_ctx,
-                    frame: self.renderer.frame(),
                     views: &mut views,
                 };
 
@@ -143,16 +143,24 @@ impl<S: State> App<S> {
 
                 window.post_update(&winit_window);
 
+                if mouse.contained && mouse.position != mouse_pos {
+                    let _ = winit_window.set_cursor_position(PhysicalPosition::new(
+                        mouse.position.x,
+                        mouse.position.y,
+                    ));
+                }
+
                 key_input.update();
                 mouse_input.update();
                 char_input.clear();
                 mouse.update();
 
                 for view in views.views.values() {
-                    self.renderer.render_view(&render_ctx, view, &mut state);
+                    /*
+                    self.renderer
+                        .render_view(&render_ctx, delta_time, view, &mut state);
+                    */
                 }
-
-                self.renderer.clear_nodes();
             }
             Event::DeviceEvent { event, .. } => match event {
                 DeviceEvent::MouseMotion { delta: (x, y) } => {
@@ -170,11 +178,8 @@ impl<S: State> App<S> {
                     }
                 }
                 WindowEvent::Resized(new_size) => {
-                    render_ctx.config.width = new_size.width.max(1);
-                    render_ctx.config.height = new_size.height.max(1);
-                    render_ctx
-                        .surface
-                        .configure(&render_ctx.device, &render_ctx.config);
+                    surface.configure().width = new_size.width.max(1);
+                    surface.configure().height = new_size.height.max(1);
                 }
                 WindowEvent::KeyboardInput {
                     input:
@@ -209,6 +214,12 @@ impl<S: State> App<S> {
                         mouse.wheel_delta += Vec2::new(delta.x as f32, delta.y as f32);
                     }
                 },
+                WindowEvent::CursorLeft { .. } => {
+                    mouse.contained = false;
+                }
+                WindowEvent::CursorEntered { .. } => {
+                    mouse.contained = true;
+                }
                 WindowEvent::ReceivedCharacter(c) => {
                     char_input.push(c);
                 }

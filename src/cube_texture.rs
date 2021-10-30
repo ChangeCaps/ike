@@ -17,7 +17,7 @@ impl Default for Environment {
     fn default() -> Self {
         Self {
             env_texture: CubeTexture::new(1024),
-            irradiance_texture: CubeTexture::new(512),
+            irradiance_texture: CubeTexture::new(128),
         }
     }
 }

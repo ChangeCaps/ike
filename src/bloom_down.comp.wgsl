@@ -9,6 +9,7 @@ struct Uniforms {
 	pre_filter: i32;
 	threshold: f32;
 	knee: f32;
+	scale: f32;
 };
 
 [[group(1), binding(0)]]
@@ -23,24 +24,41 @@ fn quadratic_threshold(color: vec4<f32>, threshold: f32, curve: vec3<f32>) -> ve
 	return color * max(rq, br - threshold) / max(br, 0.0001); 
 }
 
+fn sample(uv: vec2<f32>) -> vec4<f32> {
+	let base = vec2<i32>(floor(uv + 0.5));
+	let f = fract(uv + 0.5);
+
+	let a = textureLoad(from, base + vec2<i32>(0, 0), 0);
+	let b = textureLoad(from, base + vec2<i32>(1, 0), 0);
+	let c = textureLoad(from, base + vec2<i32>(0, 1), 0);
+	let d = textureLoad(from, base + vec2<i32>(1, 1), 0);
+
+	let a = a * (1.0 - f.x) + b * f.x;
+	let b = c * (1.0 - f.x) + d * f.x;
+
+	return a * (1.0 - f.y) + b * f.y;
+}
+
 [[stage(compute), workgroup_size(8, 8, 1)]]
 fn main([[builtin(global_invocation_id)]] param: vec3<u32>) {
 	let uv = vec2<i32>(param.xy);
-	let up_uv = vec2<i32>(uv.x * 2, uv.y * 2);
+	let up_uv = vec2<f32>(f32(uv.x) * 2.0, f32(uv.y) * 2.0); 
+
+	let scale = uniforms.scale;
 	
-	let a = textureLoad(from, up_uv + vec2<i32>(-2, -2), 0);	
-	let b = textureLoad(from, up_uv + vec2<i32>( 0, -2), 0);	
-	let c = textureLoad(from, up_uv + vec2<i32>( 2, -2), 0);	
-	let d = textureLoad(from, up_uv + vec2<i32>(-1, -1), 0);	
-	let e = textureLoad(from, up_uv + vec2<i32>( 1, -1), 0);	
-	let f = textureLoad(from, up_uv + vec2<i32>(-2,  0), 0);	
-	let g = textureLoad(from, up_uv + vec2<i32>( 0,  0), 0);	
-	let h = textureLoad(from, up_uv + vec2<i32>( 2,  0), 0);	
-	let i = textureLoad(from, up_uv + vec2<i32>(-1,  1), 0);	
-	let j = textureLoad(from, up_uv + vec2<i32>( 1,  1), 0);	
-	let k = textureLoad(from, up_uv + vec2<i32>(-2,  2), 0);	
-	let l = textureLoad(from, up_uv + vec2<i32>( 0,  2), 0);	
-	let m = textureLoad(from, up_uv + vec2<i32>( 2,  2), 0);
+	let a = sample(up_uv + vec2<f32>(-1.0, -1.0) * scale);
+	let b = sample(up_uv + vec2<f32>( 0.0, -1.0) * scale);
+	let c = sample(up_uv + vec2<f32>( 1.0, -1.0) * scale);
+	let d = sample(up_uv + vec2<f32>(-0.5, -0.5) * scale);
+	let e = sample(up_uv + vec2<f32>( 0.5, -0.5) * scale);
+	let f = sample(up_uv + vec2<f32>(-1.0,  0.0) * scale);
+	let g = sample(up_uv + vec2<f32>( 0.0,  0.0) * scale);
+	let h = sample(up_uv + vec2<f32>( 1.0,  0.0) * scale);
+	let i = sample(up_uv + vec2<f32>(-0.5,  0.5) * scale);
+	let j = sample(up_uv + vec2<f32>( 0.5,  0.5) * scale);
+	let k = sample(up_uv + vec2<f32>(-1.0,  1.0) * scale);
+	let l = sample(up_uv + vec2<f32>( 0.0,  1.0) * scale);
+	let m = sample(up_uv + vec2<f32>( 1.0,  1.0) * scale);
 
 	let div = (1.0 / 4.0) * vec2<f32>(0.5, 0.125);
 

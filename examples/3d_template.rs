@@ -25,7 +25,7 @@ impl GameState {
         camera.transform.look_at(Vec3::ZERO, Vec3::Y);
 
         let mut material = PbrMaterial::default();
-        material.emission = Color::rgb(1.0, 0.6, 0.3) * 14.0;
+        material.emission = Color::rgb(1.0, 0.3, 0.2) * 14.0;
 
         Self {
             mesh: Mesh::sphere(0.5, 20, 20),
@@ -144,12 +144,11 @@ impl State for GameState {
 
         ctx.draw(&scene.instanced(&instances));
 
-        /*
         ctx.draw(&DirectionalLight {
             direction: Vec3::new(-1.0, -1.0, -1.0),
+            color: Color::rgb(0.9, 0.8, 0.7),
             ..Default::default()
         });
-        */
 
         let fps_transform = Transform3d::from_xyz(0.0, 1.2, 0.0);
 
@@ -161,7 +160,7 @@ impl State for GameState {
             ctx.draw(&text);
         }
 
-        ctx.draw(&SkyTexture::new(&self.env));
+        ctx.draw(&self.env);
 
         ctx.draw(&self.ground);
 
@@ -178,7 +177,7 @@ fn main() {
 
     let mut app = App::new();
 
-    app.renderer.default_pbr_pipeline();
+    app.renderer.default_hdr_pipeline();
 
     app.run(GameState::new());
 }
