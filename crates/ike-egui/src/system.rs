@@ -64,6 +64,7 @@ pub fn egui_input_system(
     mut input: ResMut<egui::RawInput>,
     key_input: Res<Input<Key>>,
     mouse_input: Res<Input<MouseButton>>,
+	text_input: Res<TextInput>,
     mouse: Res<Mouse>,
 ) {
     let modifiers = egui::Modifiers {
@@ -121,6 +122,12 @@ pub fn egui_input_system(
             });
         }
     }
+
+	for c in text_input.0.iter().cloned() {
+		if !c.is_control() {
+			input.events.push(egui::Event::Text(String::from(c)));
+		}
+	}
 
 	ctx.begin_frame(input.take());
 }
