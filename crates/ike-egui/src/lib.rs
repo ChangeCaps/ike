@@ -26,7 +26,7 @@ impl Plugin for EguiPlugin {
 
         ctx.begin_frame(raw_input.take());
 
-        app.add_system(egui_system.system());
+        app.add_system_to_stage(egui_input_system.system(), stage::PRE_UPDATE);
         app.world_mut().insert_resource(ctx);
         app.world_mut().insert_resource(raw_input);
         app.world_mut().init_resource::<EguiTextures>();
@@ -36,7 +36,9 @@ impl Plugin for EguiPlugin {
         if render_graph.has_node(ike_pbr::render_graph::PBR_NODE) {
             render_graph.insert_node(EguiNode::default(), render_graph::EGUI_NODE);
 
-            render_graph.insert_node_edge(ike_pbr::render_graph::PBR_NODE, render_graph::EGUI_NODE).unwrap();
+            render_graph
+                .insert_node_edge(ike_pbr::render_graph::PBR_NODE, render_graph::EGUI_NODE)
+                .unwrap();
 
             render_graph
                 .insert_slot_edge(

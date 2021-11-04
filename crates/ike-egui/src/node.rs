@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use bytemuck::{bytes_of, cast_slice, Zeroable};
+use bytemuck::{bytes_of, cast_slice};
 use ike_assets::Assets;
 use ike_core::*;
 use ike_render::*;
@@ -200,7 +200,7 @@ impl RenderNode for EguiNode {
         let egui_textures = world.read_resource::<EguiTextures>().unwrap();
         let textures = world.read_resource::<Assets<Texture>>().unwrap();
         let mut input = world.write_resource::<egui::RawInput>().unwrap();
-        let mut ctx = world.write_resource::<egui::CtxRef>().unwrap();
+        let ctx = world.read_resource::<egui::CtxRef>().unwrap();
 
         input.screen_rect = Some(egui::Rect::from_min_size(
             egui::Pos2::ZERO,
@@ -235,7 +235,6 @@ impl RenderNode for EguiNode {
 
         let (_output, shapes) = ctx.end_frame();
         let meshes = ctx.tessellate(shapes);
-        ctx.begin_frame(input.take());
 
         for (i, egui::ClippedMesh(_, mesh)) in meshes.iter().enumerate() {
             if i >= self.meshes.len() {
@@ -359,7 +358,7 @@ impl RenderNode for EguiNode {
 
         render_pass.set_pipeline(pipeline);
 
-        for (i, egui::ClippedMesh(rect, mesh)) in meshes.into_iter().enumerate() {
+        for (i, egui::ClippedMesh(_rect, mesh)) in meshes.into_iter().enumerate() {
             let gpu_mesh = &self.meshes[i];
 
             render_pass.set_vertex_buffer(0, gpu_mesh.vertices.get_raw().unwrap().slice(..));

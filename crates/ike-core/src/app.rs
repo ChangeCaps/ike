@@ -2,6 +2,15 @@ use std::{any::TypeId, collections::HashMap};
 
 use crate::{Component, ExclusiveSystem, Node, Plugin, Schedule, System, World};
 
+pub mod stage {
+    pub const START: &str = "start";
+    pub const PRE_UPDATE: &str = "pre_update";
+    pub const UPDATE: &str = "update";
+    pub const POST_UPDATE: &str = "post_update";
+    pub const RENDER: &str = "render";
+    pub const END: &str = "end";
+}
+
 pub trait AppRunner: 'static {
     fn run(&mut self, app: App);
 }
@@ -29,24 +38,59 @@ impl AppBuilder {
     }
 
     #[inline]
-    pub fn schedule(&self) -> &Schedule {
-        &self.app.schedule
-    }
-
-    #[inline]
-    pub fn schedule_mut(&mut self) -> &mut Schedule {
-        &mut self.app.schedule
-    }
-
-    #[inline]
-    pub fn add_system<T: System>(&mut self, system: T) -> &mut Self {
-        self.app.schedule.add_system(system);
+    pub fn add_stage(&mut self, stage: &'static str) -> &mut Self {
+        self.app.stages.push((stage, Schedule::default()));
         self
     }
 
     #[inline]
-    pub fn add_exclusive_system<T: ExclusiveSystem>(&mut self, system: T) -> &mut Self {
-        self.app.schedule.add_exclusive_system(system);
+    pub fn get_stage_mut(&mut self, stage: &'static str) -> Option<&mut Schedule> {
+        let idx = self
+            .app
+            .stages
+            .iter()
+            .position(|(name, _)| *name == stage)?;
+
+        Some(&mut self.app.stages[idx].1)
+    }
+
+    #[inline]
+    pub fn add_system_to_stage<T: System>(&mut self, system: T, stage: &'static str) -> &mut Self {
+        let stage = self.get_stage_mut(stage).expect("stage not found");
+
+        stage.add_system(system);
+
+        self
+    }
+
+    #[inline]
+    pub fn add_exclusive_system_to_stage<T: ExclusiveSystem>(
+        &mut self,
+        system: T,
+        stage: &'static str,
+    ) -> &mut Self {
+        let stage = self.get_stage_mut(stage).expect("stage not found");
+
+        stage.add_exclusive_system(system);
+
+        self
+    } 
+
+    #[inline]
+    pub fn add_system<T: System>(&mut self, system: T) -> &mut Self {
+        self.add_system_to_stage(system, stage::UPDATE);
+        self
+    }
+
+    #[inline]
+    pub fn add_startup_system<T: System>(&mut self, system: T) -> &mut Self {
+        self.app.startup.add_system(system);
+        self
+    }
+
+    #[inline]
+    pub fn add_exclusive_startup_system<T: ExclusiveSystem>(&mut self, system: T) -> &mut Self {
+        self.app.startup.add_exclusive_system(system);
         self
     }
 
@@ -87,13 +131,23 @@ impl AppBuilder {
 pub struct App {
     world: World,
     components: HashMap<TypeId, fn(&mut Node)>,
-    schedule: Schedule,
+    startup: Schedule,
+    stages: Vec<(&'static str, Schedule)>,
 }
 
 impl App {
     #[inline]
     pub fn new() -> AppBuilder {
-        AppBuilder::new()
+        let mut builder = AppBuilder::new();
+
+        builder.add_stage(stage::START);
+        builder.add_stage(stage::PRE_UPDATE);
+        builder.add_stage(stage::UPDATE);
+        builder.add_stage(stage::POST_UPDATE);
+        builder.add_stage(stage::RENDER);
+        builder.add_stage(stage::END);
+
+        builder
     }
 
     #[inline]
@@ -107,18 +161,15 @@ impl App {
     }
 
     #[inline]
-    pub fn schedule(&self) -> &Schedule {
-        &self.schedule
+    pub fn execute_startup(&mut self) {
+        self.startup.execute(&mut self.world);
     }
 
     #[inline]
-    pub fn schedule_mut(&mut self) -> &mut Schedule {
-        &mut self.schedule
-    }
-
-    #[inline]
-    pub fn execute_schedule(&mut self) {
-        self.schedule.execute(&mut self.world);
+    pub fn execute(&mut self) {
+        for (_, stage) in &mut self.stages {
+            stage.execute(&mut self.world);
+        }
     }
 
     #[inline]

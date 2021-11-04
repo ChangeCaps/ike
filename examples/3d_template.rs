@@ -46,18 +46,10 @@ impl Component for CameraRotate {
     }
 }
 
-struct Started;
-
 struct StartupSystem;
 
 impl ExclusiveSystem for StartupSystem {
     fn run(&mut self, world: &mut World) {
-        if world.has_resource::<Started>() {
-            return;
-        }
-
-        world.insert_resource(Started);
-
         let hdr = HdrTexture::load("assets/env.hdr").unwrap();
 
         let mut env = Environment::default();
@@ -145,7 +137,7 @@ fn main() {
         .add_plugin(DebugLinePlugin)
         .add_plugin(PbrPlugin)
         .add_plugin(TransformPlugin)
-        .add_exclusive_system(StartupSystem)
+        .add_exclusive_startup_system(StartupSystem)
         .add_system(camera_aspect_system.system())
         .add_system(window_capture_system.system())
         .register_component::<Rotate>()

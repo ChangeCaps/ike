@@ -33,10 +33,12 @@ impl AppRunner for WinitRunner {
 
         set_render_ctx(render_ctx);
 
+        app.execute_startup();
+
         event_loop.run(move |event, _, control_flow| match event {
             Event::RedrawRequested(_) => {
                 app.update_components();
-                app.execute_schedule();
+                app.execute();
 
                 app.world().write_resource::<Input<Key>>().unwrap().update();
                 app.world()
