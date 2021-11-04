@@ -250,8 +250,10 @@ impl RenderGraph {
             self.stages.push(stage.clone());
 
             for name in std::mem::replace(&mut stage, HashSet::new()) {
-                for edge in &self.edges[&name] {
-                    stage.insert(edge.clone());
+                if let Some(edges) = self.edges.get(&name) {
+                    for edge in edges {
+                        stage.insert(edge.clone());
+                    }
                 }
             }
         }
