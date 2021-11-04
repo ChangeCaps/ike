@@ -52,7 +52,15 @@ impl Component for Move {
     fn update(&mut self, node: &mut Node<'_>, world: &World) {
         let key_input = world.read_resource::<Input<Key>>().unwrap(); 
 
+        let transform = &mut *node.get_component_mut::<Transform>().unwrap();
 
+        if key_input.down(&Key::Up) {
+            transform.translation += transform.local_y() * 0.1;
+        }
+
+        if key_input.down(&Key::Down) {
+            transform.translation -= transform.local_y() * 0.1;
+        }
     }
 }
 
@@ -111,6 +119,7 @@ impl ExclusiveSystem for StartupSystem {
         cube.insert(Transform::from_xyz(0.0, 1.0, 0.0));
         cube.insert(mesh.clone());
         cube.insert(material.clone());
+        cube.insert(Move);
     }
 }
 
@@ -152,5 +161,6 @@ fn main() {
         .add_system(window_capture_system.system())
         .register_component::<Rotate>()
         .register_component::<CameraRotate>()
+        .register_component::<Move>()
         .run();
 }

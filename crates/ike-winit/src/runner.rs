@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use ike_core::*;
 use ike_input::{Input, Mouse, TextInput};
 use ike_render::*;
@@ -36,8 +38,14 @@ impl AppRunner for WinitRunner {
 
         app.execute_startup();
 
+        let mut last_frame = Instant::now();
+
         event_loop.run(move |event, _, control_flow| match event {
             Event::RedrawRequested(_) => {
+                let now = Instant::now();
+                let frame_time = now - last_frame;
+                last_frame = now;
+
                 app.update_components();
                 app.execute();
 
