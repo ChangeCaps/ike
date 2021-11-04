@@ -62,6 +62,6 @@ impl Plugin for RenderPlugin {
         app.add_asset::<Mesh>();
         app.add_asset::<Texture>();
         app.add_asset::<Environment>();
-        app.add_exclusive_system(RenderSystem);
+        app.add_exclusive_system_to_stage(RenderSystem, stage::RENDER);
     }
 }

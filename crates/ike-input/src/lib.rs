@@ -92,7 +92,7 @@ impl Default for Mouse {
             contained: true,
             visible: true,
             grabbed: false,
-        } 
+        }
     }
 }
 
@@ -109,3 +109,6 @@ impl Mouse {
         self.wheel_delta = Vec2::ZERO;
     }
 }
+
+#[derive(Clone, Debug, Default)]
+pub struct TextInput(pub Vec<char>);

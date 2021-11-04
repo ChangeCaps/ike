@@ -155,8 +155,8 @@ impl GlobalTransform {
         translation: Vec3::ZERO,
         rotation: Quat::IDENTITY,
         scale: Vec3::ONE,
-    };    
-    
+    };
+
     #[inline]
     pub fn local_x(&self) -> Vec3 {
         self.rotation * Vec3::X
@@ -186,7 +186,7 @@ impl GlobalTransform {
             rotation: self.rotation * other.rotation,
             scale: self.scale * other.scale,
         }
-    }    
+    }
 
     #[inline]
     pub fn matrix(&self) -> Mat4 {

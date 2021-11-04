@@ -83,7 +83,8 @@ pub struct RenderGraph {
     edges: HashMap<String, HashSet<String>>,
     slots: HashMap<String, HashMap<String, SlotConnection>>,
     nodes: HashMap<String, NodeContainer>,
-    root: HashSet<String>,
+    end: HashSet<String>,
+    stages: Vec<HashSet<String>>,
 }
 
 impl RenderGraph {
@@ -111,13 +112,20 @@ impl RenderGraph {
     }
 
     #[inline]
+    pub fn has_node(&self, name: impl AsRef<str>) -> bool {
+        self.nodes.contains_key(name.as_ref())
+    }
+
+    #[inline]
     pub fn insert_node<T: RenderNode, U: Into<String>>(&mut self, render_node: T, name: U) {
         let name = name.into();
 
         self.nodes
             .insert(name.clone(), NodeContainer::new(render_node));
 
-        self.root.insert(name);
+        self.end.insert(name);
+
+        self.calculate_stages();
     }
 
     #[inline]
@@ -132,13 +140,15 @@ impl RenderGraph {
         self.get_node_container(from)?;
         self.get_node_container(to)?;
 
-        if !self.edges.contains_key(from) {
-            self.edges.insert(String::from(from), HashSet::new());
+        if !self.edges.contains_key(to) {
+            self.edges.insert(String::from(to), HashSet::new());
         }
 
-        self.edges.get_mut(from).unwrap().insert(String::from(to));
+        self.edges.get_mut(to).unwrap().insert(String::from(from));
 
-        self.root.remove(to);
+        self.end.remove(from);
+
+        self.calculate_stages();
 
         Ok(())
     }
@@ -167,6 +177,8 @@ impl RenderGraph {
 
         self.insert_node_edge(from, to)?;
 
+        self.calculate_stages();
+
         Ok(())
     }
 
@@ -188,6 +200,8 @@ impl RenderGraph {
         self.slots.remove(name);
 
         if self.nodes.remove(name).is_some() {
+            self.calculate_stages();
+
             Ok(())
         } else {
             Err(GraphError::NodeNotFound(String::from(name)))
@@ -214,6 +228,8 @@ impl RenderGraph {
             }
         }
 
+        self.calculate_stages();
+
         Ok(())
     }
 
@@ -225,18 +241,35 @@ impl RenderGraph {
     }
 
     #[inline]
+    pub fn calculate_stages(&mut self) {
+        self.stages.clear();
+
+        let mut stage = self.end.clone();
+
+        while !stage.is_empty() {
+            self.stages.push(stage.clone());
+
+            for name in std::mem::replace(&mut stage, HashSet::new()) {
+                if let Some(edges) = self.edges.get(&name) {
+                    for edge in edges {
+                        stage.insert(edge.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    #[inline]
     pub fn run(&mut self, world: &World) -> Result<(), GraphError> {
         let mut encoder = render_device().create_command_encoder(&Default::default());
 
-        let mut nodes = self.root.clone();
-
-        while !nodes.is_empty() {
-            for name in std::mem::replace(&mut nodes, HashSet::new()) {
-                let mut node = self.nodes.remove(&name).unwrap();
+        for stage in self.stages.iter().rev() {
+            for name in stage {
+                let mut node = self.nodes.remove(name).unwrap();
 
                 let mut input = NodeInput::default();
 
-                if let Some(slots) = self.slots.get(&name) {
+                if let Some(slots) = self.slots.get(name) {
                     for (slot_name, i) in slots {
                         let slot = self.nodes[&i.node].output.get_slot(&i.slot).unwrap();
 
@@ -249,13 +282,7 @@ impl RenderGraph {
 
                 node.output.slots_set()?;
 
-                if let Some(edges) = self.edges.get(&name) {
-                    for edge in edges {
-                        nodes.insert(edge.clone());
-                    }
-                }
-
-                self.nodes.insert(name, node);
+                self.nodes.insert(name.clone(), node);
             }
         }
 

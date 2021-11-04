@@ -22,7 +22,7 @@ impl Component for CameraRotate {
         }
 
         let key_input = world.read_resource::<Input<Key>>().unwrap();
-        
+
         let mut transform = &mut *node.get_component_mut::<Transform>().unwrap();
 
         transform.rotation = Quat::from_rotation_y(self.0.x);
@@ -46,18 +46,20 @@ impl Component for CameraRotate {
     }
 }
 
-struct Started;
+struct Move;
+
+impl Component for Move {
+    fn update(&mut self, node: &mut Node<'_>, world: &World) {
+        let key_input = world.read_resource::<Input<Key>>().unwrap(); 
+
+
+    }
+}
 
 struct StartupSystem;
 
 impl ExclusiveSystem for StartupSystem {
     fn run(&mut self, world: &mut World) {
-        if world.has_resource::<Started>() {
-            return;
-        }
-
-        world.insert_resource(Started);
-
         let hdr = HdrTexture::load("assets/env.hdr").unwrap();
 
         let mut env = Environment::default();
@@ -120,7 +122,11 @@ fn camera_aspect_system(window: Res<Window>, query: Query<&mut PerspectiveProjec
     }
 }
 
-fn window_capture_system(mut mouse: ResMut<Mouse>, key_input: Res<Input<Key>>, mouse_input: Res<Input<MouseButton>>) {
+fn window_capture_system(
+    mut mouse: ResMut<Mouse>,
+    key_input: Res<Input<Key>>,
+    mouse_input: Res<Input<MouseButton>>,
+) {
     if mouse_input.pressed(&MouseButton::Left) {
         mouse.grabbed = true;
         mouse.visible = false;
@@ -141,7 +147,7 @@ fn main() {
         .add_plugin(DebugLinePlugin)
         .add_plugin(PbrPlugin)
         .add_plugin(TransformPlugin)
-        .add_exclusive_system(StartupSystem)
+        .add_exclusive_startup_system(StartupSystem)
         .add_system(camera_aspect_system.system())
         .add_system(window_capture_system.system())
         .register_component::<Rotate>()
