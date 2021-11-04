@@ -7,6 +7,22 @@ fn to_egui_key(key: Key) -> Option<egui::Key> {
     use egui::Key as K;
 
     Some(match key {
+		Key::Space => K::Space,
+		Key::Home => K::Home,
+		Key::End => K::End,
+		Key::Escape => K::Escape,
+		Key::Tab => K::Tab,
+		Key::Back => K::Backspace,
+		Key::Return | Key::NumpadEnter => K::Enter,
+		Key::Insert => K::Insert,
+		Key::Delete => K::Delete,
+		Key::PageDown => K::PageDown,
+		Key::PageUp => K::PageUp,
+		Key::Left => K::ArrowLeft,
+		Key::Left => K::ArrowLeft,
+		Key::Right => K::ArrowRight,
+		Key::Up => K::ArrowUp,
+		Key::Down => K::ArrowDown,
         Key::A => K::A,
         Key::B => K::B,
         Key::C => K::C,

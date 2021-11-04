@@ -46,6 +46,16 @@ impl Component for CameraRotate {
     }
 }
 
+struct Move;
+
+impl Component for Move {
+    fn update(&mut self, node: &mut Node<'_>, world: &World) {
+        let key_input = world.read_resource::<Input<Key>>().unwrap(); 
+
+
+    }
+}
+
 struct StartupSystem;
 
 impl ExclusiveSystem for StartupSystem {
