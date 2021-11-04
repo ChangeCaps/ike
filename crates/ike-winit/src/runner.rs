@@ -1,5 +1,5 @@
 use ike_core::*;
-use ike_input::{Input, Mouse};
+use ike_input::{Input, Mouse, TextInput};
 use ike_render::*;
 use winit::{
     event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
@@ -25,6 +25,7 @@ impl AppRunner for WinitRunner {
 
         app.world_mut().insert_resource(render_surface);
         app.world_mut().insert_resource(window);
+        app.world_mut().init_resource::<TextInput>();
 
         app.world_mut().insert_resource(Input::<Key>::default());
         app.world_mut()
@@ -40,6 +41,7 @@ impl AppRunner for WinitRunner {
                 app.update_components();
                 app.execute();
 
+                app.world().write_resource::<TextInput>().unwrap().0.clear();
                 app.world().write_resource::<Input<Key>>().unwrap().update();
                 app.world()
                     .write_resource::<Input<MouseButton>>()
@@ -122,6 +124,9 @@ impl AppRunner for WinitRunner {
 
                     mouse.position.x = position.x as f32;
                     mouse.position.y = position.y as f32;
+                }
+                WindowEvent::ReceivedCharacter(c) => {
+                    app.world().write_resource::<TextInput>().unwrap().0.push(c);
                 }
                 _ => {}
             },
