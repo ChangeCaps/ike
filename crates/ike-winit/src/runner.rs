@@ -28,6 +28,7 @@ impl AppRunner for WinitRunner {
         app.world_mut().insert_resource(render_surface);
         app.world_mut().insert_resource(window);
         app.world_mut().init_resource::<TextInput>();
+        app.world_mut().init_resource::<Time>();
 
         app.world_mut().insert_resource(Input::<Key>::default());
         app.world_mut()
@@ -45,6 +46,8 @@ impl AppRunner for WinitRunner {
                 let now = Instant::now();
                 let frame_time = now - last_frame;
                 last_frame = now;
+
+                app.world().write_resource::<Time>().unwrap().advance_frame(frame_time.as_secs_f32());
 
                 app.update_components();
                 app.execute();

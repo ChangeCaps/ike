@@ -114,12 +114,16 @@ impl ExclusiveSystem for StartupSystem {
         node.insert(mesh.clone());
         node.insert(material.clone());
 
-        let mut cube = world.spawn_node("cube");
+        for x in -20..=20 {
+            for z in -20..=20 {
+                let mut cube = world.spawn_node("cube");
 
-        cube.insert(Transform::from_xyz(0.0, 1.0, 0.0));
-        cube.insert(mesh.clone());
-        cube.insert(material.clone());
-        cube.insert(Move);
+                cube.insert(Transform::from_xyz(x as f32, 1.0, z as f32));
+                cube.insert(mesh.clone());
+                cube.insert(material.clone());
+                cube.insert(Move);
+            }
+        }
     }
 }
 

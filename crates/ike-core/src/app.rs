@@ -15,6 +15,35 @@ pub trait AppRunner: 'static {
     fn run(&mut self, app: App);
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct Time {
+    time: f32,
+    delta_time: f32,
+}
+
+impl Time {
+    #[inline]
+    pub fn advance_frame(&mut self, delta_time: f32) {
+        self.time += delta_time;
+        self.delta_time = delta_time;
+    }
+
+    #[inline]
+    pub fn time_since_startup(&self) -> f32 {
+        self.time
+    }
+
+    #[inline]
+    pub fn delta_time(&self) -> f32 {
+        self.delta_time
+    }
+
+    #[inline]
+    pub fn frames_per_second(&self) -> f32 {
+        1.0 / self.delta_time
+    }
+}
+
 #[derive(Default)]
 pub struct AppBuilder {
     app: App,
