@@ -1,8 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{
-    Access, Fetch, Query, QueryMut, ReadGuard, Resource, System, SystemAccess, World, WriteGuard,
-};
+use crate::{Access, ExclusiveSystem, Fetch, Query, QueryMut, ReadGuard, Resource, System, SystemAccess, World, WriteGuard};
 
 pub type Res<'a, T> = ReadGuard<'a, T>;
 pub type ResMut<'a, T> = WriteGuard<'a, T>;
@@ -175,6 +173,13 @@ where
     #[inline]
     fn run(&mut self, world: &World) {
         self.func.run(world);
+    }
+}
+
+impl<F: FnMut(&mut World) + Send + Sync + 'static> ExclusiveSystem for F {
+    #[inline]
+    fn run(&mut self, world: &mut World) {
+        self(world);
     }
 }
 
