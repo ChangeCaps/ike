@@ -27,4 +27,8 @@ ike-wgpu = { version = "0.0.1", path = "crates/ike-wgpu" }
 glam = "0.19"
 
 [dev-dependencies]
+# ike
+ike-egui = { version = "0.0.1", path = "crates/ike-egui" }
+
+# other
 env_logger = "0.9"
