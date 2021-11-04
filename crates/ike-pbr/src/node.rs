@@ -53,7 +53,7 @@ impl ShaderResources {
                 },
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 count: None,
-            }], 
+            }],
         });
 
         let group_0 = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

@@ -78,7 +78,7 @@ impl SystemAccess {
         }
 
         if other.world && self.access.len() > 0 {
-            return false; 
+            return false;
         }
 
         for (ty, access) in other.access.iter() {

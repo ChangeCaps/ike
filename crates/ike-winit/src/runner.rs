@@ -1,7 +1,11 @@
 use ike_core::*;
 use ike_input::{Input, Mouse};
 use ike_render::*;
-use winit::{event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent}, event_loop::{ControlFlow, EventLoop}, window::Window};
+use winit::{
+    event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::Window,
+};
 
 pub type Key = VirtualKeyCode;
 pub use winit::event::MouseButton;
@@ -23,7 +27,8 @@ impl AppRunner for WinitRunner {
         app.world_mut().insert_resource(window);
 
         app.world_mut().insert_resource(Input::<Key>::default());
-        app.world_mut().insert_resource(Input::<MouseButton>::default());
+        app.world_mut()
+            .insert_resource(Input::<MouseButton>::default());
         app.world_mut().insert_resource(Mouse::default());
 
         set_render_ctx(render_ctx);
@@ -34,7 +39,10 @@ impl AppRunner for WinitRunner {
                 app.execute_schedule();
 
                 app.world().write_resource::<Input<Key>>().unwrap().update();
-                app.world().write_resource::<Input<MouseButton>>().unwrap().update();
+                app.world()
+                    .write_resource::<Input<MouseButton>>()
+                    .unwrap()
+                    .update();
                 let mut mouse = app.world().write_resource::<Mouse>().unwrap();
 
                 mouse.update();
@@ -43,7 +51,7 @@ impl AppRunner for WinitRunner {
 
                 window.get_raw().set_cursor_visible(mouse.visible);
                 window.get_raw().set_cursor_grab(mouse.grabbed).unwrap();
-            } 
+            }
             Event::MainEventsCleared => {
                 let window = app.world().read_resource::<crate::Window>().unwrap();
 
@@ -57,7 +65,7 @@ impl AppRunner for WinitRunner {
                     mouse.movement.y += dy as f32;
                 }
                 _ => {}
-            }
+            },
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => {
                     *control_flow = ControlFlow::Exit;
@@ -72,25 +80,36 @@ impl AppRunner for WinitRunner {
                     render_surface.configure().width = size.width;
                     render_surface.configure().height = size.height;
                 }
-                WindowEvent::KeyboardInput { input: KeyboardInput { virtual_keycode: Some(key), state, .. }, .. } => {
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            virtual_keycode: Some(key),
+                            state,
+                            ..
+                        },
+                    ..
+                } => {
                     let mut input = app.world_mut().write_resource::<Input<Key>>().unwrap();
 
                     match state {
                         ElementState::Pressed => {
                             input.press(key);
-                        },
+                        }
                         ElementState::Released => {
                             input.release(key);
                         }
                     }
                 }
                 WindowEvent::MouseInput { button, state, .. } => {
-                    let mut input = app.world_mut().write_resource::<Input<MouseButton>>().unwrap();
+                    let mut input = app
+                        .world_mut()
+                        .write_resource::<Input<MouseButton>>()
+                        .unwrap();
 
                     match state {
                         ElementState::Pressed => {
                             input.press(button);
-                        },
+                        }
                         ElementState::Released => {
                             input.release(button);
                         }

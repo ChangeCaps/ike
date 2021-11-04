@@ -92,7 +92,7 @@ impl Default for Mouse {
             contained: true,
             visible: true,
             grabbed: false,
-        } 
+        }
     }
 }
 

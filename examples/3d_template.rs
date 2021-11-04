@@ -22,7 +22,7 @@ impl Component for CameraRotate {
         }
 
         let key_input = world.read_resource::<Input<Key>>().unwrap();
-        
+
         let mut transform = &mut *node.get_component_mut::<Transform>().unwrap();
 
         transform.rotation = Quat::from_rotation_y(self.0.x);
@@ -120,7 +120,11 @@ fn camera_aspect_system(window: Res<Window>, query: Query<&mut PerspectiveProjec
     }
 }
 
-fn window_capture_system(mut mouse: ResMut<Mouse>, key_input: Res<Input<Key>>, mouse_input: Res<Input<MouseButton>>) {
+fn window_capture_system(
+    mut mouse: ResMut<Mouse>,
+    key_input: Res<Input<Key>>,
+    mouse_input: Res<Input<MouseButton>>,
+) {
     if mouse_input.pressed(&MouseButton::Left) {
         mouse.grabbed = true;
         mouse.visible = false;

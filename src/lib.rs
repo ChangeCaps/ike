@@ -24,5 +24,5 @@ pub mod prelude {
     };
     pub use ike_transform::{GlobalTransform, Parent, Transform, TransformNodeExt};
     pub use ike_wgpu as wgpu;
-    pub use ike_winit::{Window, WinitRunner, Key, MouseButton};
+    pub use ike_winit::{Key, MouseButton, Window, WinitRunner};
 }
