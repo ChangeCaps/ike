@@ -7,7 +7,10 @@ use std::{
 
 use crossbeam::queue::SegQueue;
 
-use crate::{AnyComponent, BorrowLock, ComponentStorage, Entity, Node, OwnedComponent, System};
+use crate::{
+    AnyComponent, ComponentStorage, Entity, Node, OwnedComponent, Query, QueryMut, ReadGuard,
+    Resource, Resources, WriteGuard,
+};
 
 enum Command {
     Insert(Entity, OwnedComponent),
@@ -16,8 +19,9 @@ enum Command {
 
 pub struct World {
     pub(crate) components: HashMap<TypeId, ComponentStorage>,
+    pub(crate) entities: Vec<Entity>,
     nodes: HashMap<Entity, String>,
-    systems: HashMap<TypeId, BorrowLock<dyn System>>,
+    resources: Resources,
     commands: SegQueue<Command>,
     next_entity: AtomicU64,
 }
@@ -34,11 +38,49 @@ impl World {
     pub fn new() -> Self {
         Self {
             components: HashMap::new(),
+            entities: Vec::new(),
             nodes: HashMap::new(),
-            systems: HashMap::new(),
+            resources: Resources::new(),
             commands: SegQueue::new(),
             next_entity: AtomicU64::new(0),
         }
+    }
+
+    #[inline]
+    pub fn insert_resource<T: Resource>(&mut self, resource: T) {
+        self.resources.insert(resource);
+    }
+
+    #[inline]
+    pub fn init_resource<T: Resource + Default>(&mut self) {
+        if !self.resources.contains::<T>() {
+            self.resources.insert(T::default());
+        }
+    }
+
+    #[inline]
+    pub fn has_resource<T: Resource>(&self) -> bool {
+        self.resources.contains::<T>()
+    }
+
+    #[inline]
+    pub fn read_resource<T: Resource>(&self) -> Option<ReadGuard<T>> {
+        self.resources.read()
+    }
+
+    #[inline]
+    pub fn write_resource<T: Resource>(&self) -> Option<WriteGuard<T>> {
+        self.resources.write()
+    }
+
+    #[inline]
+    pub fn remove_resource<T: Resource>(&mut self) -> Option<T> {
+        self.resources.remove()
+    }
+
+    #[inline]
+    pub fn resources(&self) -> &Resources {
+        &self.resources
     }
 
     #[inline]
@@ -88,7 +130,14 @@ impl World {
     }
 
     #[inline]
-    pub fn spawn(&mut self) {}
+    pub fn query<Q: Query>(&self) -> Option<QueryMut<'_, Q>> {
+        QueryMut::new(self)
+    }
+
+    #[inline]
+    pub fn has<T: AnyComponent>(&self) -> bool {
+        self.components.contains_key(&TypeId::of::<T>())
+    }
 
     #[inline]
     pub fn insert<T: AnyComponent>(&mut self, entity: Entity, component: T) {
@@ -113,6 +162,46 @@ impl World {
     }
 
     #[inline]
+    pub fn has_component<T: AnyComponent>(&self, entity: &Entity) -> bool {
+        if let Some(storage) = self.components.get(&TypeId::of::<T>()) {
+            storage.contains(entity)
+        } else {
+            false
+        }
+    }
+
+    #[inline]
+    pub fn get_component<T: AnyComponent>(&self, entity: &Entity) -> Option<ReadGuard<T>> {
+        let storage = self.components.get(&TypeId::of::<T>())?;
+
+        unsafe { storage.get_borrowed(entity) }
+    }
+
+    #[inline]
+    pub fn get_component_mut<T: AnyComponent>(&self, entity: &Entity) -> Option<WriteGuard<T>> {
+        let storage = self.components.get(&TypeId::of::<T>())?;
+
+        unsafe { storage.get_borrowed_mut(entity) }
+    }
+
+    #[inline]
+    pub fn dump_borrows(&self) {
+        for storage in self.components.values() {
+            if storage.borrow_mut() {
+                storage.release_mut();
+
+                println!("{:?} free", storage.ty());
+            } else if storage.borrow() {
+                storage.release();
+
+                println!("{:?} shared", storage.ty());
+            } else {
+                println!("{:?} unique", storage.ty());
+            }
+        }
+    }
+
+    #[inline]
     pub fn nodes(&self) -> impl Iterator<Item = Node> + '_ {
         self.nodes.iter().map(|(entity, name)| Node {
             name: Cow::Borrowed(name),
@@ -129,8 +218,41 @@ impl World {
                 Command::Insert(entity, component) => component.insert(entity, self),
                 Command::InsertNode(entity, name) => {
                     self.nodes.insert(entity, name);
+                    self.entities.push(entity);
                 }
             }
+        }
+    }
+
+    #[inline]
+    pub(crate) fn borrow<T: AnyComponent>(&self) -> bool {
+        if let Some(storage) = self.components.get(&TypeId::of::<T>()) {
+            storage.borrow()
+        } else {
+            true
+        }
+    }
+
+    #[inline]
+    pub(crate) fn borrow_mut<T: AnyComponent>(&self) -> bool {
+        if let Some(storage) = self.components.get(&TypeId::of::<T>()) {
+            storage.borrow_mut()
+        } else {
+            true
+        }
+    }
+
+    #[inline]
+    pub(crate) fn release<T: AnyComponent>(&self) {
+        if let Some(storage) = self.components.get(&TypeId::of::<T>()) {
+            storage.release();
+        }
+    }
+
+    #[inline]
+    pub(crate) fn release_mut<T: AnyComponent>(&self) {
+        if let Some(storage) = self.components.get(&TypeId::of::<T>()) {
+            storage.release_mut();
         }
     }
 }
@@ -155,7 +277,7 @@ mod tests {
 
         let mut node = world.spawn_node("foo");
 
-        node.queue_insert(123i32);
+        node.insert(123i32);
 
         let e = node.entity();
 
@@ -166,5 +288,26 @@ mod tests {
         let node = world.get_node(e).unwrap();
 
         assert_eq!(*node.get_component::<i32>().unwrap(), 123);
+    }
+
+    #[test]
+    fn query() {
+        let mut world = World::new();
+
+        let mut node = world.spawn_node("foo");
+
+        node.insert(123i32);
+        node.insert(false);
+
+        drop(node);
+
+        world.dequeue();
+
+        let mut query = world.query::<(&i32, &mut bool)>().unwrap();
+
+        assert_eq!(query.next(), Some((&123, &mut false)));
+        assert_eq!(query.next(), None);
+
+        assert!(world.query::<&bool>().is_none());
     }
 }

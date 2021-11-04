@@ -34,6 +34,9 @@ impl Texture {
     }
 }
 
+unsafe impl Sync for Texture {}
+unsafe impl Send for Texture {}
+
 impl Drop for Texture {
     #[inline]
     fn drop(&mut self) {

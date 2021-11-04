@@ -12,33 +12,19 @@ license = "MIT"
 members = ["crates/*"]
 
 [dependencies]
-anyhow = "^1.0"
-egui = "^0.13"
-glam = { version = "^0.17", features = ["bytemuck"] }
-pollster = "0.2.4"
-wgpu = { version = "^0.11", optional = true }
-winit = { version = "^0.25", features = ["serde"] }
-ike-derive = { version = "0.0.1", path = "crates/ike-derive" }
+# ike
+ike-assets = { version = "0.0.1", path = "crates/ike-assets" }
+ike-core = { version = "0.0.1", path = "crates/ike-core" }
+ike-debug-line = { version = "0.0.1", path = "crates/ike-debug-line" }
+ike-input = { version = "0.0.1", path = "crates/ike-input" }
+ike-pbr = { version = "0.0.1", path = "crates/ike-pbr" }
+ike-render = { version = "0.0.1", path = "crates/ike-render" }
+ike-transform = { version = "0.0.1", path = "crates/ike-transform" }
+ike-winit = { version = "0.0.1", path = "crates/ike-winit" }
 ike-wgpu = { version = "0.0.1", path = "crates/ike-wgpu" }
-image = { version = "^0.23" }
-bytemuck = { version = "^1.7", features = ["derive"] }
-ab_glyph = { version = "^0.2", optional = true }
-once_cell = { version = "^1.8" }
-gltf = "^0.16"
-log = { version = "^0.4", features = ["std"] }
-thiserror = "1.0"
+
+# other
+glam = "0.19"
 
 [dev-dependencies]
-simple_logger = "^1.13"
-
-[features]
-default = ["editor", "2d", "debug"]
-runner = ["ike-wgpu/wgpu", "wgpu"]
-editor = []
-debug = []
-2d = ["ab_glyph"]
-
-[[example]]
-name = "3d-template"
-path = "examples/3d_template.rs"
-required-features = ["runner"]
+env_logger = "0.9"

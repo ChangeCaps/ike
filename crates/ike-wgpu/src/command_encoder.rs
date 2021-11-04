@@ -11,6 +11,15 @@ pub(crate) unsafe trait CommandEncoderTrait {
         desc: &crate::ComputePassDescriptor<'_>,
     ) -> crate::ComputePass<'_>;
 
+    fn copy_buffer_to_buffer(
+        &mut self,
+        source: &crate::Buffer,
+        source_offset: u64,
+        destination: &crate::Buffer,
+        destination_offset: u64,
+        copy_size: u64,
+    );
+
     fn copy_texture_to_buffer(
         &mut self,
         source: crate::ImageCopyTexture<&crate::Texture>,
@@ -88,6 +97,24 @@ unsafe impl CommandEncoderTrait for wgpu::CommandEncoder {
     }
 
     #[inline]
+    fn copy_buffer_to_buffer(
+        &mut self,
+        source: &crate::Buffer,
+        source_offset: u64,
+        destination: &crate::Buffer,
+        destination_offset: u64,
+        copy_size: u64,
+    ) {
+        self.copy_buffer_to_buffer(
+            unsafe { &*(source.0.as_ref() as *const _ as *const _) },
+            source_offset,
+            unsafe { &*(destination.0.as_ref() as *const _ as *const _) },
+            destination_offset,
+            copy_size,
+        )
+    }
+
+    #[inline]
     fn copy_texture_to_buffer(
         &mut self,
         source: crate::ImageCopyTexture<&crate::Texture>,
@@ -156,6 +183,24 @@ impl CommandEncoder {
         desc: &crate::ComputePassDescriptor<'_>,
     ) -> crate::ComputePass<'_> {
         self.0.begin_compute_pass(desc)
+    }
+
+    #[inline]
+    pub fn copy_buffer_to_buffer(
+        &mut self,
+        source: &crate::Buffer,
+        source_offset: u64,
+        destination: &crate::Buffer,
+        destination_offset: u64,
+        copy_size: u64,
+    ) {
+        self.0.copy_buffer_to_buffer(
+            source,
+            source_offset,
+            destination,
+            destination_offset,
+            copy_size,
+        );
     }
 
     #[inline]

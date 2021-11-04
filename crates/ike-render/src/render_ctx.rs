@@ -54,10 +54,8 @@ impl RenderSurface {
     }
 
     #[inline]
-    pub fn surface(&self) -> &ike_wgpu::Surface {
-        if self.updated {
-            self.surface.configure(render_device(), &self.config);
-        }
+    pub fn surface(&mut self) -> &ike_wgpu::Surface {
+        self.surface.configure(render_device(), &self.config);
 
         &self.surface
     }

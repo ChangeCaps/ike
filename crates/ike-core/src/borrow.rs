@@ -1,7 +1,8 @@
 use std::{
+    mem,
     ops::{Deref, DerefMut},
     sync::atomic::{AtomicUsize, Ordering},
-}; 
+};
 
 // this file is heavily inspired by hecs
 // (https://github.com/Ralith/hecs/blob/master/src/borrow.rs)
@@ -43,27 +44,27 @@ impl AtomicBorrow {
 
     #[inline]
     pub fn release(&self) {
-        self.0.fetch_sub(1, Ordering::Release);
+        let value = self.0.fetch_sub(1, Ordering::Release);
+        debug_assert!(value != 0, "unbalanced release");
+        debug_assert!(value & UNIQUE_BIT == 0, "shared release of unique borrow");
     }
 
     #[inline]
     pub fn release_mut(&self) {
-        self.0.fetch_and(!UNIQUE_BIT, Ordering::Release);
+        let value = self.0.fetch_and(!UNIQUE_BIT, Ordering::Release);
+        debug_assert_ne!(value & UNIQUE_BIT, 0, "unique release of shared borrow");
     }
 }
 
 pub struct ReadGuard<'a, T: ?Sized> {
     pub(crate) value: &'a T,
-    pub(crate) borrow: &'a AtomicBorrow,
+    pub(crate) borrow: Vec<&'a AtomicBorrow>,
 }
 
 impl<'a, T: ?Sized> ReadGuard<'a, T> {
     #[inline]
-    pub fn map<U>(self, f: impl FnOnce(&T) -> &U) -> ReadGuard<'a, U> {
-        ReadGuard {
-            value: f(self.value),
-            borrow: self.borrow,
-        }
+    pub(crate) fn forget(mut self) -> Vec<&'a AtomicBorrow> {
+        mem::replace(&mut self.borrow, Vec::new())
     }
 }
 
@@ -79,13 +80,22 @@ impl<'a, T: ?Sized> Deref for ReadGuard<'a, T> {
 impl<'a, T: ?Sized> Drop for ReadGuard<'a, T> {
     #[inline]
     fn drop(&mut self) {
-        self.borrow.release()
+        for borrow in &self.borrow {
+            borrow.release()
+        }
     }
 }
 
 pub struct WriteGuard<'a, T: ?Sized> {
     pub(crate) value: &'a mut T,
-    pub(crate) borrow: &'a AtomicBorrow,
+    pub(crate) borrow: Vec<&'a AtomicBorrow>,
+}
+
+impl<'a, T: ?Sized> WriteGuard<'a, T> {
+    #[inline]
+    pub(crate) fn forget(mut self) -> Vec<&'a AtomicBorrow> {
+        mem::replace(&mut self.borrow, Vec::new())
+    }
 }
 
 impl<'a, T: ?Sized> Deref for WriteGuard<'a, T> {
@@ -107,7 +117,9 @@ impl<'a, T: ?Sized> DerefMut for WriteGuard<'a, T> {
 impl<'a, T: ?Sized> Drop for WriteGuard<'a, T> {
     #[inline]
     fn drop(&mut self) {
-        self.borrow.release_mut()
+        for borrow in &self.borrow {
+            borrow.release_mut();
+        }
     }
 }
 
@@ -115,6 +127,9 @@ pub struct BorrowLock<T: ?Sized> {
     value: *mut T,
     borrow: AtomicBorrow,
 }
+
+unsafe impl<T: ?Sized + Send + Sync> Send for BorrowLock<T> {}
+unsafe impl<T: ?Sized + Send + Sync> Sync for BorrowLock<T> {}
 
 impl<T> BorrowLock<T> {
     #[inline]
@@ -124,13 +139,22 @@ impl<T> BorrowLock<T> {
             borrow: AtomicBorrow::new(),
         }
     }
+
+    #[inline]
+    pub fn into_inner(self) -> T {
+        let inner = *unsafe { Box::from_raw(self.value) };
+
+        mem::forget(self);
+
+        inner
+    }
 }
 
 impl<T: ?Sized> BorrowLock<T> {
     #[inline]
-    pub fn map<U: ?Sized>(self, f: impl FnOnce(*mut T) -> *mut U) -> BorrowLock<U> {
-        BorrowLock {
-            value: f(self.value),
+    pub fn from_box(boxed: Box<T>) -> Self {
+        Self {
+            value: Box::into_raw(boxed),
             borrow: AtomicBorrow::new(),
         }
     }
@@ -140,7 +164,7 @@ impl<T: ?Sized> BorrowLock<T> {
         if self.borrow.borrow() {
             Some(ReadGuard {
                 value: unsafe { &*self.value },
-                borrow: &self.borrow,
+                borrow: vec![&self.borrow],
             })
         } else {
             None
@@ -152,7 +176,7 @@ impl<T: ?Sized> BorrowLock<T> {
         if self.borrow.borrow_mut() {
             Some(WriteGuard {
                 value: unsafe { &mut *self.value },
-                borrow: &self.borrow,
+                borrow: vec![&self.borrow],
             })
         } else {
             None
@@ -160,8 +184,31 @@ impl<T: ?Sized> BorrowLock<T> {
     }
 
     #[inline]
+    pub fn get_mut(&mut self) -> &mut T {
+        unsafe { &mut *self.value }
+    }
+
+    #[inline]
     pub fn raw(&self) -> *mut T {
         self.value
+    }
+
+    #[inline]
+    pub fn into_raw(self) -> *mut T {
+        let raw = self.value;
+
+        mem::forget(self);
+
+        raw
+    }
+
+    #[inline]
+    pub fn into_box(self) -> Box<T> {
+        let boxed = unsafe { Box::from_raw(self.value) };
+
+        mem::forget(self);
+
+        boxed
     }
 }
 

@@ -1,4 +1,8 @@
-use std::{any::{Any, TypeId, type_name}, borrow::Cow};
+use std::{
+    any::{type_name, Any, TypeId},
+    borrow::Cow,
+    collections::HashMap,
+};
 
 use crate::GraphError;
 
@@ -36,7 +40,7 @@ impl EdgeSlotInfo {
 }
 
 pub struct EdgeSlot {
-    value: Option<Box<dyn Any>>,
+    value: Option<Box<dyn Any + Send + Sync>>,
     info: EdgeSlotInfo,
 }
 
@@ -47,20 +51,44 @@ impl EdgeSlot {
     }
 }
 
+#[derive(Default)]
+pub struct NodeInput<'a> {
+    pub(crate) slots: HashMap<String, &'a EdgeSlot>,
+}
+
+impl<'a> NodeInput<'a> {
+    #[inline]
+    pub fn get<T: Any>(&self, name: &str) -> Result<&T, GraphError> {
+        if let Some(slot) = self.slots.get(name) {
+            slot.value
+                .as_ref()
+                .unwrap()
+                .downcast_ref::<T>()
+                .ok_or_else(|| GraphError::GetWrongType {
+                    found: slot.info.ty_name(),
+                    expected: type_name::<T>(),
+                })
+        } else {
+            Err(GraphError::SlotNotFound(String::from(name)))
+        }
+    }
+}
+
+#[derive(Default)]
 pub struct NodeEdge {
     slots: Vec<EdgeSlot>,
 }
 
 impl NodeEdge {
-	#[inline]
-	pub(crate) fn from_info(info: Vec<EdgeSlotInfo>) -> Self {
-		Self {
-			slots: info.into_iter().map(|info| EdgeSlot::new(info)).collect(),
-		}
-	}
+    #[inline]
+    pub(crate) fn from_info(info: Vec<EdgeSlotInfo>) -> Self {
+        Self {
+            slots: info.into_iter().map(|info| EdgeSlot::new(info)).collect(),
+        }
+    }
 
     #[inline]
-    fn get_slot(&self, name: &str) -> Result<&EdgeSlot, GraphError> {
+    pub(crate) fn get_slot(&self, name: &str) -> Result<&EdgeSlot, GraphError> {
         self.slots
             .iter()
             .find(|slot| slot.info.name() == name)
@@ -87,7 +115,7 @@ impl NodeEdge {
     }
 
     #[inline]
-    pub fn set<T: Any>(&mut self, name: &str, value: T) -> Result<(), GraphError> {
+    pub fn set<T: Any + Send + Sync>(&mut self, name: &str, value: T) -> Result<(), GraphError> {
         let slot = self.get_slot_mut(name)?;
 
         if TypeId::of::<T>() != slot.info.ty_id() {
@@ -137,5 +165,22 @@ impl NodeEdge {
                 expected: type_name::<T>(),
             })
     }
-}
 
+    #[inline]
+    pub fn remove<T: Any>(&mut self, name: &str) -> Result<T, GraphError> {
+        let slot = self.get_slot_mut(name)?;
+
+        let value = slot
+            .value
+            .take()
+            .ok_or_else(|| GraphError::SlotNotSet(String::from(name)))?;
+
+        value
+            .downcast()
+            .map(|t| *t)
+            .map_err(|_| GraphError::GetWrongType {
+                found: slot.info.ty_name(),
+                expected: type_name::<T>(),
+            })
+    }
+}

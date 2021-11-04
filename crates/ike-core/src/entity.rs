@@ -1,3 +1,4 @@
+#[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Entity(pub(crate) u64);
 

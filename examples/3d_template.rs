@@ -1,183 +1,150 @@
-use ike::{cube_texture::CubeTexture, d3::SkyNode, prelude::*};
+use ike::prelude::*;
+use ike_transform::TransformPlugin;
 
-struct GameState {
-    mesh: Mesh,
-    transform: Transform3d,
-    camera: PerspectiveCamera,
-    camera_rot: Vec2,
-    light: PointLight,
-    font: Font,
-    scene: PbrScene,
-    time: f32,
-    sky_texture: HdrTexture,
-    env: Environment,
-    num: i32,
-    agent: bool,
-    ground: Mesh,
-    metal: PbrMaterial,
+struct Rotate;
+
+impl Component for Rotate {
+    fn update(&mut self, node: &mut Node<'_>, _world: &World) {
+        let mut transform = node.get_component_mut::<Transform>().unwrap();
+
+        transform.rotation *= Quat::from_rotation_y(0.01);
+    }
 }
 
-impl GameState {
-    pub fn new() -> Self {
-        let mut camera = PerspectiveCamera::default();
+struct CameraRotate(Vec2);
 
-        camera.transform.translation = Vec3::new(0.0, 1.0, 2.0);
-        camera.transform.look_at(Vec3::ZERO, Vec3::Y);
+impl Component for CameraRotate {
+    fn update(&mut self, node: &mut Node<'_>, world: &World) {
+        let mouse = world.read_resource::<Mouse>().unwrap();
 
-        let mut material = PbrMaterial::default();
-        material.emission = Color::rgb(1.0, 0.3, 0.2) * 14.0;
+        if mouse.grabbed {
+            self.0 += mouse.movement * 0.001 * -1.0;
+        }
 
-        Self {
-            mesh: Mesh::sphere(0.5, 20, 20),
-            transform: Transform3d::IDENTITY,
-            camera,
-            light: PointLight {
-                position: Vec3::new(0.0, 2.0, 0.0),
-                color: Color::WHITE,
-                intensity: 300.0,
-                range: 50.0,
-                radius: 0.0,
-            },
-            camera_rot: Vec2::ZERO,
-            font: Font::load("assets/font.ttf", 100.0).unwrap(),
-            scene: PbrScene::load_gltf("assets/wa.glb").unwrap(),
-            time: 0.0,
-            sky_texture: HdrTexture::load("assets/hdr.hdr").unwrap(),
-            env: Environment::default(),
-            num: 0,
-            agent: true,
-            ground: Mesh::plane(Vec2::splat(500.0)),
-            metal: material,
+        let key_input = world.read_resource::<Input<Key>>().unwrap();
+        
+        let mut transform = &mut *node.get_component_mut::<Transform>().unwrap();
+
+        transform.rotation = Quat::from_rotation_y(self.0.x);
+        transform.rotation *= Quat::from_rotation_x(self.0.y);
+
+        if key_input.down(&Key::W) {
+            transform.translation -= transform.local_z() * 0.1;
+        }
+
+        if key_input.down(&Key::S) {
+            transform.translation += transform.local_z() * 0.1;
+        }
+
+        if key_input.down(&Key::D) {
+            transform.translation += transform.local_x() * 0.1;
+        }
+
+        if key_input.down(&Key::A) {
+            transform.translation -= transform.local_x() * 0.1;
         }
     }
 }
 
-impl State for GameState {
-    #[inline]
-    fn start(&mut self, ctx: &mut StartCtx) {
-        self.mesh.calculate_tangents();
+struct Started;
 
-        self.env.load(ctx.render_ctx, &self.sky_texture);
-    }
+struct StartupSystem;
 
-    #[inline]
-    fn update(&mut self, ctx: &mut UpdateCtx) {
-        self.time += ctx.delta_time;
-
-        self.transform.rotation *= Quat::from_rotation_x(ctx.delta_time);
-
-        if ctx.window.cursor_grab {
-            self.camera_rot.x -= ctx.mouse.movement.x * 0.001;
-            self.camera_rot.y -= ctx.mouse.movement.y * 0.001;
+impl ExclusiveSystem for StartupSystem {
+    fn run(&mut self, world: &mut World) {
+        if world.has_resource::<Started>() {
+            return;
         }
 
-        self.camera.transform.rotation = Quat::from_rotation_y(self.camera_rot.x);
-        self.camera.transform.rotation *= Quat::from_rotation_x(self.camera_rot.y);
+        world.insert_resource(Started);
 
-        if ctx.key_input.down(&Key::W) {
-            self.camera.transform.translation -=
-                self.camera.transform.local_z() * ctx.delta_time * 2.0;
-        }
+        let hdr = HdrTexture::load("assets/env.hdr").unwrap();
 
-        if ctx.key_input.down(&Key::S) {
-            self.camera.transform.translation +=
-                self.camera.transform.local_z() * ctx.delta_time * 2.0;
-        }
+        let mut env = Environment::default();
+        env.load(&hdr);
 
-        if ctx.key_input.down(&Key::A) {
-            self.camera.transform.translation -=
-                self.camera.transform.local_x() * ctx.delta_time * 2.0;
-        }
+        let env = world
+            .write_resource::<Assets<Environment>>()
+            .unwrap()
+            .add(env);
+        world.insert_resource(env);
 
-        if ctx.key_input.down(&Key::D) {
-            self.camera.transform.translation +=
-                self.camera.transform.local_x() * ctx.delta_time * 2.0;
-        }
+        let mut node = world.spawn_node("Camera");
 
-        if ctx.key_input.pressed(&Key::Left) {
-            self.num -= 1;
-        }
+        let mut transform = Transform::from_xyz(2.0, 3.0, 1.0);
+        transform.look_at(Vec3::ZERO, Vec3::Y);
 
-        if ctx.key_input.pressed(&Key::Right) {
-            self.num += 1;
-        }
+        node.insert(PerspectiveProjection::default());
+        node.insert(transform);
+        node.insert(CameraRotate(Vec2::ZERO));
 
-        if ctx.key_input.pressed(&Key::Up) {
-            self.agent ^= true;
-        }
+        world.write_resource::<MainCamera>().unwrap().0 = Some(node.entity());
 
-        if ctx.mouse_input.pressed(&MouseButton::Left) {
-            ctx.window.cursor_visible = false;
-            ctx.window.cursor_grab = true;
-        }
+        let mut light = world.spawn_node("light");
 
-        if ctx.key_input.pressed(&Key::Escape) {
-            ctx.window.cursor_visible = true;
-            ctx.window.cursor_grab = false;
-        }
-    }
+        light.insert(Transform::from_xyz(0.0, 1.0, 0.0));
+        light.insert(DirectionalLight::default());
 
-    #[inline]
-    fn render(&mut self, ctx: &mut UpdateCtx) {
-        let mut scene = self.scene.pose();
-        scene.animate(0, self.time).unwrap();
+        let mut meshes = world.write_resource::<Assets<Mesh>>().unwrap();
 
-        let num_objects = (self.num * 2 + 1).pow(2) as usize;
+        let mesh = meshes.add(Mesh::cube(Vec3::ONE / 2.0));
 
-        let mut instances = Vec::with_capacity(num_objects);
+        let mut materials = world.write_resource::<Assets<PbrMaterial>>().unwrap();
 
-        for x in -self.num..=self.num {
-            for z in -self.num..=self.num {
-                let y = (x as f32 + z as f32 * 0.3 + self.time).sin() * 4.0;
-                let mut transform = Transform3d::from_xyz(x as f32 * 2.0, 0.0, z as f32 * 2.0);
-
-                if self.agent {
-                    transform.scale = Vec3::splat(0.1);
-
-                    instances.push(transform.matrix());
-                } else {
-                    transform.translation.y = y;
-                    ctx.draw(&self.mesh.transform_material(&transform, &self.metal));
-                }
-            }
-        }
-
-        ctx.draw(&scene.instanced(&instances));
-
-        ctx.draw(&DirectionalLight {
-            direction: Vec3::new(-1.0, -1.0, -1.0),
-            color: Color::rgb(0.9, 0.8, 0.7),
-            ..Default::default()
+        let material = materials.add(PbrMaterial {
+            roughness: 0.01,
+            metallic: 0.01,
+            reflectance: 0.5,
+            ..PbrMaterial::default()
         });
 
-        let fps_transform = Transform3d::from_xyz(0.0, 1.2, 0.0);
+        let mut node = world.spawn_node("rotate");
 
-        let mut text = TextSprite::new(&self.font, fps_transform);
-        text.text = format!("{:2.2} fps | {} objects", 1.0 / ctx.delta_time, num_objects,).into();
-        text.size = 0.5;
+        node.insert(Transform::from_scale(Vec3::new(20.0, 0.5, 20.0)));
+        node.insert(mesh.clone());
+        node.insert(material.clone());
 
-        if !self.agent {
-            ctx.draw(&text);
-        }
+        let mut cube = world.spawn_node("cube");
 
-        ctx.draw(&self.env);
+        cube.insert(Transform::from_xyz(0.0, 1.0, 0.0));
+        cube.insert(mesh.clone());
+        cube.insert(material.clone());
+    }
+}
 
-        ctx.draw(&self.ground);
+fn camera_aspect_system(window: Res<Window>, query: Query<&mut PerspectiveProjection>) {
+    let aspect = window.aspect();
 
-        self.camera.projection.scale(ctx.window.size);
-        ctx.views.render_main_view(self.camera.camera());
+    for projection in query {
+        projection.aspect = aspect;
+    }
+}
+
+fn window_capture_system(mut mouse: ResMut<Mouse>, key_input: Res<Input<Key>>, mouse_input: Res<Input<MouseButton>>) {
+    if mouse_input.pressed(&MouseButton::Left) {
+        mouse.grabbed = true;
+        mouse.visible = false;
+    }
+
+    if key_input.pressed(&Key::Escape) {
+        mouse.grabbed = false;
+        mouse.visible = true;
     }
 }
 
 fn main() {
-    simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Error)
-        .init()
-        .unwrap();
+    env_logger::init();
 
-    let mut app = App::new();
-
-    app.renderer.default_hdr_pipeline();
-
-    app.run(GameState::new());
+    App::new()
+        .set_runner(WinitRunner)
+        .add_plugin(RenderPlugin)
+        .add_plugin(DebugLinePlugin)
+        .add_plugin(PbrPlugin)
+        .add_plugin(TransformPlugin)
+        .add_exclusive_system(StartupSystem)
+        .add_system(camera_aspect_system.system())
+        .add_system(window_capture_system.system())
+        .register_component::<Rotate>()
+        .register_component::<CameraRotate>()
+        .run();
 }
