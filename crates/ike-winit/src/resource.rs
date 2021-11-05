@@ -19,7 +19,7 @@ impl Window {
     #[inline]
     pub fn size(&self) -> UVec2 {
         let size = self.raw.inner_size();
-        UVec2::new(size.width, size.height)
+        UVec2::new(size.width, size.height).max(UVec2::ONE)
     }
 
     #[inline]

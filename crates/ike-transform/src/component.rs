@@ -1,7 +1,7 @@
 use glam::{Mat3, Mat4, Quat, Vec3};
 use ike_core::Entity;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Transform {
     pub translation: Vec3,
     pub rotation: Quat,

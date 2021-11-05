@@ -193,6 +193,10 @@ impl RenderNode for DebugLineNode {
 
         let pipeline = &resources.pipelines[&target.target()];
 
+        if instances.is_empty() {
+            return Ok(());
+        }
+
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[wgpu::RenderPassColorAttachment {

@@ -18,6 +18,7 @@ ike-core = { version = "0.0.1", path = "crates/ike-core" }
 ike-debug-line = { version = "0.0.1", path = "crates/ike-debug-line" }
 ike-input = { version = "0.0.1", path = "crates/ike-input" }
 ike-pbr = { version = "0.0.1", path = "crates/ike-pbr" }
+ike-physics = { version = "0.0.1", path = "crates/ike-physics" }
 ike-render = { version = "0.0.1", path = "crates/ike-render" }
 ike-transform = { version = "0.0.1", path = "crates/ike-transform" }
 ike-winit = { version = "0.0.1", path = "crates/ike-winit" }

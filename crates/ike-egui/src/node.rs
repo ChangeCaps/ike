@@ -358,7 +358,14 @@ impl RenderNode for EguiNode {
 
         render_pass.set_pipeline(pipeline);
 
-        for (i, egui::ClippedMesh(_rect, mesh)) in meshes.into_iter().enumerate() {
+        for (i, egui::ClippedMesh(rect, mesh)) in meshes.into_iter().enumerate() {
+            let min_x = (rect.min.x as u32).max(0);
+            let min_y = (rect.min.y as u32).max(0);
+            let max_x = (rect.max.x as u32).min(target.size.x);
+            let max_y = (rect.max.y as u32).min(target.size.y);
+
+            render_pass.set_scissor_rect(min_x, min_y, max_x - min_x, max_y - min_y);
+
             let gpu_mesh = &self.meshes[i];
 
             render_pass.set_vertex_buffer(0, gpu_mesh.vertices.get_raw().unwrap().slice(..));

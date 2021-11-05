@@ -10,11 +10,6 @@ struct VertexInput {
 	[[location(3)]] tangent: vec4<f32>;
 	[[location(4)]] color: vec4<f32>;
 
-// #ifdef SKINNED
-	[[location(5)]] joints: vec4<u32>;
-	[[location(6)]] weights: vec4<f32>;
-// #endif
-
 	// instance
 	[[location(8)]] transform_0: vec4<f32>;
 	[[location(9)]] transform_1: vec4<f32>;
@@ -72,14 +67,6 @@ var irradiance_texture: texture_cube<f32>;
 
 [[group(0), binding(3)]]
 var env_sampler: sampler;
-
-// [[block]]
-// struct JointMatrices {
-// 	matrices: array<mat4x4<f32>>; 
-// };
-// 
-// [[group(2), binding(0)]]
-// var<storage, read> joint_matrices: JointMatrices;
 
 struct Material {
 	albedo: vec4<f32>;

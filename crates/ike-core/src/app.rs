@@ -1,6 +1,6 @@
 use std::{any::TypeId, collections::HashMap};
 
-use crate::{Component, ExclusiveSystem, Node, Plugin, Schedule, System, World};
+use crate::{Component, ExclusiveSystem, Node, Plugin, Resource, Schedule, System, World};
 
 pub mod stage {
     pub const START: &str = "start";
@@ -73,6 +73,36 @@ impl AppBuilder {
     }
 
     #[inline]
+    pub fn add_stage_before(&mut self, stage: &'static str, before: &'static str) -> &mut Self {
+        let idx = self
+            .app
+            .stages
+            .iter()
+            .position(|(name, _)| *name == before)
+            .expect("stage not found");
+
+        self.app.stages.insert(idx, (stage, Schedule::default()));
+
+        self
+    }
+
+    #[inline]
+    pub fn add_stage_after(&mut self, stage: &'static str, after: &'static str) -> &mut Self {
+        let idx = self
+            .app
+            .stages
+            .iter()
+            .position(|(name, _)| *name == after)
+            .expect("stage not found");
+
+        self.app
+            .stages
+            .insert(idx + 1, (stage, Schedule::default()));
+
+        self
+    }
+
+    #[inline]
     pub fn get_stage_mut(&mut self, stage: &'static str) -> Option<&mut Schedule> {
         let idx = self
             .app
@@ -103,7 +133,7 @@ impl AppBuilder {
         stage.add_exclusive_system(system);
 
         self
-    } 
+    }
 
     #[inline]
     pub fn add_system<T: System>(&mut self, system: T) -> &mut Self {
@@ -120,6 +150,18 @@ impl AppBuilder {
     #[inline]
     pub fn add_exclusive_startup_system<T: ExclusiveSystem>(&mut self, system: T) -> &mut Self {
         self.app.startup.add_exclusive_system(system);
+        self
+    }
+
+    #[inline]
+    pub fn insert_resource<T: Resource>(&mut self, resource: T) -> &mut Self {
+        self.world_mut().insert_resource(resource);
+        self
+    }
+
+    #[inline]
+    pub fn init_resource<T: Resource + Default>(&mut self) -> &mut Self {
+        self.world_mut().init_resource::<T>();
         self
     }
 

@@ -47,10 +47,15 @@ impl AppRunner for WinitRunner {
                 let frame_time = now - last_frame;
                 last_frame = now;
 
-                app.world().write_resource::<Time>().unwrap().advance_frame(frame_time.as_secs_f32());
+                app.world()
+                    .write_resource::<Time>()
+                    .unwrap()
+                    .advance_frame(frame_time.as_secs_f32());
 
                 app.update_components();
                 app.execute();
+
+                app.world_mut().clear_trackers();
 
                 app.world().write_resource::<TextInput>().unwrap().0.clear();
                 app.world().write_resource::<Input<Key>>().unwrap().update();
@@ -182,7 +187,7 @@ async unsafe fn wgpu_init(
         width: size.width,
         height: size.height,
         format: surface.get_preferred_format(&adapter).unwrap(),
-        present_mode: wgpu::PresentMode::Fifo,
+        present_mode: wgpu::PresentMode::Immediate,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
     };
 

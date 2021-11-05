@@ -1,9 +1,4 @@
-use std::{
-    alloc::{alloc, dealloc, Layout},
-    any::TypeId,
-    collections::BTreeMap,
-    mem, ptr,
-};
+use std::{alloc::{alloc, dealloc, Layout}, any::TypeId, mem, ptr, sync::atomic::{AtomicU64, Ordering}};
 
 use crate::{AtomicBorrow, Entity, ReadGuard, WriteGuard};
 
@@ -11,17 +6,32 @@ pub trait AnyComponent: Send + Sync + 'static {}
 
 impl<T: Send + Sync + 'static> AnyComponent for T {}
 
+struct ComponentState {
+    gen: Option<u64>,
+    borrow: AtomicBorrow,
+    changed: AtomicU64,
+}
+
+impl ComponentState {
+    #[inline]
+    pub fn new() -> Self {
+        Self {
+            gen: None,
+            borrow: AtomicBorrow::new(),
+            changed: AtomicU64::new(0),
+        }
+    }
+}
+
 pub struct ComponentStorage {
     ty: TypeId,
     layout: Layout,
     drop: unsafe fn(*mut u8),
-    entities: Vec<Entity>,
-    entity_indices: BTreeMap<Entity, usize>,
     len: usize,
     cap: usize,
     base: Option<*mut u8>,
-    unused_data: Vec<usize>,
-    component_borrow: Vec<AtomicBorrow>,
+    entities: Vec<Entity>,
+    component_state: Vec<ComponentState>,
     storage_borrow: AtomicBorrow,
 }
 
@@ -39,13 +49,11 @@ impl ComponentStorage {
             ty: TypeId::of::<T>(),
             layout: Layout::new::<T>().pad_to_align(),
             drop: drop_fn::<T>,
-            entities: Vec::new(),
-            entity_indices: BTreeMap::new(),
             len: 0,
             cap: 0,
             base: None,
-            unused_data: Vec::new(),
-            component_borrow: Vec::new(),
+            entities: Vec::new(),
+            component_state: Vec::new(),
             storage_borrow: AtomicBorrow::new(),
         }
     }
@@ -57,8 +65,10 @@ impl ComponentStorage {
 
     #[inline]
     pub fn contains(&self, entity: &Entity) -> bool {
-        self.entity_indices.contains_key(entity)
-    }
+        self.component_state
+            .get(entity.idx() as usize)
+            .map_or_else(|| false, |state| state.gen == Some(entity.gen()))
+    } 
 
     #[inline]
     pub fn borrow(&self) -> bool {
@@ -102,7 +112,6 @@ impl ComponentStorage {
 
     #[inline]
     pub fn grow_exact(&mut self, size: usize) {
-        let old_len = self.len;
         let old_cap = self.cap;
         let new_cap = self.cap + size;
 
@@ -113,7 +122,7 @@ impl ComponentStorage {
         let mem = unsafe { alloc(layout) };
 
         if let Some(base) = self.base {
-            unsafe { ptr::copy_nonoverlapping(base, mem, self.layout.size() * old_len) };
+            unsafe { ptr::copy_nonoverlapping(base, mem, self.layout.size() * old_cap) };
 
             let layout =
                 Layout::from_size_align((self.layout.size() * old_cap).max(1), self.layout.align())
@@ -134,37 +143,26 @@ impl ComponentStorage {
 
     #[inline]
     pub unsafe fn index_ptr(&self, index: usize) -> *mut u8 {
-        if index >= self.len() {
-            panic!("index must be < len");
-        }
-
         unsafe { self.base.unwrap().add(self.layout.size() * index) }
     }
 
     #[inline]
-    pub unsafe fn insert_unchecked<T: AnyComponent>(&mut self, entity: Entity, component: T) {
-        if self.entity_indices.contains_key(&entity) {
-            return;
+    pub unsafe fn insert_unchecked<T: AnyComponent>(&mut self, entity: Entity, component: T, change_frame: u64) {
+        let idx = entity.idx() as usize;
+
+        if self.cap <= idx {
+            self.grow(idx - self.cap + 64);
+
+            self.component_state
+                .resize_with(self.cap, || ComponentState::new());
         }
 
-        let idx = if let Some(idx) = self.unused_data.pop() {
-            self.component_borrow[idx] = AtomicBorrow::new();
+        self.len += 1;
 
-            idx
-        } else {
-            if self.len == self.cap {
-                self.grow(64);
-            }
-
-            self.component_borrow.push(AtomicBorrow::new());
-            self.entities.push(entity);
-
-            let idx = self.len;
-
-            self.len += 1;
-
-            idx
-        };
+        let state = &mut self.component_state[idx];
+        state.gen = Some(entity.gen());
+        state.borrow = AtomicBorrow::new();
+        state.changed = AtomicU64::new(change_frame);
 
         let ptr = unsafe { self.index_ptr(idx) as *mut T };
 
@@ -174,15 +172,23 @@ impl ComponentStorage {
 
         mem::forget(component);
 
-        self.entity_indices.insert(entity, idx);
+        self.entities.push(entity);
     }
 
     #[inline]
     pub unsafe fn remove_unchecked<T: AnyComponent>(&mut self, entity: &Entity) -> Option<T> {
-        self.entities.retain(|e| e != entity);
+        if !self.contains(entity) {
+            return None;
+        }
 
-        let idx = self.entity_indices.remove(entity)?;
-        self.unused_data.push(idx);
+        let i = self.entities.iter().position(|e| e == entity).unwrap();
+        self.entities.remove(i);
+
+        self.len -= 1; 
+
+        let idx = entity.idx() as usize;
+
+        self.component_state[idx].gen = None;
 
         let ptr = unsafe { self.index_ptr(idx) as *mut T };
 
@@ -192,10 +198,41 @@ impl ComponentStorage {
     }
 
     #[inline]
-    pub unsafe fn get_raw_unchecked<T: AnyComponent>(&self, entity: &Entity) -> Option<*mut T> {
-        let idx = self.entity_indices.get(entity)?;
+    pub fn changed(&self, entity: &Entity, last_change_tick: u64, change_tick: u64) -> bool {
+        if !self.contains(entity) {
+            return false;
+        }
 
-        let ptr = unsafe { self.index_ptr(*idx) as *mut T };
+        let idx = entity.idx() as usize;
+
+        let this_change_tick = self.component_state[idx].changed.load(Ordering::Acquire);
+
+        let component_delta = change_tick - this_change_tick;
+        let system_delta = change_tick - last_change_tick;
+
+        component_delta < system_delta
+    }
+
+    #[inline]
+    pub fn get_change_marker(&self, entity: &Entity) -> Option<&AtomicU64> {
+        if !self.contains(entity) {
+            return None;
+        }
+
+        let idx = entity.idx() as usize;
+
+        Some(&self.component_state[idx].changed)
+    }
+
+    #[inline]
+    pub unsafe fn get_raw_unchecked<T: AnyComponent>(&self, entity: &Entity) -> Option<*mut T> {
+        if !self.contains(entity) {
+            return None;
+        } 
+
+        let idx = entity.idx() as usize;
+
+        let ptr = unsafe { self.index_ptr(idx) as *mut T };
 
         Some(ptr)
     }
@@ -212,23 +249,28 @@ impl ComponentStorage {
 
     #[inline]
     pub unsafe fn get_borrowed<T: AnyComponent>(&self, entity: &Entity) -> Option<ReadGuard<T>> {
+        if !self.contains(entity) {
+            return None;
+        }
+
         if !self.borrow() {
             return None;
         }
 
-        let idx = self.entity_indices.get(entity)?;
+        let idx = entity.idx() as usize;
 
-        let borrow = &self.component_borrow[*idx];
+        let state = &self.component_state[idx];
 
-        if !borrow.borrow() {
-            return None;
+        if !state.borrow.borrow() {
+            self.release();
+            return None; 
         }
 
-        let ptr = unsafe { self.index_ptr(*idx) as *const T };
+        let ptr = unsafe { self.index_ptr(idx) as *const T };
 
         Some(ReadGuard {
             value: unsafe { &*ptr },
-            borrow: vec![borrow, &self.storage_borrow],
+            borrow: vec![&state.borrow, &self.storage_borrow],
         })
     }
 
@@ -236,24 +278,32 @@ impl ComponentStorage {
     pub unsafe fn get_borrowed_mut<T: AnyComponent>(
         &self,
         entity: &Entity,
+        change_frame: u64,
     ) -> Option<WriteGuard<T>> {
+        if !self.contains(entity) {
+            return None;
+        }
+
         if !self.borrow_mut() {
             return None;
         }
 
-        let idx = self.entity_indices.get(entity)?;
+        let idx = entity.idx() as usize;
 
-        let borrow = &self.component_borrow[*idx];
+        let state = &self.component_state[idx];
 
-        if !borrow.borrow_mut() {
-            return None;
+        state.changed.store(change_frame, Ordering::Release);
+
+        if !state.borrow.borrow_mut() {
+            self.release_mut();
+            return None; 
         }
 
-        let ptr = unsafe { self.index_ptr(*idx) as *mut T };
+        let ptr = unsafe { self.index_ptr(idx) as *mut T };
 
         Some(WriteGuard {
             value: unsafe { &mut *ptr },
-            borrow: vec![borrow, &self.storage_borrow],
+            borrow: vec![&state.borrow, &self.storage_borrow],
         })
     }
 }
@@ -261,10 +311,12 @@ impl ComponentStorage {
 impl Drop for ComponentStorage {
     #[inline]
     fn drop(&mut self) {
-        for idx in self.entity_indices.values() {
-            let ptr = unsafe { self.index_ptr(*idx) };
+        for (idx, state) in self.component_state.iter().enumerate() {
+            if state.gen.is_some() {
+                let ptr = unsafe { self.index_ptr(idx) };
 
-            unsafe { (self.drop)(ptr) };
+                unsafe { (self.drop)(ptr) };
+            } 
         }
 
         if let Some(base) = self.base {
@@ -287,10 +339,10 @@ mod tests {
     fn simple_storage() {
         let mut storage = ComponentStorage::new::<i64>();
 
-        let a = Entity::from_raw(0);
-        let b = Entity::from_raw(1);
-        unsafe { storage.insert_unchecked(a, 20u64) };
-        unsafe { storage.insert_unchecked(b, 32u64) };
+        let a = Entity::from_raw(0, 0);
+        let b = Entity::from_raw(1, 0);
+        unsafe { storage.insert_unchecked(a, 20u64, 0) };
+        unsafe { storage.insert_unchecked(b, 32u64, 0) };
 
         assert_eq!(unsafe { storage.remove_unchecked(&b) }, Some(32));
         assert_eq!(unsafe { storage.remove_unchecked(&a) }, Some(20));
@@ -303,18 +355,18 @@ mod tests {
 
         let mut storage = ComponentStorage::new::<ZeroSize>();
 
-        let a = Entity::from_raw(0);
+        let a = Entity::from_raw(0, 0);
 
-        unsafe { storage.insert_unchecked(a, ZeroSize) };
+        unsafe { storage.insert_unchecked(a, ZeroSize, 0) };
     }
 
     #[test]
     fn unaligned() {
         let mut storage = ComponentStorage::new::<u8>();
 
-        let a = Entity::from_raw(0);
+        let a = Entity::from_raw(0, 0);
 
-        unsafe { storage.insert_unchecked(a, 127u8) };
+        unsafe { storage.insert_unchecked(a, 127u8, 0) };
     }
 
     #[test]
@@ -341,13 +393,13 @@ mod tests {
         let mut storage = ComponentStorage::new::<Foo>();
 
         for i in 0..32 {
-            let e = Entity::from_raw(i);
+            let e = Entity::from_raw(i, 0);
 
-            unsafe { storage.insert_unchecked(e, Foo::new(i * 5)) };
+            unsafe { storage.insert_unchecked(e, Foo::new(i * 5), 0) };
         }
 
         for k in 8..16 {
-            let e = Entity::from_raw(k);
+            let e = Entity::from_raw(k, 0);
 
             assert_eq!(
                 unsafe { storage.remove_unchecked(&e) },
@@ -356,13 +408,13 @@ mod tests {
         }
 
         for k in 8..16 {
-            let e = Entity::from_raw(k);
+            let e = Entity::from_raw(k, 0);
 
-            unsafe { storage.insert_unchecked(e, Foo::new(k * 2)) };
+            unsafe { storage.insert_unchecked(e, Foo::new(k * 2), 0) };
         }
 
         for k in 8..16 {
-            let e = Entity::from_raw(k);
+            let e = Entity::from_raw(k, 0);
 
             assert_eq!(
                 unsafe { storage.remove_unchecked(&e) },
@@ -376,14 +428,14 @@ mod tests {
     fn mut_after_borrow() {
         let mut storage = ComponentStorage::new::<i32>();
 
-        let e = Entity::from_raw(0);
+        let e = Entity::from_raw(0, 0);
 
-        unsafe { storage.insert_unchecked(e, 123i32) };
+        unsafe { storage.insert_unchecked(e, 123i32, 0) };
 
         {
             let _k = unsafe { storage.get_borrowed::<i32>(&e) }.unwrap();
             let _k = unsafe { storage.get_borrowed::<i32>(&e) }.unwrap();
-            let _k = unsafe { storage.get_borrowed_mut::<i32>(&e) }.unwrap();
+            let _k = unsafe { storage.get_borrowed_mut::<i32>(&e, 0) }.unwrap();
         }
     }
 
@@ -392,12 +444,12 @@ mod tests {
     fn borrow_after_mut() {
         let mut storage = ComponentStorage::new::<i32>();
 
-        let e = Entity::from_raw(0);
+        let e = Entity::from_raw(0, 0);
 
-        unsafe { storage.insert_unchecked(e, 123i32) };
+        unsafe { storage.insert_unchecked(e, 123i32, 0) };
 
         {
-            let _k = unsafe { storage.get_borrowed_mut::<i32>(&e) }.unwrap();
+            let _k = unsafe { storage.get_borrowed_mut::<i32>(&e, 0) }.unwrap();
             let _k = unsafe { storage.get_borrowed::<i32>(&e) }.unwrap();
             let _k = unsafe { storage.get_borrowed::<i32>(&e) }.unwrap();
         }
@@ -408,13 +460,13 @@ mod tests {
     fn mut_after_mut() {
         let mut storage = ComponentStorage::new::<i32>();
 
-        let e = Entity::from_raw(0);
+        let e = Entity::from_raw(0, 0);
 
-        unsafe { storage.insert_unchecked(e, 123i32) };
+        unsafe { storage.insert_unchecked(e, 123i32, 0) };
 
         {
-            let _k = unsafe { storage.get_borrowed_mut::<i32>(&e) }.unwrap();
-            let _k = unsafe { storage.get_borrowed_mut::<i32>(&e) }.unwrap();
+            let _k = unsafe { storage.get_borrowed_mut::<i32>(&e, 0) }.unwrap();
+            let _k = unsafe { storage.get_borrowed_mut::<i32>(&e, 0) }.unwrap();
         }
     }
 
@@ -422,14 +474,14 @@ mod tests {
     fn borrow_storage() {
         let mut storage = ComponentStorage::new::<i32>();
 
-        let e = Entity::from_raw(0);
+        let e = Entity::from_raw(0, 0);
 
-        unsafe { storage.insert_unchecked(e, 123i32) };
+        unsafe { storage.insert_unchecked(e, 123i32, 0) };
 
         storage.borrow();
 
         assert!(unsafe { storage.get_borrowed::<i32>(&e).is_some() });
-        assert!(unsafe { storage.get_borrowed_mut::<i32>(&e).is_none() });
+        assert!(unsafe { storage.get_borrowed_mut::<i32>(&e, 0).is_none() });
 
         storage.release();
     }
