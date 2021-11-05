@@ -7,22 +7,21 @@ fn to_egui_key(key: Key) -> Option<egui::Key> {
     use egui::Key as K;
 
     Some(match key {
-		Key::Space => K::Space,
-		Key::Home => K::Home,
-		Key::End => K::End,
-		Key::Escape => K::Escape,
-		Key::Tab => K::Tab,
-		Key::Back => K::Backspace,
-		Key::Return | Key::NumpadEnter => K::Enter,
-		Key::Insert => K::Insert,
-		Key::Delete => K::Delete,
-		Key::PageDown => K::PageDown,
-		Key::PageUp => K::PageUp,
-		Key::Left => K::ArrowLeft,
-		Key::Left => K::ArrowLeft,
-		Key::Right => K::ArrowRight,
-		Key::Up => K::ArrowUp,
-		Key::Down => K::ArrowDown,
+        Key::Space => K::Space,
+        Key::Home => K::Home,
+        Key::End => K::End,
+        Key::Escape => K::Escape,
+        Key::Tab => K::Tab,
+        Key::Back => K::Backspace,
+        Key::Return | Key::NumpadEnter => K::Enter,
+        Key::Insert => K::Insert,
+        Key::Delete => K::Delete,
+        Key::PageDown => K::PageDown,
+        Key::PageUp => K::PageUp,
+        Key::Left => K::ArrowLeft,
+        Key::Right => K::ArrowRight,
+        Key::Up => K::ArrowUp,
+        Key::Down => K::ArrowDown,
         Key::A => K::A,
         Key::B => K::B,
         Key::C => K::C,
@@ -76,11 +75,11 @@ fn to_egui_mouse_button(mouse_button: MouseButton) -> Option<egui::PointerButton
 }
 
 pub fn egui_input_system(
-	mut ctx: ResMut<egui::CtxRef>,
+    mut ctx: ResMut<egui::CtxRef>,
     mut input: ResMut<egui::RawInput>,
     key_input: Res<Input<Key>>,
     mouse_input: Res<Input<MouseButton>>,
-	text_input: Res<TextInput>,
+    text_input: Res<TextInput>,
     mouse: Res<Mouse>,
 ) {
     let modifiers = egui::Modifiers {
@@ -139,11 +138,11 @@ pub fn egui_input_system(
         }
     }
 
-	for c in text_input.0.iter().cloned() {
-		if !c.is_control() {
-			input.events.push(egui::Event::Text(String::from(c)));
-		}
-	}
+    for c in text_input.0.iter().cloned() {
+        if !c.is_control() {
+            input.events.push(egui::Event::Text(String::from(c)));
+        }
+    }
 
-	ctx.begin_frame(input.take());
+    ctx.begin_frame(input.take());
 }

@@ -1,7 +1,9 @@
+use std::ops::{Deref, DerefMut};
 use std::slice::Iter as SliceIter;
+use std::sync::atomic::AtomicU64;
 use std::{any::TypeId, marker::PhantomData};
 
-use crate::{Access, AnyComponent, Entity, SystemAccess, World};
+use crate::{Access, AnyComponent, Entity, QueryFilter, SystemAccess, World};
 
 pub trait Query {
     #[doc(hidden)]
@@ -65,6 +67,51 @@ unsafe impl<'a, T: AnyComponent> Fetch<'a> for FetchRead<T> {
     }
 }
 
+pub struct Mut<'a, T> {
+    inner: &'a mut T,
+    changed: &'a AtomicU64,
+    change_frame: u64,
+}
+
+impl<'a, T> Mut<'a, T> {
+    #[inline]
+    pub fn unmarked(&mut self) -> &mut T {
+        self.inner
+    }
+
+    #[inline]
+    pub fn mark_changed(&self) {
+        self.changed.store(self.change_frame, std::sync::atomic::Ordering::Release);
+    }
+}
+
+impl<'a, T: PartialEq> PartialEq for Mut<'a, T> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        (&*self.inner).eq(other.inner)
+    }
+}
+
+impl<'a, T: Eq> Eq for Mut<'a, T> { }
+
+impl<'a, T> Deref for Mut<'a, T> {
+    type Target = T;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.inner 
+    }
+}
+
+impl<'a, T> DerefMut for Mut<'a, T> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mark_changed(); 
+
+        self.inner 
+    }
+}
+
 impl<'a, T: AnyComponent> Query for &'a mut T {
     type Fetch = FetchWrite<T>;
 }
@@ -72,7 +119,7 @@ impl<'a, T: AnyComponent> Query for &'a mut T {
 pub struct FetchWrite<T>(PhantomData<fn() -> T>);
 
 unsafe impl<'a, T: AnyComponent> Fetch<'a> for FetchWrite<T> {
-    type Item = &'a mut T;
+    type Item = Mut<'a, T>;
 
     #[inline]
     fn entities(world: &World) -> &[Entity] {
@@ -97,7 +144,13 @@ unsafe impl<'a, T: AnyComponent> Fetch<'a> for FetchWrite<T> {
     unsafe fn get(world: &'a World, entity: Entity) -> Option<Self::Item> {
         let storage = world.components.get(&TypeId::of::<T>())?;
 
-        unsafe { storage.get_unchecked_mut(&entity) }
+        let component = unsafe { storage.get_unchecked_mut(&entity)? };
+
+        Some(Mut {
+            inner: component,
+            changed: storage.get_change_marker(&entity)?,
+            change_frame: world.change_tick(), 
+        })
     }
 
     #[inline]
@@ -137,84 +190,6 @@ unsafe impl<'a> Fetch<'a> for EntityFetch {
     fn release(_world: &World) {}
 }
 
-impl<Q: Query, T: AnyComponent> Query for Without<Q, T> {
-    type Fetch = Without<Q, T>;
-}
-
-pub struct Without<Q, T>(PhantomData<fn() -> (Q, T)>);
-
-unsafe impl<'a, Q: Query, T: AnyComponent> Fetch<'a> for Without<Q, T> {
-    type Item = QueryItem<'a, Q>;
-
-    #[inline]
-    fn entities(world: &World) -> &[Entity] {
-        Q::Fetch::entities(world)
-    }
-
-    #[inline]
-    fn access(access: &mut SystemAccess) {
-        Q::Fetch::access(access);
-    }
-
-    #[inline]
-    fn borrow(world: &World) -> bool {
-        Q::Fetch::borrow(world)
-    }
-
-    #[inline]
-    unsafe fn get(world: &'a World, entity: Entity) -> Option<Self::Item> {
-        if world.has_component::<T>(&entity) {
-            None
-        } else {
-            unsafe { Q::Fetch::get(world, entity) }
-        }
-    }
-
-    #[inline]
-    fn release(world: &World) {
-        Q::Fetch::release(world)
-    }
-}
-
-impl<Q: Query, T: AnyComponent> Query for With<Q, T> {
-    type Fetch = With<Q, T>;
-}
-
-pub struct With<Q, T>(PhantomData<fn() -> (Q, T)>);
-
-unsafe impl<'a, Q: Query, T: AnyComponent> Fetch<'a> for With<Q, T> {
-    type Item = QueryItem<'a, Q>;
-
-    #[inline]
-    fn entities(world: &World) -> &[Entity] {
-        Q::Fetch::entities(world)
-    }
-
-    #[inline]
-    fn access(access: &mut SystemAccess) {
-        Q::Fetch::access(access);
-    }
-
-    #[inline]
-    fn borrow(world: &World) -> bool {
-        Q::Fetch::borrow(world)
-    }
-
-    #[inline]
-    unsafe fn get(world: &'a World, entity: Entity) -> Option<Self::Item> {
-        if !world.has_component::<T>(&entity) {
-            None
-        } else {
-            unsafe { Q::Fetch::get(world, entity) }
-        }
-    }
-
-    #[inline]
-    fn release(world: &World) {
-        Q::Fetch::release(world)
-    }
-}
-
 impl Query for () {
     type Fetch = ();
 }
@@ -244,20 +219,20 @@ unsafe impl<'a> Fetch<'a> for () {
     fn release(_world: &World) {}
 }
 
-pub struct QueryMut<'a, Q: Query> {
+pub struct QueryMut<'a, Q: Query, F: QueryFilter = ()> {
     entities: SliceIter<'a, Entity>,
     world: &'a World,
-    fetch: PhantomData<Q::Fetch>,
+    marker: PhantomData<(Q::Fetch, F)>,
 }
 
-impl<'a, Q: Query> QueryMut<'a, Q> {
+impl<'a, Q: Query, F: QueryFilter> QueryMut<'a, Q, F> {
     #[inline]
     pub fn new(world: &'a World) -> Option<Self> {
         if Q::Fetch::borrow(world) {
             Some(Self {
                 entities: Q::Fetch::entities(world).into_iter(),
                 world,
-                fetch: PhantomData,
+                marker: PhantomData
             })
         } else {
             None
@@ -266,42 +241,24 @@ impl<'a, Q: Query> QueryMut<'a, Q> {
 
     #[inline]
     pub fn get(&mut self, entity: Entity) -> Option<QueryItem<'_, Q>> {
+        if !F::filter(self.world, &entity) {
+            return None;
+        }
+
         unsafe { Q::Fetch::get(self.world, entity) }
-    }
-
-    #[inline]
-    pub fn without<T: AnyComponent>(mut self) -> QueryMut<'a, Without<Q, T>> {
-        let query = QueryMut {
-            entities: std::mem::replace(&mut self.entities, (&[]).into_iter()),
-            world: self.world,
-            fetch: PhantomData,
-        };
-
-        std::mem::forget(self);
-
-        query
-    }
-
-    #[inline]
-    pub fn with<T: AnyComponent>(mut self) -> QueryMut<'a, With<Q, T>> {
-        let query = QueryMut {
-            entities: std::mem::replace(&mut self.entities, (&[]).into_iter()),
-            world: self.world,
-            fetch: PhantomData,
-        };
-
-        std::mem::forget(self);
-
-        query
     }
 }
 
-impl<'a, Q: Query> Iterator for QueryMut<'a, Q> {
+impl<'a, Q: Query, F: QueryFilter> Iterator for QueryMut<'a, Q, F> {
     type Item = <Q::Fetch as Fetch<'a>>::Item;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(entity) = self.entities.next() {
+            if !F::filter(self.world, entity) {
+                continue;
+            }
+
             let item = unsafe { Q::Fetch::get(self.world, *entity) };
 
             if item.is_some() {
@@ -313,7 +270,7 @@ impl<'a, Q: Query> Iterator for QueryMut<'a, Q> {
     }
 }
 
-impl<'a, Q: Query> Drop for QueryMut<'a, Q> {
+impl<'a, Q: Query, F: QueryFilter> Drop for QueryMut<'a, Q, F> {
     #[inline]
     fn drop(&mut self) {
         Q::Fetch::release(self.world);

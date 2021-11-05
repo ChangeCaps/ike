@@ -1,6 +1,6 @@
 use std::{any::TypeId, collections::HashMap};
 
-use crate::{Component, ExclusiveSystem, Node, Plugin, Schedule, System, World};
+use crate::{Component, ExclusiveSystem, Node, Plugin, Resource, Schedule, System, World};
 
 pub mod stage {
     pub const START: &str = "start";
@@ -13,6 +13,35 @@ pub mod stage {
 
 pub trait AppRunner: 'static {
     fn run(&mut self, app: App);
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct Time {
+    time: f32,
+    delta_time: f32,
+}
+
+impl Time {
+    #[inline]
+    pub fn advance_frame(&mut self, delta_time: f32) {
+        self.time += delta_time;
+        self.delta_time = delta_time;
+    }
+
+    #[inline]
+    pub fn time_since_startup(&self) -> f32 {
+        self.time
+    }
+
+    #[inline]
+    pub fn delta_time(&self) -> f32 {
+        self.delta_time
+    }
+
+    #[inline]
+    pub fn frames_per_second(&self) -> f32 {
+        1.0 / self.delta_time
+    }
 }
 
 #[derive(Default)]
@@ -40,6 +69,36 @@ impl AppBuilder {
     #[inline]
     pub fn add_stage(&mut self, stage: &'static str) -> &mut Self {
         self.app.stages.push((stage, Schedule::default()));
+        self
+    }
+
+    #[inline]
+    pub fn add_stage_before(&mut self, stage: &'static str, before: &'static str) -> &mut Self {
+        let idx = self
+            .app
+            .stages
+            .iter()
+            .position(|(name, _)| *name == before)
+            .expect("stage not found");
+
+        self.app.stages.insert(idx, (stage, Schedule::default()));
+
+        self
+    }
+
+    #[inline]
+    pub fn add_stage_after(&mut self, stage: &'static str, after: &'static str) -> &mut Self {
+        let idx = self
+            .app
+            .stages
+            .iter()
+            .position(|(name, _)| *name == after)
+            .expect("stage not found");
+
+        self.app
+            .stages
+            .insert(idx + 1, (stage, Schedule::default()));
+
         self
     }
 
@@ -74,7 +133,7 @@ impl AppBuilder {
         stage.add_exclusive_system(system);
 
         self
-    } 
+    }
 
     #[inline]
     pub fn add_system<T: System>(&mut self, system: T) -> &mut Self {
@@ -91,6 +150,18 @@ impl AppBuilder {
     #[inline]
     pub fn add_exclusive_startup_system<T: ExclusiveSystem>(&mut self, system: T) -> &mut Self {
         self.app.startup.add_exclusive_system(system);
+        self
+    }
+
+    #[inline]
+    pub fn insert_resource<T: Resource>(&mut self, resource: T) -> &mut Self {
+        self.world_mut().insert_resource(resource);
+        self
+    }
+
+    #[inline]
+    pub fn init_resource<T: Resource + Default>(&mut self) -> &mut Self {
+        self.world_mut().init_resource::<T>();
         self
     }
 

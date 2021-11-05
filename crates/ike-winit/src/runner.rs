@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use ike_core::*;
 use ike_input::{Input, Mouse, TextInput};
 use ike_render::*;
@@ -26,6 +28,7 @@ impl AppRunner for WinitRunner {
         app.world_mut().insert_resource(render_surface);
         app.world_mut().insert_resource(window);
         app.world_mut().init_resource::<TextInput>();
+        app.world_mut().init_resource::<Time>();
 
         app.world_mut().insert_resource(Input::<Key>::default());
         app.world_mut()
@@ -36,10 +39,23 @@ impl AppRunner for WinitRunner {
 
         app.execute_startup();
 
+        let mut last_frame = Instant::now();
+
         event_loop.run(move |event, _, control_flow| match event {
             Event::RedrawRequested(_) => {
+                let now = Instant::now();
+                let frame_time = now - last_frame;
+                last_frame = now;
+
+                app.world()
+                    .write_resource::<Time>()
+                    .unwrap()
+                    .advance_frame(frame_time.as_secs_f32());
+
                 app.update_components();
                 app.execute();
+
+                app.world_mut().clear_trackers();
 
                 app.world().write_resource::<TextInput>().unwrap().0.clear();
                 app.world().write_resource::<Input<Key>>().unwrap().update();
@@ -171,7 +187,7 @@ async unsafe fn wgpu_init(
         width: size.width,
         height: size.height,
         format: surface.get_preferred_format(&adapter).unwrap(),
-        present_mode: wgpu::PresentMode::Fifo,
+        present_mode: wgpu::PresentMode::Immediate,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
     };
 

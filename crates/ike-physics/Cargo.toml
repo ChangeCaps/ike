@@ -1,0 +1,15 @@
+[package]
+name = "ike-physics"
+version = "0.0.1"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# ike
+ike-core = { version = "0.0.1", path = "../ike-core" }
+ike-transform = { version = "0.0.1", path = "../ike-transform" }
+
+# other
+glam = "0.19"
+rapier3d = "0.11"

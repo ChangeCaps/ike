@@ -1,20 +1,15 @@
-use std::{
-    any::TypeId,
-    borrow::Cow,
-    collections::HashMap,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::{any::TypeId, borrow::Cow, collections::HashMap, sync::atomic::{AtomicU64, Ordering}};
 
 use crossbeam::queue::SegQueue;
 
-use crate::{
-    AnyComponent, ComponentStorage, Entity, Node, OwnedComponent, Query, QueryMut, ReadGuard,
-    Resource, Resources, WriteGuard,
-};
+use crate::{AnyComponent, BorrowLock, ComponentStorage, Entity, EntityRegistry, Node, OwnedComponent, Query, QueryFilter, QueryMut, ReadGuard, Resource, Resources, WriteGuard};
 
 enum Command {
     Insert(Entity, OwnedComponent),
     InsertNode(Entity, String),
+    InsertResource(TypeId, BorrowLock<dyn Resource>),
+    RemoveResource(TypeId),
+    InitResource(TypeId, BorrowLock<dyn Resource>),
 }
 
 pub struct World {
@@ -23,7 +18,9 @@ pub struct World {
     nodes: HashMap<Entity, String>,
     resources: Resources,
     commands: SegQueue<Command>,
-    next_entity: AtomicU64,
+    entity_registry: EntityRegistry,
+    change_tick: AtomicU64,
+    last_change_tick: u64,
 }
 
 impl Default for World {
@@ -42,7 +39,9 @@ impl World {
             nodes: HashMap::new(),
             resources: Resources::new(),
             commands: SegQueue::new(),
-            next_entity: AtomicU64::new(0),
+            entity_registry: EntityRegistry::new(),
+            change_tick: AtomicU64::new(1),
+            last_change_tick: 0,
         }
     }
 
@@ -56,6 +55,30 @@ impl World {
         if !self.resources.contains::<T>() {
             self.resources.insert(T::default());
         }
+    }
+
+    #[inline]
+    pub fn queue_insert_resource<T: Resource>(&self, resource: T) {
+        self.commands.push(Command::InsertResource(
+            TypeId::of::<T>(),
+            BorrowLock::from_box(Box::new(resource)),
+        ));
+    }
+
+    #[inline]
+    pub fn queue_init_resource<T: Resource + Default>(&self) {
+        if !self.resources.contains::<T>() {
+            self.commands.push(Command::InitResource(
+                TypeId::of::<T>(),
+                BorrowLock::from_box(Box::new(T::default())),
+            ));
+        }
+    }
+
+    #[inline]
+    pub fn queue_remove_resource<T: Resource>(&self) {
+        self.commands
+            .push(Command::RemoveResource(TypeId::of::<T>()));
     }
 
     #[inline]
@@ -85,8 +108,7 @@ impl World {
 
     #[inline]
     pub fn create_entity(&self) -> Entity {
-        let raw = self.next_entity.fetch_add(1, Ordering::Acquire);
-        Entity::from_raw(raw)
+        self.entity_registry.next()
     }
 
     #[inline]
@@ -130,7 +152,7 @@ impl World {
     }
 
     #[inline]
-    pub fn query<Q: Query>(&self) -> Option<QueryMut<'_, Q>> {
+    pub fn query<Q: Query, F: QueryFilter>(&self) -> Option<QueryMut<'_, Q, F>> {
         QueryMut::new(self)
     }
 
@@ -141,13 +163,15 @@ impl World {
 
     #[inline]
     pub fn insert<T: AnyComponent>(&mut self, entity: Entity, component: T) {
+        let change_tick = self.change_tick();
+
         let storage = self
             .components
             .entry(TypeId::of::<T>())
             .or_insert_with(ComponentStorage::new::<T>);
 
         // SAFETY: type in the storage matches T, since we got it with the TypeId.
-        unsafe { storage.insert_unchecked(entity, component) };
+        unsafe { storage.insert_unchecked(entity, component, change_tick) };
     }
 
     #[inline]
@@ -162,7 +186,7 @@ impl World {
     }
 
     #[inline]
-    pub fn has_component<T: AnyComponent>(&self, entity: &Entity) -> bool {
+    pub fn contains_component<T: AnyComponent>(&self, entity: &Entity) -> bool {
         if let Some(storage) = self.components.get(&TypeId::of::<T>()) {
             storage.contains(entity)
         } else {
@@ -181,7 +205,7 @@ impl World {
     pub fn get_component_mut<T: AnyComponent>(&self, entity: &Entity) -> Option<WriteGuard<T>> {
         let storage = self.components.get(&TypeId::of::<T>())?;
 
-        unsafe { storage.get_borrowed_mut(entity) }
+        unsafe { storage.get_borrowed_mut(entity, self.change_tick()) }
     }
 
     #[inline]
@@ -220,8 +244,39 @@ impl World {
                     self.nodes.insert(entity, name);
                     self.entities.push(entity);
                 }
+                Command::InsertResource(type_id, resource) => unsafe {
+                    self.resources.insert_raw(type_id, resource);
+                },
+                Command::RemoveResource(type_id) => {
+                    self.resources.remove_raw(type_id);
+                }
+                Command::InitResource(type_id, resource) => {
+                    if !self.resources.contains_raw(type_id) {
+                        unsafe { self.resources.insert_raw(type_id, resource) };
+                    }
+                }
             }
         }
+    }
+
+    #[inline]
+    pub fn clear_trackers(&mut self) {
+        self.last_change_tick = self.increment_change_tick();
+    }
+
+    #[inline]
+    pub fn change_tick(&self) -> u64 {
+        self.change_tick.load(Ordering::Acquire)
+    }
+
+    #[inline]
+    pub fn last_change_tick(&self) -> u64 {
+        self.last_change_tick
+    }
+
+    #[inline]
+    pub fn increment_change_tick(&self) -> u64 {
+        self.change_tick.fetch_add(1, Ordering::SeqCst)
     }
 
     #[inline]
@@ -303,11 +358,11 @@ mod tests {
 
         world.dequeue();
 
-        let mut query = world.query::<(&i32, &mut bool)>().unwrap();
+        let mut query = world.query::<(&i32, &bool), ()>().unwrap();
 
-        assert_eq!(query.next(), Some((&123, &mut false)));
+        assert_eq!(query.next(), Some((&123, &false)));
         assert_eq!(query.next(), None);
 
-        assert!(world.query::<&bool>().is_none());
+        assert!(world.query::<&bool, ()>().is_none());
     }
 }

@@ -98,7 +98,7 @@ impl<'a> Node<'a> {
 
         let storage = self.world.components.get(&type_id)?;
 
-        unsafe { storage.get_borrowed_mut(&self.entity) }
+        unsafe { storage.get_borrowed_mut(&self.entity, self.world.change_tick()) }
     }
 }
 

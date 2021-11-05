@@ -18,6 +18,21 @@ impl Resources {
     }
 
     #[inline]
+    pub unsafe fn insert_raw(&mut self, type_id: TypeId, resource: BorrowLock<dyn Resource>) {
+        self.inner.insert(type_id, resource);
+    }
+
+    #[inline]
+    pub fn remove_raw(&mut self, type_id: TypeId) {
+        self.inner.remove(&type_id);
+    }
+
+    #[inline]
+    pub fn contains_raw(&self, type_id: TypeId) -> bool {
+        self.inner.contains_key(&type_id)
+    }
+
+    #[inline]
     pub fn insert<T: Resource>(&mut self, resource: T) {
         self.inner
             .insert(TypeId::of::<T>(), BorrowLock::from_box(Box::new(resource)));

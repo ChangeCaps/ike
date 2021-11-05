@@ -84,16 +84,5 @@ impl Plugin for PbrPlugin {
                 ike_debug_line::render_graph::DEBUG_LINE_NODE,
             )
             .unwrap();
-
-        render_graph
-            .remove_edge(
-                ike_render::render_graph::INPUT,
-                ike_debug_line::render_graph::DEBUG_LINE_NODE,
-            )
-            .unwrap();
-
-        render_graph
-            .remove_edge(ike_render::render_graph::INPUT, render_graph::PBR_NODE)
-            .unwrap();
     }
 }

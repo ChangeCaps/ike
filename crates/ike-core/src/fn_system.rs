@@ -1,8 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{
-    Access, Fetch, Query, QueryMut, ReadGuard, Resource, System, SystemAccess, World, WriteGuard,
-};
+use crate::{Access, Commands, ExclusiveSystem, Fetch, Query, QueryFilter, QueryMut, ReadGuard, Resource, System, SystemAccess, World, WriteGuard};
 
 pub type Res<'a, T> = ReadGuard<'a, T>;
 pub type ResMut<'a, T> = WriteGuard<'a, T>;
@@ -19,14 +17,14 @@ pub trait SystemParamFetch<'a> {
     fn get(world: &'a World) -> Self::Item;
 }
 
-impl<'a, Q: Query> SystemParam for QueryMut<'a, Q> {
-    type Fetch = QueryFetch<Q>;
+impl<'a, Q: Query, F: QueryFilter> SystemParam for QueryMut<'a, Q, F> {
+    type Fetch = QueryFetch<Q, F>;
 }
 
-pub struct QueryFetch<Q>(PhantomData<fn() -> Q>);
+pub struct QueryFetch<Q, F>(PhantomData<fn() -> (Q, F)>);
 
-impl<'a, Q: Query> SystemParamFetch<'a> for QueryFetch<Q> {
-    type Item = QueryMut<'a, Q>;
+impl<'a, Q: Query, F: QueryFilter> SystemParamFetch<'a> for QueryFetch<Q, F> {
+    type Item = QueryMut<'a, Q, F>;
 
     #[inline]
     fn access(access: &mut SystemAccess) {
@@ -96,6 +94,24 @@ impl<'a> SystemParamFetch<'a> for WorldFetch {
     #[inline]
     fn get(world: &'a World) -> Self::Item {
         world
+    }
+}
+
+impl<'a> SystemParam for Commands<'a> {
+    type Fetch = CommandsFetch;
+}
+
+pub struct CommandsFetch;
+
+impl<'a> SystemParamFetch<'a> for CommandsFetch {
+    type Item = Commands<'a>;
+
+    #[inline]
+    fn access(_access: &mut SystemAccess) {}
+
+    #[inline]
+    fn get(world: &'a World) -> Self::Item {
+        Commands::new(world)
     }
 }
 
@@ -174,7 +190,15 @@ where
 
     #[inline]
     fn run(&mut self, world: &World) {
+        world.increment_change_tick();
         self.func.run(world);
+    }
+}
+
+impl<F: FnMut(&mut World) + Send + Sync + 'static> ExclusiveSystem for F {
+    #[inline]
+    fn run(&mut self, world: &mut World) {
+        self(world);
     }
 }
 

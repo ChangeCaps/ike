@@ -11,7 +11,6 @@ use crate::{DirectionalLight, PbrMaterial, PointLight};
 
 struct ShaderResources {
     shader: wgpu::ShaderModule,
-    depth_shader: wgpu::ShaderModule,
     depth_group: wgpu::BindGroupLayout,
     group_0: wgpu::BindGroupLayout,
     group_1: wgpu::BindGroupLayout,
@@ -37,10 +36,8 @@ impl ShaderResources {
     pub fn new() -> Self {
         let device = render_device();
 
-        let shader = Shader::new(include_str!("pbr.wgsl"));
+        let shader = device.create_shader_module(&wgpu::include_wgsl!("pbr.wgsl"));
         let depth_shader = device.create_shader_module(&wgpu::include_wgsl!("depth.wgsl"));
-
-        let shader = shader.get_module().unwrap();
 
         let depth_group = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
@@ -293,7 +290,6 @@ impl ShaderResources {
 
         Self {
             shader,
-            depth_shader,
             depth_group,
             group_0,
             group_1,
@@ -486,6 +482,7 @@ struct MaterialResources {
 }
 
 impl MaterialResources {
+    #[inline]
     fn new(
         material: &PbrMaterial,
         shadows: &wgpu::TextureView,
@@ -570,6 +567,27 @@ impl MaterialResources {
             group_3,
         }
     }
+
+    #[inline]
+    pub fn update(&mut self, material: &PbrMaterial) {
+        let mesh = MeshRaw {
+            material: MaterialRaw {
+                albedo: material.albedo.into(),
+                emission: material.emission.into(),
+                roughness: material.roughness,
+                metallic: material.metallic,
+                reflectance: material.reflectance,
+                shadow_softness: material.shadow_softness,
+                shadow_softness_falloff: material.shadow_softness_falloff,
+                shadow_block_samples: material.shadow_blocker_samples,
+                shadow_pcf_samples: material.shadow_pcf_samples,
+            },
+            flags: 0,
+            joint_count: 0,
+        };
+
+        render_queue().write_buffer(&self.mesh_buffer, 0, bytes_of(&mesh));
+    }
 }
 
 #[derive(Default)]
@@ -619,7 +637,7 @@ impl RenderNode for PbrNode {
         let mut instances: HashMap<_, Vec<[[f32; 4]; 4]>> = HashMap::new();
 
         for (transform, material, mesh) in world
-            .query::<(&GlobalTransform, &Handle<PbrMaterial>, &Handle<Mesh>)>()
+            .query::<(&GlobalTransform, &Handle<PbrMaterial>, &Handle<Mesh>), ()>()
             .unwrap()
         {
             let id = InstanceId {
@@ -636,7 +654,7 @@ impl RenderNode for PbrNode {
         let mut point_lights = [PointLightRaw::zeroed(); 64];
         let mut point_light_count = 0;
 
-        for (transform, point_light) in world.query::<(&GlobalTransform, &PointLight)>().unwrap() {
+        for (transform, point_light) in world.query::<(&GlobalTransform, &PointLight), ()>().unwrap() {
             point_lights[point_light_count] = PointLightRaw {
                 position: transform.translation.extend(0.0).into(),
                 color: point_light.color.into(),
@@ -672,6 +690,10 @@ impl RenderNode for PbrNode {
 
         let mut meshes = world.write_resource::<Assets<Mesh>>().unwrap();
         let materials = world.read_resource::<Assets<PbrMaterial>>().unwrap();
+
+        for (id, material) in &mut self.materials {
+            material.update(materials.get(id).unwrap());
+        }
 
         for (id, instances) in &instances {
             if !self.materials.contains_key(&id.material) {
@@ -712,7 +734,7 @@ impl RenderNode for PbrNode {
         let mut directional_lights = [DirectionalLightRaw::zeroed(); 16];
         let mut directional_light_count = 0;
 
-        for light in world.query::<&DirectionalLight>().unwrap() {
+        for light in world.query::<&DirectionalLight, ()>().unwrap() {
             let mut transform = Transform::from_translation(camera.position);
             transform.rotation =
                 Quat::from_rotation_arc_colinear(-Vec3::Z, light.direction.normalize());
@@ -722,7 +744,7 @@ impl RenderNode for PbrNode {
 
             let directional_light = DirectionalLightRaw {
                 position: camera.position.extend(0.0).into(),
-                direction: light.direction.extend(0.0).into(),
+                direction: light.direction.normalize().extend(0.0).into(),
                 color: light.color.into(),
                 view_proj: view_proj.to_cols_array_2d(),
                 near: -500.0,
