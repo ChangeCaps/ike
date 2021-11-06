@@ -1,8 +1,10 @@
 mod components;
+mod debug;
 mod resources;
 mod systems;
 
 pub use components::*;
+pub use debug::*;
 pub use resources::*;
 pub use systems::*;
 
@@ -39,5 +41,7 @@ impl Plugin for PhysicsPlugin {
         app.add_system_to_stage(physics_update.system(), physics_stage::PHYSICS);
 
         app.add_system_to_stage(get_rigid_bodies.system(), physics_stage::POST_PHYSICS);
+        app.add_system_to_stage(debug_box_colliders.system(), physics_stage::POST_PHYSICS);
+        app.add_system_to_stage(clean_physics.system(), physics_stage::POST_PHYSICS);
     }
 }

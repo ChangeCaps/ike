@@ -163,7 +163,7 @@ impl RenderNode for SkyNode {
     fn run(
         &mut self,
         encoder: &mut ike_render::wgpu::CommandEncoder,
-        world: &ike_core::World,
+        world: &ike_core::WorldRef,
         input: &NodeInput,
         _output: &mut NodeEdge,
     ) -> Result<(), GraphError> {
@@ -204,11 +204,11 @@ impl RenderNode for SkyNode {
             depth_stencil_attachment: None,
         });
 
-        if let Some(env) = world.read_resource::<Handle<Environment>>() {
+        if let Some(env) = world.get_resource::<Handle<Environment>>() {
             if self.current_env.as_ref() != Some(&env) {
                 self.current_env = Some(env.clone());
 
-                let envs = world.read_resource::<Assets<Environment>>().unwrap();
+                let envs = world.get_resource::<Assets<Environment>>().unwrap();
 
                 let env = envs.get(&env).unwrap();
 

@@ -1,43 +1,37 @@
-use std::{any::TypeId, borrow::Cow, collections::HashMap, thread};
+use std::{any::TypeId, borrow::Cow, collections::HashMap};
 
-use crate::{AnyComponent, BorrowLock, Entity, ReadGuard, World, WriteGuard};
+use crate::{
+    AnyComponent, BorrowLock, Entity, ReadGuard, WorldRef, WriteGuard,
+};
 
-pub(crate) struct OwnedComponent {
-    insert: fn(Entity, Box<dyn AnyComponent>, &mut World),
-    component: Box<dyn AnyComponent>,
+pub(crate) trait OwnedComponent: AnyComponent {
+    fn insert(self: Box<Self>, entity: &Entity, world: &WorldRef);
 }
 
-impl OwnedComponent {
-    pub fn new<T: AnyComponent>(component: T) -> Self {
-        fn insert<T: AnyComponent>(
-            entity: Entity,
-            component: Box<dyn AnyComponent>,
-            world: &mut World,
-        ) {
-            let component: T = *unsafe { Box::from_raw(Box::into_raw(component) as *mut _) };
-
-            world.insert::<T>(entity, component);
-        }
-
-        Self {
-            insert: insert::<T>,
-            component: Box::new(component),
-        }
-    }
-
-    pub fn insert(self, entity: Entity, world: &mut World) {
-        (self.insert)(entity, self.component, world)
+impl<T: AnyComponent> OwnedComponent for T {
+    fn insert(self: Box<Self>, entity: &Entity, world: &WorldRef) {
+        world.insert_component(entity, *self);
     }
 }
 
-pub struct Node<'a> {
-    pub(crate) name: Cow<'a, String>,
+pub struct Node<'w, 's> {
+    pub(crate) name: Cow<'w, String>,
+    pub(crate) components: HashMap<TypeId, BorrowLock<dyn OwnedComponent>>,
     pub(crate) entity: Entity,
-    pub(crate) owned: HashMap<TypeId, BorrowLock<OwnedComponent>>,
-    pub(crate) world: &'a World,
+    pub(crate) world_ref: &'w WorldRef<'w, 's>,
 }
 
-impl<'a> Node<'a> {
+impl<'w, 's> Node<'w, 's> {
+    #[inline]
+    pub fn new(world_ref: &'w WorldRef<'w, 's>, entity: Entity, name: &'w String) -> Self {
+        Self {
+            name: Cow::Borrowed(name),
+            components: HashMap::new(),
+            entity,
+            world_ref,
+        }
+    }
+
     #[inline]
     pub fn name(&self) -> &String {
         &self.name
@@ -49,66 +43,58 @@ impl<'a> Node<'a> {
     }
 
     #[inline]
-    pub fn insert<T: AnyComponent>(&mut self, component: T) {
-        self.owned.insert(
-            TypeId::of::<T>(),
-            BorrowLock::new(OwnedComponent::new(component)),
-        );
+    pub fn world(&self) -> &'w WorldRef {
+        self.world_ref
     }
 
     #[inline]
-    pub fn world(&self) -> &'a World {
-        self.world
+    pub fn insert<T: AnyComponent>(&mut self, component: T) {
+        self.components
+            .insert(TypeId::of::<T>(), BorrowLock::from_box(Box::new(component)));
+    }
+
+    #[inline]
+    pub fn remove<T: AnyComponent>(&mut self) {
+        if self.components.remove(&TypeId::of::<T>()).is_none() {
+            self.world_ref.remove_component::<T>(&self.entity);
+        }
     }
 
     #[inline]
     pub fn get_component<T: AnyComponent>(&self) -> Option<ReadGuard<T>> {
-        let type_id = TypeId::of::<T>();
+        if let Some(component) = self.components.get(&TypeId::of::<T>()) {
+            let guard = component.read()?;
 
-        if let Some(component) = self.owned.get(&type_id) {
-            if let Some(read) = component.read() {
-                return Some(ReadGuard {
-                    value: unsafe { &*(read.value as *const _ as *const _) },
-                    borrow: read.forget(),
-                });
-            } else {
-                return None;
-            }
+            return Some(ReadGuard {
+                value: unsafe { &*(guard.value as *const _ as *const _) },
+                borrow: guard.forget(),
+            });
         }
 
-        let storage = self.world.components.get(&type_id)?;
-
-        unsafe { storage.get_borrowed(&self.entity) }
+        self.world_ref.get_component(&self.entity)
     }
 
     #[inline]
     pub fn get_component_mut<T: AnyComponent>(&self) -> Option<WriteGuard<T>> {
-        let type_id = TypeId::of::<T>();
+        if let Some(component) = self.components.get(&TypeId::of::<T>()) {
+            let mut guard = component.write()?;
 
-        if let Some(component) = self.owned.get(&type_id) {
-            if let Some(write) = component.write() {
-                return Some(WriteGuard {
-                    value: unsafe { &mut *(write.value as *mut _ as *mut _) },
-                    borrow: write.forget(),
-                });
-            } else {
-                return None;
-            }
+            return Some(WriteGuard {
+                value: unsafe { &mut *(guard.value as *mut _ as *mut _) },
+                change_detection: guard.change_detection.take(),
+                borrow: guard.forget(),
+            });
         }
 
-        let storage = self.world.components.get(&type_id)?;
-
-        unsafe { storage.get_borrowed_mut(&self.entity, self.world.change_tick()) }
+        self.world_ref.get_component_mut(&self.entity)
     }
 }
 
-impl<'a> Drop for Node<'a> {
+impl<'w, 's> Drop for Node<'w, 's> {
     #[inline]
     fn drop(&mut self) {
-        if !thread::panicking() {
-            for (_, owned) in self.owned.drain() {
-                self.world.queue_insert_raw(self.entity, owned.into_inner());
-            }
+        for (_id, component) in self.components.drain() {
+            component.into_box().insert(&self.entity, self.world_ref);
         }
     }
 }

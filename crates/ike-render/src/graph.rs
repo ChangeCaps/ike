@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use ike_core::World;
+use ike_core::WorldRef;
 
 use crate::{render_device, render_queue, EdgeSlotInfo, NodeEdge, NodeInput};
 
@@ -16,12 +16,12 @@ pub trait RenderNode: Send + Sync + 'static {
     }
 
     #[inline]
-    fn update(&mut self, _world: &mut World) {}
+    fn update(&mut self, _world: &WorldRef) {}
 
     fn run(
         &mut self,
         encoder: &mut crate::wgpu::CommandEncoder,
-        world: &World,
+        world: &WorldRef,
         input: &NodeInput,
         output: &mut NodeEdge,
     ) -> Result<(), GraphError>;
@@ -234,7 +234,7 @@ impl RenderGraph {
     }
 
     #[inline]
-    pub fn update(&mut self, world: &mut World) {
+    pub fn update(&mut self, world: &WorldRef) {
         for node in self.nodes.values_mut() {
             node.node.update(world);
         }
@@ -257,10 +257,22 @@ impl RenderGraph {
                 }
             }
         }
+
+        let mut has_run = HashSet::new();
+
+        for stage in self.stages.iter_mut().rev() {
+            for name in stage.clone() {
+                if has_run.contains(&name) {
+                    stage.remove(&name);
+                } else {
+                    has_run.insert(name);
+                }
+            }
+        }
     }
 
     #[inline]
-    pub fn run(&mut self, world: &World) -> Result<(), GraphError> {
+    pub fn run(&mut self, world: &WorldRef) -> Result<(), GraphError> {
         let mut encoder = render_device().create_command_encoder(&Default::default());
 
         for stage in self.stages.iter().rev() {

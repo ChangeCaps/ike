@@ -1,37 +1,139 @@
-use crate::{AnyComponent, Entity, Resource, SpawnNode, World};
+use std::marker::PhantomData;
 
-pub struct Commands<'a> {
-    world: &'a World,
+use crossbeam::queue::SegQueue;
+
+use crate::{AnyComponent, Entities, Entity, Resource, World};
+
+pub trait Command: Send + Sync + 'static {
+    fn apply(self: Box<Self>, world: &mut World);
 }
 
-impl<'a> Commands<'a> {
+#[derive(Default)]
+pub struct CommandQueue {
+    commands: SegQueue<Box<dyn Command>>,
+}
+
+impl CommandQueue {
     #[inline]
-    pub fn new(world: &'a World) -> Self {
-        Self { world }
+    pub fn apply(self, world: &mut World) {
+        while let Some(command) = self.commands.pop() {
+            command.apply(world);
+        }
+    }
+}
+
+pub struct Commands<'w, 's> {
+    entities: &'w Entities,
+    command_queue: &'s mut CommandQueue,
+}
+
+impl<'w, 's> Commands<'w, 's> {
+    #[inline]
+    pub fn new(entities: &'w Entities, command_queue: &'s mut CommandQueue) -> Self {
+        Self {
+            entities,
+            command_queue,
+        }
+    }
+
+    #[inline]
+    pub fn push<T: Command>(&self, command: T) {
+        self.command_queue.commands.push(Box::new(command));
+    }
+
+    #[inline]
+    pub fn spawn_node(&self, name: impl Into<String>) -> crate::SpawnNode<'_, '_> {
+        let entity = self.entities.reserve_entity();
+        self.push(SpawnNode(entity, name.into()));
+
+        crate::SpawnNode::new(entity, self)
+    }
+
+    #[inline]
+    pub fn despawn(&self, entity: &Entity) {
+        self.push(Despawn(*entity));
+    }
+
+    #[inline]
+    pub fn insert_component<T: AnyComponent>(&self, entity: &Entity, component: T) {
+        self.push(Insert(*entity, component));
+    }
+
+    #[inline]
+    pub fn remove_component<T: AnyComponent>(&self, entity: &Entity) {
+        self.push(Remove::<T>(*entity, PhantomData));
     }
 
     #[inline]
     pub fn insert_resource<T: Resource>(&self, resource: T) {
-        self.world.queue_insert_resource(resource);
+        self.push(InsertResource(resource));
     }
 
     #[inline]
     pub fn init_resource<T: Resource + Default>(&self) {
-        self.world.queue_init_resource::<T>();
-    }
-
-    #[inline]
-    pub fn insert_component<T: AnyComponent>(&self, entity: Entity, component: T) {
-        self.world.queue_insert(entity, component);
+        self.push(InitResource::<T>(PhantomData));
     }
 
     #[inline]
     pub fn remove_resource<T: Resource>(&self) {
-        self.world.queue_remove_resource::<T>();
+        self.push(RemoveResource::<T>(PhantomData));
     }
+}
 
-    #[inline]
-    pub fn spawn_node(&self, name: impl Into<String>) -> SpawnNode<'a> {
-        SpawnNode::new(self.world, name)
+struct SpawnNode(Entity, String);
+
+impl Command for SpawnNode {
+    fn apply(self: Box<Self>, world: &mut World) {
+        world.entities_mut().spawn(self.0);
+        world.set_node_name(&self.0, self.1);
+    }
+}
+
+struct Despawn(Entity);
+
+impl Command for Despawn {
+    fn apply(self: Box<Self>, world: &mut World) {
+        world.entities_mut().remove_entity(&self.0);
+    }
+}
+
+struct Insert<T>(Entity, T);
+
+impl<T: AnyComponent> Command for Insert<T> {
+    fn apply(self: Box<Self>, world: &mut World) {
+        let change_tick = world.change_tick();
+        world.entities_mut().insert(self.0, self.1, change_tick);
+    }
+}
+
+struct Remove<T>(Entity, PhantomData<fn() -> T>);
+
+impl<T: AnyComponent> Command for Remove<T> {
+    fn apply(self: Box<Self>, world: &mut World) {
+        world.entities_mut().remove::<T>(&self.0);
+    }
+}
+
+struct InsertResource<T>(T);
+
+impl<T: Resource> Command for InsertResource<T> {
+    fn apply(self: Box<Self>, world: &mut World) {
+        world.insert_resource(self.0);
+    }
+}
+
+struct InitResource<T>(PhantomData<fn() -> T>);
+
+impl<T: Resource + Default> Command for InitResource<T> {
+    fn apply(self: Box<Self>, world: &mut World) {
+        world.init_resource::<T>();
+    }
+}
+
+struct RemoveResource<T>(PhantomData<fn() -> T>);
+
+impl<T: Resource> Command for RemoveResource<T> {
+    fn apply(self: Box<Self>, world: &mut World) {
+        world.remove_resource::<T>();
     }
 }

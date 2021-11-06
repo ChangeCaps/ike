@@ -69,6 +69,7 @@ impl Resources {
         Some(WriteGuard {
             value: unsafe { &mut *(write.value as *mut _ as *mut _) },
             borrow: write.forget(),
+            change_detection: None,
         })
     }
 }

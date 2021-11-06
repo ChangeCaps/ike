@@ -1,4 +1,5 @@
-use ike_core::World;
+use glam::UVec2;
+use ike_core::WorldRef;
 
 use crate::{
     render_device, wgpu, Camera, EdgeSlotInfo, GraphError, NodeEdge, NodeInput, RenderNode,
@@ -24,7 +25,7 @@ impl RenderNode for ViewInputNode {
     fn run(
         &mut self,
         _encoder: &mut ike_wgpu::CommandEncoder,
-        _world: &World,
+        _world: &WorldRef,
         _input: &NodeInput,
         _output: &mut NodeEdge,
     ) -> Result<(), GraphError> {
@@ -35,6 +36,7 @@ impl RenderNode for ViewInputNode {
 #[derive(Default)]
 pub struct DepthTextureNode {
     pub target: Option<RenderTarget>,
+    pub size: Option<UVec2>,
 }
 
 impl DepthTextureNode {
@@ -54,13 +56,16 @@ impl RenderNode for DepthTextureNode {
     fn run(
         &mut self,
         _encoder: &mut crate::wgpu::CommandEncoder,
-        _world: &World,
+        _world: &WorldRef,
         input: &NodeInput,
         output: &mut NodeEdge,
     ) -> Result<(), GraphError> {
         let target = input.get::<RenderTexture>(Self::TARGET)?;
 
-        if self.target != Some(target.target()) {
+        if self.target != Some(target.target()) || self.size != Some(target.size) {
+            self.target = Some(target.target());
+            self.size = Some(target.size);
+
             let texture = render_device().create_texture(&wgpu::TextureDescriptor {
                 label: None,
                 size: wgpu::Extent3d {

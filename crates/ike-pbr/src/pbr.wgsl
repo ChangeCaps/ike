@@ -582,7 +582,7 @@ fn directional_shadow(idx: u32, position: vec4<f32>, normal: vec3<f32>) -> f32 {
 
 	let trig = vec2<f32>(cos(angle), sin(angle));
 
-	return pcss_filter(idx, light, uv, z, 0.00005, z_vs, trig);
+	return pcss_filter(idx, light, uv, z, 0.0001, z_vs, trig);
 }
  
 [[stage(fragment)]]

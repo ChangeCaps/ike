@@ -12,9 +12,9 @@ pub mod prelude {
     pub use glam::*;
     pub use ike_assets::{AssetAppBuilderExt, Assets, Handle, HandleUntyped};
     pub use ike_core::{
-        App, AppBuilder, Commands, Component, ExclusiveSystem, FnSystem, HasId, Id, Node,
-        QueryMut as Query, ReadGuard, Res, ResMut, Resources, Schedule, System, Time, Without,
-        World, WriteGuard, Changed
+        App, AppBuilder, Changed, Commands, Component, ExclusiveSystem, FnSystem, HasId, Id, Node,
+        Or, Query, ReadGuard, Res, ResMut, Resources, Schedule, SpawnNode, System, Time, Without,
+        World, WorldRef, WriteGuard, With,
     };
     pub use ike_debug_line::{DebugLine, DebugLinePlugin};
     pub use ike_input::{Input, Mouse};

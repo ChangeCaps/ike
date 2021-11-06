@@ -48,6 +48,13 @@ impl Plugin for EguiPlugin {
                     EguiNode::TARGET,
                 )
                 .unwrap();
+
+            render_graph
+                .insert_node_edge(
+                    ike_debug_line::render_graph::DEBUG_LINE_NODE,
+                    render_graph::EGUI_NODE,
+                )
+                .unwrap();
         } else {
             render_graph.insert_node(EguiNode::clear(Color::TRANSPARENT), render_graph::EGUI_NODE);
 

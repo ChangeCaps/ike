@@ -113,13 +113,19 @@ pub trait ExclusiveSystem: Send + Sync + 'static {
 pub trait System: Send + Sync + 'static {
     fn access(&self) -> SystemAccess;
 
+    fn name(&self) -> &str;
+
     fn run(&mut self, world: &World);
+
+    fn init(&mut self, world: &mut World);
+
+    fn apply(&mut self, world: &mut World);
 }
 
 #[derive(Default)]
 pub struct ScheduleStep {
     pub access: SystemAccess,
-    pub systems: HashMap<TypeId, BorrowLock<dyn System>>,
+    pub systems: Vec<BorrowLock<dyn System>>,
 }
 
 #[derive(Default)]
@@ -137,8 +143,7 @@ impl Schedule {
             if step.access.compatible(&access) {
                 step.access.combine(access);
 
-                step.systems
-                    .insert(TypeId::of::<T>(), BorrowLock::from_box(Box::new(system)));
+                step.systems.push(BorrowLock::from_box(Box::new(system)));
 
                 return;
             }
@@ -146,11 +151,10 @@ impl Schedule {
 
         let mut step = ScheduleStep {
             access,
-            systems: HashMap::new(),
+            systems: Vec::new(),
         };
 
-        step.systems
-            .insert(TypeId::of::<T>(), BorrowLock::from_box(Box::new(system)));
+        step.systems.push(BorrowLock::from_box(Box::new(system)));
 
         self.steps.push(step);
     }
@@ -165,28 +169,25 @@ impl Schedule {
     pub fn execute(&mut self, world: &mut World) {
         for system in self.exclusive_systems.values_mut() {
             system.run(world);
-
-            world.dequeue();
         }
 
         for step in &mut self.steps {
-            step.systems.par_iter_mut().for_each(|(_, system)| {
+            for system in &mut step.systems {
+                let system = system.get_mut();
+
+                system.init(world);
+            }
+
+            step.systems.par_iter_mut().for_each(|system| {
                 let system = system.get_mut();
 
                 system.run(world);
             });
 
-            world.dequeue();
-        }
-    }
+            for system in &mut step.systems {
+                let system = system.get_mut();
 
-    #[inline]
-    pub fn dump(&self) {
-        for step in &self.steps {
-            println!("step:");
-
-            for (id, system) in &step.systems {
-                println!("{:?}: {:?}", id, system.read().unwrap().access());
+                system.apply(world);
             }
         }
     }

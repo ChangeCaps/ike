@@ -1,7 +1,7 @@
 use std::{
     mem,
     ops::{Deref, DerefMut},
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::atomic::{AtomicU64, AtomicUsize, Ordering},
 };
 
 // this file is heavily inspired by hecs
@@ -89,12 +89,18 @@ impl<'a, T: ?Sized> Drop for ReadGuard<'a, T> {
 pub struct WriteGuard<'a, T: ?Sized> {
     pub(crate) value: &'a mut T,
     pub(crate) borrow: Vec<&'a AtomicBorrow>,
+    pub(crate) change_detection: Option<(&'a AtomicU64, u64)>,
 }
 
 impl<'a, T: ?Sized> WriteGuard<'a, T> {
     #[inline]
     pub(crate) fn forget(mut self) -> Vec<&'a AtomicBorrow> {
         mem::replace(&mut self.borrow, Vec::new())
+    }
+
+    #[inline]
+    pub(crate) fn with_change_detection(&mut self, change_count: &'a AtomicU64, change_tick: u64) {
+        self.change_detection = Some((change_count, change_tick));
     }
 }
 
@@ -110,6 +116,10 @@ impl<'a, T: ?Sized> Deref for WriteGuard<'a, T> {
 impl<'a, T: ?Sized> DerefMut for WriteGuard<'a, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
+        if let Some((change_count, change_tick)) = self.change_detection {
+            change_count.store(change_tick, Ordering::Release);
+        }
+
         self.value
     }
 }
@@ -177,6 +187,7 @@ impl<T: ?Sized> BorrowLock<T> {
             Some(WriteGuard {
                 value: unsafe { &mut *self.value },
                 borrow: vec![&self.borrow],
+                change_detection: None,
             })
         } else {
             None

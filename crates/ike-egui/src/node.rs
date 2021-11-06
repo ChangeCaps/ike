@@ -182,25 +182,25 @@ impl RenderNode for EguiNode {
         vec![EdgeSlotInfo::new::<RenderTexture>(Self::TARGET)]
     }
 
-    fn update(&mut self, world: &mut World) {
+    fn update(&mut self, world: &WorldRef) {
         world.init_resource::<ShaderResources>();
     }
 
     fn run(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
-        world: &World,
+        world: &WorldRef,
         input: &NodeInput,
         _output: &mut NodeEdge,
     ) -> Result<(), GraphError> {
         let target = input.get::<RenderTexture>(Self::TARGET)?;
 
-        let mut resources = world.write_resource::<ShaderResources>().unwrap();
+        let mut resources = world.get_resource_mut::<ShaderResources>().unwrap();
 
-        let egui_textures = world.read_resource::<EguiTextures>().unwrap();
-        let textures = world.read_resource::<Assets<Texture>>().unwrap();
-        let mut input = world.write_resource::<egui::RawInput>().unwrap();
-        let ctx = world.read_resource::<egui::CtxRef>().unwrap();
+        let egui_textures = world.get_resource::<EguiTextures>().unwrap();
+        let textures = world.get_resource::<Assets<Texture>>().unwrap();
+        let mut input = world.get_resource_mut::<egui::RawInput>().unwrap();
+        let ctx = world.get_resource::<egui::CtxRef>().unwrap();
 
         input.screen_rect = Some(egui::Rect::from_min_size(
             egui::Pos2::ZERO,

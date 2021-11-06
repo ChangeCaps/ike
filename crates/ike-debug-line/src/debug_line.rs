@@ -18,7 +18,7 @@ impl Default for DebugLine {
         Self {
             from: Vec3::ZERO,
             to: Vec3::ZERO,
-            width: 0.005,
+            width: 0.001,
             use_depth: false,
             color: Color::WHITE,
         }

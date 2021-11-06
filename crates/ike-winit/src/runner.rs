@@ -52,7 +52,6 @@ impl AppRunner for WinitRunner {
                     .unwrap()
                     .advance_frame(frame_time.as_secs_f32());
 
-                app.update_components();
                 app.execute();
 
                 app.world_mut().clear_trackers();

@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
 use bytemuck::cast_slice;
-use glam::{Vec3, Vec4Swizzles};
-use ike_core::World;
+use glam::{Vec3Swizzles, Vec4, Vec4Swizzles};
+use ike_core::WorldRef;
 use ike_render::{wgpu::ColorTargetState, *};
-use ike_transform::Transform;
 
 use crate::DEBUG_LINES;
 
@@ -41,8 +40,8 @@ impl ShaderResources {
                 module: &self.shader,
                 entry_point: "main",
                 buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: 88,
-                    step_mode: wgpu::VertexStepMode::Instance,
+                    array_stride: 32,
+                    step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &[
                         wgpu::VertexAttribute {
                             offset: 0,
@@ -53,26 +52,6 @@ impl ShaderResources {
                             offset: 16,
                             format: wgpu::VertexFormat::Float32x4,
                             shader_location: 1,
-                        },
-                        wgpu::VertexAttribute {
-                            offset: 32,
-                            format: wgpu::VertexFormat::Float32x4,
-                            shader_location: 2,
-                        },
-                        wgpu::VertexAttribute {
-                            offset: 48,
-                            format: wgpu::VertexFormat::Float32x4,
-                            shader_location: 3,
-                        },
-                        wgpu::VertexAttribute {
-                            offset: 64,
-                            format: wgpu::VertexFormat::Float32x4,
-                            shader_location: 4,
-                        },
-                        wgpu::VertexAttribute {
-                            offset: 80,
-                            format: wgpu::VertexFormat::Float32x2,
-                            shader_location: 5,
                         },
                     ],
                 }],
@@ -86,12 +65,21 @@ impl ShaderResources {
                     write_mask: wgpu::ColorWrites::ALL,
                 }],
             }),
-            primitive: Default::default(),
+            primitive: wgpu::PrimitiveState {
+                cull_mode: Some(wgpu::Face::Back),
+                ..Default::default()
+            },
             multisample: wgpu::MultisampleState {
                 count: target.samples,
                 ..Default::default()
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                depth_write_enabled: true,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
         });
 
         self.pipelines.insert(target, pipeline);
@@ -100,23 +88,33 @@ impl ShaderResources {
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct Instance {
-    transform: [[f32; 4]; 4],
+struct Vertex {
+    position: [f32; 4],
     color: [f32; 4],
-    depth: [f32; 2],
+}
+
+impl Vertex {
+    #[inline]
+    pub fn new(position: Vec4, color: Color) -> Self {
+        Self {
+            position: position.into(),
+            color: color.into(),
+        }
+    }
 }
 
 pub struct DebugLineNode {
-    instance_buffer: Buffer,
+    buffer: Buffer,
 }
 
 impl DebugLineNode {
     pub const TARGET: &'static str = "target";
+    pub const DEPTH: &'static str = "depth";
     pub const CAMERA: &'static str = "camera";
 
     pub fn new() -> Self {
         Self {
-            instance_buffer: Buffer::new(wgpu::BufferUsages::VERTEX),
+            buffer: Buffer::new(wgpu::BufferUsages::VERTEX),
         }
     }
 }
@@ -125,67 +123,75 @@ impl RenderNode for DebugLineNode {
     fn input(&self) -> Vec<EdgeSlotInfo> {
         vec![
             EdgeSlotInfo::new::<RenderTexture>(Self::TARGET),
+            EdgeSlotInfo::new::<wgpu::TextureView>(Self::DEPTH),
             EdgeSlotInfo::new::<Camera>(Self::CAMERA),
         ]
     }
 
-    fn update(&mut self, world: &mut World) {
+    fn update(&mut self, world: &WorldRef) {
         world.init_resource::<ShaderResources>();
     }
 
     fn run(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
-        world: &World,
+        world: &WorldRef,
         input: &NodeInput,
         _output: &mut NodeEdge,
     ) -> Result<(), GraphError> {
         let target = input.get::<RenderTexture>(Self::TARGET)?;
-
-        let aspect = target.size.x as f32 / target.size.y as f32;
+        let depth = input.get::<wgpu::TextureView>(Self::DEPTH)?;
 
         let camera = input.get::<Camera>(Self::CAMERA)?;
         let view_proj = camera.view_proj();
 
-        let mut instances = Vec::new();
+        let mut vertices: Vec<Vertex> = Vec::new();
 
         while let Some(debug_line) = DEBUG_LINES.pop() {
             let from = view_proj * debug_line.from.extend(1.0);
             let to = view_proj * debug_line.to.extend(1.0);
-            let mut from = from.xyz() / from.w;
-            let mut to = to.xyz() / to.w;
+            let fw = from.w;
+            let tw = to.w;
+            let from = from.xyz() / from.w;
+            let to = to.xyz() / to.w;
 
-            from.x *= aspect;
-            to.x *= aspect;
+            let f = from.xy();
+            let t = to.xy();
 
-            let depth = if debug_line.use_depth {
-                [(from.z + to.z) / 2.0, (to.z - from.z) / 2.0]
+            let dir = t - f;
+            let p = dir.normalize().perp();
+
+            let a = f + p * debug_line.width;
+            let b = f - p * debug_line.width;
+            let c = t + p * debug_line.width;
+            let d = t - p * debug_line.width;
+
+            let (df, dt) = if debug_line.use_depth {
+                (from.z, to.z)
             } else {
-                [0.0; 2]
+                (0.0, 0.0)
             };
 
-            let mut transform = Transform::from_translation((from + to) / 2.0);
-            transform.look_at(transform.translation + Vec3::Z, to - transform.translation);
-            transform.scale.x = debug_line.width;
-            transform.scale.y = from.distance(to) / 2.0;
+            let a = Vec4::new(a.x * fw, a.y * fw, df * fw, fw);
+            let b = Vec4::new(b.x * fw, b.y * fw, df * fw, fw);
+            let c = Vec4::new(c.x * tw, c.y * tw, dt * tw, tw);
+            let d = Vec4::new(d.x * tw, d.y * tw, dt * tw, tw);
 
-            let transform = Transform::from_scale(Vec3::new(1.0 / aspect, 1.0, 1.0)).matrix()
-                * transform.matrix();
-
-            instances.push(Instance {
-                transform: transform.to_cols_array_2d(),
-                color: [1.0; 4],
-                depth,
-            });
+            vertices.push(Vertex::new(a, debug_line.color));
+            vertices.push(Vertex::new(b, debug_line.color));
+            vertices.push(Vertex::new(c, debug_line.color));
+            vertices.push(Vertex::new(c, debug_line.color));
+            vertices.push(Vertex::new(b, debug_line.color));
+            vertices.push(Vertex::new(d, debug_line.color));
         }
 
-        self.instance_buffer.write(cast_slice(&instances));
+        self.buffer.write(cast_slice(&vertices));
 
         let texture = target.texture();
 
         let view = texture.create_view(&Default::default());
 
-        let mut resources = world.write_resource::<ShaderResources>().unwrap();
+        let mut resources = world.get_resource_mut::<ShaderResources>().unwrap();
 
         if !resources.pipelines.contains_key(&target.target()) {
             resources.create_pipeline(target.target());
@@ -193,7 +199,7 @@ impl RenderNode for DebugLineNode {
 
         let pipeline = &resources.pipelines[&target.target()];
 
-        if instances.is_empty() {
+        if vertices.is_empty() {
             return Ok(());
         }
 
@@ -207,14 +213,21 @@ impl RenderNode for DebugLineNode {
                     store: true,
                 },
             }],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: depth,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: true,
+                }),
+                stencil_ops: None,
+            }),
         });
 
         render_pass.set_pipeline(pipeline);
 
-        render_pass.set_vertex_buffer(0, self.instance_buffer.raw().slice(..));
+        render_pass.set_vertex_buffer(0, self.buffer.raw().slice(..));
 
-        render_pass.draw(0..6, 0..instances.len() as u32);
+        render_pass.draw(0..vertices.len() as u32, 0..1);
 
         Ok(())
     }

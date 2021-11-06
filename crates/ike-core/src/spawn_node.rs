@@ -1,19 +1,14 @@
-use crate::{AnyComponent, Entity, World};
+use crate::{AnyComponent, Commands, Entity};
 
-pub struct SpawnNode<'a> {
-    name: String,
+pub struct SpawnNode<'w, 's> {
     entity: Entity,
-    world: &'a World,
+    commands: &'w Commands<'w, 's>,
 }
 
-impl<'a> SpawnNode<'a> {
+impl<'w, 's> SpawnNode<'w, 's> {
     #[inline]
-    pub fn new(world: &'a World, name: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            entity: world.create_entity(),
-            world,
-        }
+    pub fn new(entity: Entity, commands: &'w Commands<'w, 's>) -> Self {
+        Self { entity, commands }
     }
 
     #[inline]
@@ -23,13 +18,6 @@ impl<'a> SpawnNode<'a> {
 
     #[inline]
     pub fn insert<T: AnyComponent>(&self, component: T) {
-        self.world.queue_insert(self.entity, component);
-    }
-}
-
-impl<'a> Drop for SpawnNode<'a> {
-    #[inline]
-    fn drop(&mut self) {
-        self.world.queue_set_node_name(self.entity, &self.name);
+        self.commands.insert_component(&self.entity, component);
     }
 }

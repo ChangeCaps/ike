@@ -3,7 +3,7 @@ use std::{collections::HashMap, num::NonZeroU32};
 use bytemuck::{bytes_of, cast_slice, Zeroable};
 use glam::{Mat4, Quat, Vec3};
 use ike_assets::{Assets, Handle};
-use ike_core::World;
+use ike_core::WorldRef;
 use ike_render::*;
 use ike_transform::{GlobalTransform, Transform};
 
@@ -616,20 +616,20 @@ impl RenderNode for PbrNode {
         ]
     }
 
-    fn update(&mut self, world: &mut World) {
+    fn update(&mut self, world: &WorldRef) {
         world.init_resource::<ShaderResources>();
     }
 
     fn run(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
-        world: &World,
+        world: &WorldRef,
         input: &NodeInput,
         _output: &mut NodeEdge,
     ) -> Result<(), GraphError> {
         let target = input.get::<RenderTexture>(Self::TARGET)?;
 
-        let mut resources = world.write_resource::<ShaderResources>().unwrap();
+        let mut resources = world.get_resource_mut::<ShaderResources>().unwrap();
         resources.create_pipeline(target.target());
 
         let view = target.texture().create_view(&Default::default());
@@ -637,7 +637,7 @@ impl RenderNode for PbrNode {
         let mut instances: HashMap<_, Vec<[[f32; 4]; 4]>> = HashMap::new();
 
         for (transform, material, mesh) in world
-            .query::<(&GlobalTransform, &Handle<PbrMaterial>, &Handle<Mesh>), ()>()
+            .query::<(&GlobalTransform, &Handle<PbrMaterial>, &Handle<Mesh>)>()
             .unwrap()
         {
             let id = InstanceId {
@@ -654,7 +654,7 @@ impl RenderNode for PbrNode {
         let mut point_lights = [PointLightRaw::zeroed(); 64];
         let mut point_light_count = 0;
 
-        for (transform, point_light) in world.query::<(&GlobalTransform, &PointLight), ()>().unwrap() {
+        for (transform, point_light) in world.query::<(&GlobalTransform, &PointLight)>().unwrap() {
             point_lights[point_light_count] = PointLightRaw {
                 position: transform.translation.extend(0.0).into(),
                 color: point_light.color.into(),
@@ -688,8 +688,8 @@ impl RenderNode for PbrNode {
             self.shadows = Some(shadows);
         }
 
-        let mut meshes = world.write_resource::<Assets<Mesh>>().unwrap();
-        let materials = world.read_resource::<Assets<PbrMaterial>>().unwrap();
+        let mut meshes = world.get_resource_mut::<Assets<Mesh>>().unwrap();
+        let materials = world.get_resource::<Assets<PbrMaterial>>().unwrap();
 
         for (id, material) in &mut self.materials {
             material.update(materials.get(id).unwrap());
@@ -734,7 +734,7 @@ impl RenderNode for PbrNode {
         let mut directional_lights = [DirectionalLightRaw::zeroed(); 16];
         let mut directional_light_count = 0;
 
-        for light in world.query::<&DirectionalLight, ()>().unwrap() {
+        for light in world.query::<&DirectionalLight>().unwrap() {
             let mut transform = Transform::from_translation(camera.position);
             transform.rotation =
                 Quat::from_rotation_arc_colinear(-Vec3::Z, light.direction.normalize());
@@ -855,11 +855,11 @@ impl RenderNode for PbrNode {
             self.uniforms = Some(buffer);
         }
 
-        let env = world.read_resource::<Handle<Environment>>();
+        let env = world.get_resource::<Handle<Environment>>();
 
         if self.uniforms_group.is_none() || env.as_deref() != self.current_env.as_ref() {
             let group = if let Some(env) = env {
-                let envs = world.read_resource::<Assets<Environment>>().unwrap();
+                let envs = world.get_resource::<Assets<Environment>>().unwrap();
                 let env = envs.get(&env).unwrap();
 
                 render_device().create_bind_group(&wgpu::BindGroupDescriptor {

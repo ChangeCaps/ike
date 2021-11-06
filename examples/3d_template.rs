@@ -1,11 +1,12 @@
 use ike::prelude::*;
+use ike_core::WorldRef;
 use ike_egui::{egui, EguiPlugin};
-use ike_transform::TransformPlugin;
+use ike_physics::RigidBodies;
 
 struct Rotate;
 
 impl Component for Rotate {
-    fn update(&mut self, node: &mut Node<'_>, _world: &World) {
+    fn update(&mut self, node: &mut Node, _world: &WorldRef) {
         let mut transform = node.get_component_mut::<Transform>().unwrap();
 
         transform.rotation *= Quat::from_rotation_y(0.01);
@@ -15,14 +16,14 @@ impl Component for Rotate {
 struct CameraRotate(Vec2);
 
 impl Component for CameraRotate {
-    fn update(&mut self, node: &mut Node<'_>, world: &World) {
-        let mouse = world.read_resource::<Mouse>().unwrap();
+    fn update(&mut self, node: &mut Node, world: &WorldRef) {
+        let mouse = world.get_resource::<Mouse>().unwrap();
 
         if mouse.grabbed {
             self.0 += mouse.movement * 0.001 * -1.0;
         }
 
-        let key_input = world.read_resource::<Input<Key>>().unwrap();
+        let key_input = world.get_resource::<Input<Key>>().unwrap();
 
         let mut transform = &mut *node.get_component_mut::<Transform>().unwrap();
 
@@ -55,26 +56,28 @@ enum MoveMode {
 #[derive(Default)]
 struct MoveOptions {
     move_mode: Option<MoveMode>,
+    is_kinematic: bool,
 }
 
 struct Move;
 
 impl Component for Move {
-    fn update(&mut self, node: &mut Node<'_>, world: &World) {
-        let key_input = world.read_resource::<Input<Key>>().unwrap();
+    fn update(&mut self, node: &mut Node, world: &WorldRef) {
+        let time = world.get_resource::<Time>().unwrap();
+        let key_input = world.get_resource::<Input<Key>>().unwrap();
+
+        let transform = node.get_component::<GlobalTransform>().unwrap();
+        let mut rb = node.get_component_mut::<RigidBody>().unwrap();
 
         if key_input.down(&Key::Up) {
-            let transform = &mut *node.get_component_mut::<Transform>().unwrap();
-            transform.translation += transform.local_y() * 0.1;
+            rb.linear_velocity += transform.translation.normalize() * time.delta_time() * 50.0;
         }
 
         if key_input.down(&Key::Down) {
-            let transform = &mut *node.get_component_mut::<Transform>().unwrap();
-            transform.translation -= transform.local_y() * 0.1;
+            rb.linear_velocity -= transform.local_z() * time.delta_time() * 50.0;
         }
 
-        let time = world.read_resource::<Time>().unwrap();
-        let move_options = world.read_resource::<MoveOptions>().unwrap();
+        let move_options = world.get_resource::<MoveOptions>().unwrap();
 
         let t = time.time_since_startup();
 
@@ -86,6 +89,10 @@ impl Component for Move {
                     * (t * 0.2 + transform.translation.z).sin();
             }
             None => {}
+        }
+
+        if transform.translation.y < -10.0 {
+            world.despawn(&node.entity());
         }
     }
 }
@@ -169,18 +176,38 @@ fn egui_system(
     ctx: Res<egui::CtxRef>,
     time: Res<Time>,
     material: Res<Material>,
+    rigid_bodies: Res<RigidBodies>,
     mut materials: ResMut<Assets<PbrMaterial>>,
     mut move_options: ResMut<MoveOptions>,
+    query: Query<&mut RigidBody, With<Move>>,
 ) {
     egui::SidePanel::left("move_panel").show(&ctx, |ui| {
         ui.heading("Move");
 
         ui.selectable_value(&mut move_options.move_mode, None, "None");
         ui.selectable_value(&mut move_options.move_mode, Some(MoveMode::Wave), "Wave");
+        let response = ui.checkbox(&mut move_options.is_kinematic, "kinematic");
+
+        if response.changed() {
+            for mut rigid_body in query {
+                rigid_body.kinematic = move_options.is_kinematic;
+            }
+        }
     });
 
     egui::Window::new("Performance").show(&ctx, |ui| {
-        ui.label(format!("fps: {}", time.frames_per_second()));
+        egui::Grid::new("performance_grid")
+            .num_columns(2)
+            .spacing([40.0, 4.0])
+            .show(ui, |ui| {
+                ui.label("fps");
+                ui.label(format!("{}", time.frames_per_second()));
+                ui.end_row();
+
+                ui.label("rigid bodies");
+                ui.label(format!("{}", rigid_bodies.0.len()));
+                ui.end_row();
+            });
     });
 
     egui::Window::new("Material").show(&ctx, |ui| {
@@ -213,14 +240,23 @@ fn egui_system(
     });
 }
 
-fn spawn_system(commands: Commands, material: Res<Material>) {
-    let node = commands.spawn_node("cube");
+fn spawn_system(commands: Commands, material: Res<Material>, key_input: Res<Input<Key>>, move_options: Res<MoveOptions>) {
+    if key_input.pressed(&Key::L) {
+        let node = commands.spawn_node("cube");
 
-    node.insert(Transform::from_xyz(0.0, 10.0, 0.0));
-    node.insert(RigidBody::default());
-    node.insert(BoxCollider::new(Vec3::ONE / 2.0));
-    node.insert(material.0.clone());
-    node.insert(material.1.clone());
+        let collider = BoxCollider::new(Vec3::ONE / 2.0);
+        //collider.debug = Some(Color::GREEN);
+
+        let mut rb = RigidBody::default();
+        rb.kinematic = move_options.is_kinematic;
+
+        node.insert(Transform::from_xyz(0.0, 10.0, 0.0));
+        node.insert(rb);
+        node.insert(collider);
+        node.insert(Move);
+        node.insert(material.0.clone());
+        node.insert(material.1.clone());
+    }
 }
 
 fn main() {

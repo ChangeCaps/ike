@@ -1,13 +1,15 @@
-use std::{any::TypeId, collections::HashMap};
-
-use crate::{Component, ExclusiveSystem, Node, Plugin, Resource, Schedule, System, World};
+use crate::{
+    Component, ComponentStages, ExclusiveSystem, Plugin, Resource, Schedule, System, World,
+};
 
 pub mod stage {
     pub const START: &str = "start";
     pub const PRE_UPDATE: &str = "pre_update";
     pub const UPDATE: &str = "update";
     pub const POST_UPDATE: &str = "post_update";
+    pub const PRE_RENDER: &str = "pre_render";
     pub const RENDER: &str = "render";
+    pub const POST_RENDER: &str = "post_render";
     pub const END: &str = "end";
 }
 
@@ -167,13 +169,7 @@ impl AppBuilder {
 
     #[inline]
     pub fn register_component<T: Component>(&mut self) -> &mut Self {
-        fn update<T: Component>(node: &mut Node<'_>) {
-            let mut component = node.world().get_component_mut::<T>(&node.entity()).unwrap();
-
-            component.update(node, node.world());
-        }
-
-        self.app.components.insert(TypeId::of::<T>(), update::<T>);
+        self.app.components.register::<T>();
 
         self
     }
@@ -201,7 +197,7 @@ impl AppBuilder {
 #[derive(Default)]
 pub struct App {
     world: World,
-    components: HashMap<TypeId, fn(&mut Node)>,
+    components: ComponentStages,
     startup: Schedule,
     stages: Vec<(&'static str, Schedule)>,
 }
@@ -215,7 +211,9 @@ impl App {
         builder.add_stage(stage::PRE_UPDATE);
         builder.add_stage(stage::UPDATE);
         builder.add_stage(stage::POST_UPDATE);
+        builder.add_stage(stage::PRE_RENDER);
         builder.add_stage(stage::RENDER);
+        builder.add_stage(stage::POST_RENDER);
         builder.add_stage(stage::END);
 
         builder
@@ -238,24 +236,18 @@ impl App {
 
     #[inline]
     pub fn execute(&mut self) {
-        for (_, stage) in &mut self.stages {
+        for (name, stage) in &mut self.stages {
+            match *name {
+                stage::START => self.components.start.run(&mut self.world),
+                stage::PRE_UPDATE => self.components.pre_update.run(&mut self.world),
+                stage::UPDATE => self.components.update.run(&mut self.world),
+                stage::POST_UPDATE => self.components.post_update.run(&mut self.world),
+                stage::END => self.components.start.run(&mut self.world),
+                _ => {}
+            }
+
             stage.execute(&mut self.world);
         }
-    }
-
-    #[inline]
-    pub fn update_components(&mut self) {
-        for (id, update) in self.components.iter() {
-            if let Some(storage) = self.world.components.get(id) {
-                for entity in storage.entities() {
-                    let mut node = self.world.get_node(*entity).unwrap();
-
-                    update(&mut node);
-                }
-            }
-        }
-
-        self.world.dequeue();
     }
 }
 

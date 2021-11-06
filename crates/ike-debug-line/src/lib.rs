@@ -29,6 +29,14 @@ impl Plugin for DebugLinePlugin {
             .unwrap();
         render_graph
             .insert_slot_edge(
+                ike_render::render_graph::DEPTH,
+                DepthTextureNode::DEPTH,
+                render_graph::DEBUG_LINE_NODE,
+                DebugLineNode::DEPTH,
+            )
+            .unwrap();
+        render_graph
+            .insert_slot_edge(
                 ike_render::render_graph::INPUT,
                 ViewInputNode::CAMERA,
                 render_graph::DEBUG_LINE_NODE,

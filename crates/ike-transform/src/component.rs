@@ -194,6 +194,15 @@ impl GlobalTransform {
     }
 }
 
+impl std::ops::Mul<Vec3> for &GlobalTransform {
+    type Output = Vec3;
+
+    #[inline]
+    fn mul(self, rhs: Vec3) -> Self::Output {
+        self.mul_vec3(rhs)
+    }
+}
+
 impl From<Transform> for GlobalTransform {
     #[inline]
     fn from(transform: Transform) -> Self {
