@@ -1,10 +1,8 @@
 use std::{any::TypeId, borrow::Cow, collections::HashMap};
 
-use crate::{
-    AnyComponent, BorrowLock, Entity, ReadGuard, WorldRef, WriteGuard,
-};
+use crate::{AnyComponent, BorrowLock, Entity, ReadGuard, WorldRef, WriteGuard};
 
-pub(crate) trait OwnedComponent: AnyComponent {
+pub trait OwnedComponent: AnyComponent {
     fn insert(self: Box<Self>, entity: &Entity, world: &WorldRef);
 }
 

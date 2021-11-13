@@ -1,10 +1,14 @@
 use glam::{Quat, Vec3};
 use ike_core::*;
 use ike_transform::{GlobalTransform, Transform};
-use rapier3d::{math::{Isometry, Translation}, na::{ArrayStorage, Quaternion, Unit, UnitQuaternion, Vector3}, prelude::{
+use rapier3d::{
+    math::{Isometry, Translation},
+    na::{ArrayStorage, Quaternion, Unit, UnitQuaternion, Vector3},
+    prelude::{
         ColliderBuilder, ColliderHandle, ColliderSet, JointSet, RigidBodyBuilder, RigidBodyHandle,
         RigidBodySet,
-    }};
+    },
+};
 
 use crate::{BoxCollider, Colliders, Gravity, PhysicsResource, RigidBodies, RigidBody};
 
@@ -108,7 +112,7 @@ pub fn set_rigid_bodies(
             ),
             true,
         );
-    } 
+    }
 
     for (entity, rigid_body, rigid_body_handle) in rigid_body_query {
         let rb = rigid_body_set.get_mut(*rigid_body_handle).unwrap();
@@ -229,7 +233,7 @@ pub fn clean_physics(
         }
     });
 
-    colliders.0.retain(|_handle, entity| {
-        collider_query.get(*entity).is_some()
-    });
+    colliders
+        .0
+        .retain(|_handle, entity| collider_query.get(*entity).is_some());
 }

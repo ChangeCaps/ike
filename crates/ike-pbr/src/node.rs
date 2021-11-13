@@ -470,6 +470,7 @@ struct MaterialRaw {
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct MeshRaw {
     material: MaterialRaw,
+    padding: [u8; 4],
     flags: u32,
     joint_count: u32,
 }
@@ -487,10 +488,11 @@ impl MaterialResources {
         material: &PbrMaterial,
         shadows: &wgpu::TextureView,
         resources: &ShaderResources,
+        textures: &Assets<Texture>,
     ) -> Self {
         let device = render_device();
 
-        let mesh = MeshRaw {
+        let mut mesh = MeshRaw {
             material: MaterialRaw {
                 albedo: material.albedo.into(),
                 emission: material.emission.into(),
@@ -502,8 +504,48 @@ impl MaterialResources {
                 shadow_block_samples: material.shadow_blocker_samples,
                 shadow_pcf_samples: material.shadow_pcf_samples,
             },
+            padding: [0; 4],
             flags: 0,
             joint_count: 0,
+        };
+
+        let albedo_texture;
+
+        let albedo_texture = if let Some(ref handle) = material.albedo_texture {
+            let texture = textures.get(handle).unwrap();
+
+            albedo_texture = texture.texture().create_view(&Default::default());
+
+            &albedo_texture
+        } else {
+            &resources.default_tex
+        };
+
+        let metallic_roughness_texture;
+
+        let metallic_roughness_texture =
+            if let Some(ref handle) = material.metallic_roughness_texture {
+                let texture = textures.get(handle).unwrap();
+
+                metallic_roughness_texture = texture.texture().create_view(&Default::default());
+
+                &metallic_roughness_texture
+            } else {
+                &resources.default_tex
+            };
+
+        let normal_map;
+
+        let normal_map = if let Some(ref handle) = material.normal_map {
+            let texture = textures.get(handle).unwrap();
+
+            normal_map = texture.texture().create_view(&Default::default());
+
+            mesh.flags |= 0b1;
+
+            &normal_map
+        } else {
+            &resources.default_tex
         };
 
         let mesh_buffer = device.create_buffer_init(&wgpu::BufferInitDescriptor {
@@ -522,15 +564,15 @@ impl MaterialResources {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&resources.default_tex),
+                    resource: wgpu::BindingResource::TextureView(albedo_texture),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: wgpu::BindingResource::TextureView(&resources.default_tex),
+                    resource: wgpu::BindingResource::TextureView(metallic_roughness_texture),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
-                    resource: wgpu::BindingResource::TextureView(&resources.default_tex),
+                    resource: wgpu::BindingResource::TextureView(normal_map),
                 },
                 wgpu::BindGroupEntry {
                     binding: 4,
@@ -570,6 +612,12 @@ impl MaterialResources {
 
     #[inline]
     pub fn update(&mut self, material: &PbrMaterial) {
+        let mut flags = 0;
+
+        if material.normal_map.is_some() {
+            flags |= 0b1;
+        }
+
         let mesh = MeshRaw {
             material: MaterialRaw {
                 albedo: material.albedo.into(),
@@ -582,7 +630,8 @@ impl MaterialResources {
                 shadow_block_samples: material.shadow_blocker_samples,
                 shadow_pcf_samples: material.shadow_pcf_samples,
             },
-            flags: 0,
+            padding: [0; 4],
+            flags,
             joint_count: 0,
         };
 
@@ -695,6 +744,8 @@ impl RenderNode for PbrNode {
             material.update(materials.get(id).unwrap());
         }
 
+        let textures = world.get_resource::<Assets<Texture>>().unwrap();
+
         for (id, instances) in &instances {
             if !self.materials.contains_key(&id.material) {
                 let material = materials.get(&id.material).unwrap();
@@ -705,7 +756,7 @@ impl RenderNode for PbrNode {
                     .unwrap()
                     .create_view(&Default::default());
 
-                let material = MaterialResources::new(material, &view, &resources);
+                let material = MaterialResources::new(material, &view, &resources, &textures);
 
                 self.materials.insert(id.material.clone(), material);
             }

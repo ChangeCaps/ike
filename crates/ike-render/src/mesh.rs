@@ -187,7 +187,7 @@ impl IntoVertexData for Color {
 impl IntoVertexData for [f32; 2] {
     #[inline]
     fn into_data(this: Vec<[f32; 2]>) -> VertexData {
-        VertexData::Float32x3(cast_vec(this))
+        VertexData::Float32x2(cast_vec(this))
     }
 }
 

@@ -1,0 +1,20 @@
+[package]
+name = "ike-gltf"
+version = "0.0.1"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# ike
+ike-assets = { version = "0.0.1", path = "../ike-assets" }
+ike-core = { version = "0.0.1", path = "../ike-core" }
+ike-pbr = { version = "0.0.1", path = "../ike-pbr"}
+ike-render = { version = "0.0.1", path = "../ike-render" }
+ike-scene = { version = "0.0.1", path = "../ike-scene" }
+ike-transform = { version = "0.0.1", path = "../ike-transform" }
+
+# other
+bytemuck = "1.7"
+glam = "0.19"
+gltf = "0.16"

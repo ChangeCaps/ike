@@ -1,6 +1,9 @@
 use std::{hash::Hash, marker::PhantomData, path::PathBuf, sync::Arc};
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+use ike_derive::Reflect;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum HandleUntyped {
     Path(PathBuf),
     Id(u64),
@@ -31,7 +34,7 @@ impl IntoHandleUntyped for PathBuf {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 enum Inner {
     Tracked(Arc<HandleUntyped>),
     Untracked(HandleUntyped),
@@ -46,6 +49,10 @@ impl Inner {
         }
     }
 }
+
+#[derive(Reflect, Serialize, Deserialize)]
+#[serde(bound = "T: 'static")]
+#[reflect(value)]
 pub struct Handle<T: 'static> {
     inner: Inner,
     marker: PhantomData<&'static T>,
@@ -74,6 +81,11 @@ impl<T> Handle<T> {
             inner: Inner::Untracked(HandleUntyped::Id(id)),
             marker: PhantomData,
         }
+    }
+
+    #[inline]
+    pub fn new_rand() -> Self {
+        Self::new(rand::random::<u64>())
     }
 
     #[inline]

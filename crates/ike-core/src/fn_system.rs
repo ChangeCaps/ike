@@ -258,7 +258,7 @@ where
         FuncSystem {
             func: self,
             name: String::from(type_name::<F>()),
-            state: None, 
+            state: None,
             last_change_tick: 0,
             marker: PhantomData,
         }
@@ -283,7 +283,7 @@ where
         F::access()
     }
 
-    #[inline] 
+    #[inline]
     fn name(&self) -> &str {
         &self.name
     }
@@ -342,7 +342,7 @@ macro_rules! tuples {
 		$macro!($name);
 		$macro!();
 	};
-} 
+}
 
 tuples!(impl_fn, A, B, C, D, E, F, G, H, I, J, K);
 
@@ -360,4 +360,4 @@ mod tests {
 
         let _x = foo.system();
     }
-} 
+}

@@ -1,7 +1,7 @@
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::slice::Iter as SliceIter;
 use std::sync::atomic::AtomicU64;
-use std::marker::PhantomData;
 
 use crate::{Access, AnyComponent, Entity, QueryFilter, SystemAccess, World};
 

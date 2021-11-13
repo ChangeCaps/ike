@@ -5,11 +5,12 @@ use std::{
 };
 
 use crossbeam::queue::SegQueue;
+use serde::{Deserialize, Serialize};
 
 use crate::{AnyComponent, ComponentStorage, ReadGuard, WriteGuard};
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Entity {
     idx: u64,
     gen: u64,

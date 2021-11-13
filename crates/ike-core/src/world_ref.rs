@@ -1,6 +1,6 @@
 use crate::{
-    AnyComponent, Commands, Entities, Entity, Node, Query, QueryFilter, ReadGuard, Resource,
-    World, WorldQuery, WriteGuard,
+    AnyComponent, Commands, Entities, Entity, Node, Query, QueryFilter, ReadGuard, Resource, World,
+    WorldQuery, WriteGuard,
 };
 
 pub struct WorldRef<'w, 's> {
@@ -22,6 +22,11 @@ impl<'w, 's> WorldRef<'w, 's> {
     #[inline]
     pub fn world(&self) -> &World {
         self.world
+    }
+
+    #[inline]
+    pub fn commands(&self) -> &Commands {
+        &self.commands
     }
 
     #[inline]

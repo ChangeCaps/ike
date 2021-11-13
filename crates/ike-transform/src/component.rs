@@ -1,7 +1,8 @@
 use glam::{Mat3, Mat4, Quat, Vec3};
 use ike_core::Entity;
+use ike_derive::Reflect;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Reflect, Clone, Debug, PartialEq)]
 pub struct Transform {
     pub translation: Vec3,
     pub rotation: Quat,
@@ -214,7 +215,7 @@ impl From<Transform> for GlobalTransform {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Reflect, Clone, Debug)]
 pub struct Parent(pub Entity);
 
 #[derive(Clone, Debug)]

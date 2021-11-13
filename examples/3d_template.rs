@@ -57,8 +57,10 @@ enum MoveMode {
 struct MoveOptions {
     move_mode: Option<MoveMode>,
     is_kinematic: bool,
+    spawn: String,
 }
 
+#[derive(Reflect)]
 struct Move;
 
 impl Component for Move {
@@ -66,16 +68,39 @@ impl Component for Move {
         let time = world.get_resource::<Time>().unwrap();
         let key_input = world.get_resource::<Input<Key>>().unwrap();
 
-        let transform = node.get_component::<GlobalTransform>().unwrap();
-        let mut rb = node.get_component_mut::<RigidBody>().unwrap();
+        if let Some(mut rb) = node.get_component_mut::<RigidBody>() {
+            let transform = node.get_component::<GlobalTransform>().unwrap();
 
-        if key_input.down(&Key::Up) {
-            rb.linear_velocity += transform.translation.normalize() * time.delta_time() * 50.0;
+            if key_input.down(&Key::Up) {
+                rb.linear_velocity += transform.translation.normalize() * time.delta_time() * 50.0;
+            }
+
+            if key_input.down(&Key::Down) {
+                rb.linear_velocity -= transform.local_z() * time.delta_time() * 50.0;
+            }
+
+            if transform.translation.y < -10.0 {
+                world.despawn(&node.entity());
+            }
+        } else {
+            let transform = &mut *node.get_component_mut::<Transform>().unwrap();
+
+            if key_input.down(&Key::Up) {
+                transform.translation += transform.local_y() * time.delta_time() * 50.0;
+            }
+
+            if key_input.down(&Key::Down) {
+                transform.translation -= transform.local_y() * time.delta_time() * 50.0;
+            }
         }
 
-        if key_input.down(&Key::Down) {
-            rb.linear_velocity -= transform.local_z() * time.delta_time() * 50.0;
-        }
+        let transform = node.get_component::<Transform>().unwrap();
+
+        DebugLine::new()
+            .from(transform.translation)
+            .to(transform.translation + transform.local_y())
+            .use_depth()
+            .draw();
 
         let move_options = world.get_resource::<MoveOptions>().unwrap();
 
@@ -90,10 +115,6 @@ impl Component for Move {
             }
             None => {}
         }
-
-        if transform.translation.y < -10.0 {
-            world.despawn(&node.entity());
-        }
     }
 }
 
@@ -106,7 +127,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<PbrMaterial>>,
 ) {
-    let hdr = HdrTexture::load("assets/env.hdr").unwrap();
+    let hdr = HdrTexture::load("assets/hdr.hdr").unwrap();
 
     let mut env = Environment::default();
     env.load(&hdr);
@@ -172,14 +193,13 @@ fn window_capture_system(mut mouse: ResMut<Mouse>, key_input: Res<Input<Key>>) {
     }
 }
 
-fn egui_system(
+fn egui_spawn_system(
     ctx: Res<egui::CtxRef>,
-    time: Res<Time>,
-    material: Res<Material>,
-    rigid_bodies: Res<RigidBodies>,
-    mut materials: ResMut<Assets<PbrMaterial>>,
     mut move_options: ResMut<MoveOptions>,
+    type_registry: Res<TypeRegistry>,
+    world: WorldRef,
     query: Query<&mut RigidBody, With<Move>>,
+    move_query: Query<Entity, With<Move>>,
 ) {
     egui::SidePanel::left("move_panel").show(&ctx, |ui| {
         ui.heading("Move");
@@ -193,8 +213,32 @@ fn egui_system(
                 rigid_body.kinematic = move_options.is_kinematic;
             }
         }
-    });
 
+        ui.text_edit_singleline(&mut move_options.spawn);
+
+        if ui.button("Spawn").clicked() {
+            if let Ok(mut scene) = ike_gltf::load_gltf(&move_options.spawn, &world) {
+                for node in scene.entities.values_mut() {
+                    node.insert(Move);
+                }
+
+                scene.spawn(world.commands(), &type_registry);
+
+                for entity in move_query {
+                    world.despawn(&entity);
+                }
+            }
+        }
+    });
+}
+
+fn egui_system(
+    ctx: Res<egui::CtxRef>,
+    time: Res<Time>,
+    material: Res<Material>,
+    rigid_bodies: Res<RigidBodies>,
+    mut materials: ResMut<Assets<PbrMaterial>>,
+) {
     egui::Window::new("Performance").show(&ctx, |ui| {
         egui::Grid::new("performance_grid")
             .num_columns(2)
@@ -240,7 +284,12 @@ fn egui_system(
     });
 }
 
-fn spawn_system(commands: Commands, material: Res<Material>, key_input: Res<Input<Key>>, move_options: Res<MoveOptions>) {
+fn spawn_system(
+    commands: Commands,
+    material: Res<Material>,
+    key_input: Res<Input<Key>>,
+    move_options: Res<MoveOptions>,
+) {
     if key_input.pressed(&Key::L) {
         let node = commands.spawn_node("cube");
 
@@ -263,21 +312,18 @@ fn main() {
     env_logger::init();
 
     App::new()
-        .set_runner(WinitRunner)
-        .add_plugin(RenderPlugin)
-        .add_plugin(DebugLinePlugin)
-        .add_plugin(PbrPlugin)
-        .add_plugin(TransformPlugin)
+        .add_plugin(DefaultPlugins)
         .add_plugin(EguiPlugin)
-        .add_plugin(PhysicsPlugin)
         .init_resource::<MoveOptions>()
         .add_startup_system(setup.system())
         .add_system(camera_aspect_system.system())
         .add_system(window_capture_system.system())
         .add_system(egui_system.system())
         .add_system(spawn_system.system())
+        .add_system(egui_spawn_system.system())
         .register_component::<Rotate>()
         .register_component::<CameraRotate>()
         .register_component::<Move>()
+        .register::<Move>()
         .run();
 }
