@@ -1,3 +1,4 @@
+mod main_fn;
 mod reflect;
 
 use proc_macro::TokenStream;
@@ -18,4 +19,9 @@ fn get_crate(name: &str) -> Option<proc_macro2::TokenStream> {
 #[proc_macro_derive(Reflect, attributes(reflect))]
 pub fn derive_reflect(input: TokenStream) -> TokenStream {
     reflect::derive_reflect(input)
+}
+
+#[proc_macro_attribute]
+pub fn main(_args: TokenStream, input: TokenStream) -> TokenStream {
+    main_fn::ike_main(input)
 }

@@ -80,4 +80,24 @@ unsafe impl Reflect for DynamicTupleStruct {
                 .collect(),
         })
     }
+
+    #[inline]
+    fn partial_eq(&self, other: &dyn Reflect) -> bool {
+        match other.reflect_ref() {
+            ReflectRef::TupleStruct(value) => {
+                if self.field_len() == value.field_len() {
+                    for i in 0..self.field_len() {
+                        if self.field(i).unwrap().partial_eq(value.field(i).unwrap()) {
+                            return false;
+                        }
+                    }
+
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
 }

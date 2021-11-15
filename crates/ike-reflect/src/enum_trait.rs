@@ -94,6 +94,7 @@ impl DynamicEnum {
     }
 }
 
+/*
 impl Enum for DynamicEnum {
     #[inline]
     fn variant_name(&self) -> &str {
@@ -146,3 +147,4 @@ unsafe impl Reflect for DynamicEnum {
         Box::new(self.clone_dynamic())
     }
 }
+*/

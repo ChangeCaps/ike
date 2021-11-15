@@ -7,10 +7,41 @@ use std::{
 use crate::{FromReflect, Reflect, ReflectMut, ReflectRef};
 
 pub trait Map: Reflect {
+    fn get(&self, key: &dyn Reflect) -> Option<&dyn Reflect>;
     fn get_at(&self, index: usize) -> Option<(&dyn Reflect, &dyn Reflect)>;
     fn get_at_mut(&mut self, index: usize) -> Option<(&dyn Reflect, &mut dyn Reflect)>;
+    fn remove(&mut self, key: &dyn Reflect) -> Option<Box<dyn Reflect>>;
+    fn insert(&mut self, key: Box<dyn Reflect>, value: Box<dyn Reflect>);
     fn len(&self) -> usize;
     fn clone_dynamic(&self) -> DynamicMap;
+
+    fn keys(&self) -> MapKeysIter<'_>
+    where
+        Self: Sized,
+    {
+        MapKeysIter {
+            map: self,
+            index: 0,
+        }
+    }
+}
+
+pub struct MapKeysIter<'a> {
+    map: &'a dyn Map,
+    index: usize,
+}
+
+impl<'a> Iterator for MapKeysIter<'a> {
+    type Item = &'a dyn Reflect;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let value = self.map.get_at(self.index).map(|(_, value)| value);
+
+        self.index += 1;
+
+        value
+    }
 }
 
 #[derive(Default)]
@@ -28,6 +59,17 @@ impl DynamicMap {
 
 impl Map for DynamicMap {
     #[inline]
+    fn get(&self, key: &dyn Reflect) -> Option<&dyn Reflect> {
+        self.values.iter().find_map(|(k, v)| {
+            if k.as_ref() == key {
+                Some(v.as_ref())
+            } else {
+                None
+            }
+        })
+    }
+
+    #[inline]
     fn get_at(&self, index: usize) -> Option<(&dyn Reflect, &dyn Reflect)> {
         self.values
             .get(index)
@@ -37,6 +79,20 @@ impl Map for DynamicMap {
     #[inline]
     fn get_at_mut(&mut self, index: usize) -> Option<(&dyn Reflect, &mut dyn Reflect)> {
         self.values.get_mut(index).map(|(k, v)| (&**k, v.as_mut()))
+    }
+
+    #[inline]
+    fn remove(&mut self, key: &dyn Reflect) -> Option<Box<dyn Reflect>> {
+        let idx = self.values.iter().position(|(k, _)| k.partial_eq(key))?;
+
+        Some(self.values.remove(idx).1)
+    }
+
+    #[inline]
+    fn insert(&mut self, key: Box<dyn Reflect>, value: Box<dyn Reflect>) {
+        self.remove(key.as_ref());
+
+        self.values.push((key, value));
     }
 
     #[inline]
@@ -87,6 +143,32 @@ unsafe impl Reflect for DynamicMap {
     fn clone_value(&self) -> Box<dyn Reflect> {
         Box::new(self.clone_dynamic())
     }
+
+    #[inline]
+    fn partial_eq(&self, other: &dyn Reflect) -> bool {
+        match other.reflect_ref() {
+            ReflectRef::Map(other) => {
+                if self.len() != other.len() {
+                    return false;
+                }
+
+                for key in self.keys() {
+                    let value = self.get(key).unwrap();
+
+                    if let Some(other_value) = other.get(key) {
+                        if value != other_value {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+
+                true
+            }
+            _ => false,
+        }
+    }
 }
 
 macro_rules! impl_map {
@@ -115,7 +197,16 @@ macro_rules! impl_map {
 			}
 		}
 
-		impl<K: Reflect, V: Reflect> Map for $name<K, V> {
+		impl<K: Reflect + FromReflect $(+ $req)*, V: Reflect + FromReflect> Map for $name<K, V> {
+			#[inline]
+			fn get(&self, key: &dyn Reflect) -> Option<&dyn Reflect> {
+				if let Some(key) = key.reflect_into::<K>() {
+					self.get(&key).map(|value| value as &dyn Reflect)
+				} else {
+					None
+				}
+			}
+
 			#[inline]
 			fn get_at(&self, index: usize) -> Option<(&dyn Reflect, &dyn Reflect)> {
 				self.iter().nth(index).map(|(k, v)| (k as _, v as _))
@@ -124,6 +215,24 @@ macro_rules! impl_map {
 			#[inline]
 			fn get_at_mut(&mut self, index: usize) -> Option<(&dyn Reflect, &mut dyn Reflect)> {
 				self.iter_mut().nth(index).map(|(k, v)| (k as _, v as _))
+			}
+
+			#[inline]
+			fn remove(&mut self, key: &dyn Reflect) -> Option<Box<dyn Reflect>> {
+				if let Some(key) = key.reflect_into::<K>() {
+					self.remove(&key).map(|value| Box::new(value) as Box<dyn Reflect>)
+				} else {
+					None
+				}
+			} 
+
+			#[inline]
+			fn insert(&mut self, key: Box<dyn Reflect>, value: Box<dyn Reflect>) {
+				if let Some(key) = key.reflect_into::<K>() {
+					if let Some(value) = value.reflect_into::<V>() {
+						self.insert(key, value);
+					}
+				}
 			}
 
 			#[inline]
@@ -140,7 +249,7 @@ macro_rules! impl_map {
 			}
 		}
 
-		unsafe impl<K: Reflect, V: Reflect> Reflect for $name<K, V> {
+		unsafe impl<K: Reflect + FromReflect $(+ $req)*, V: Reflect + FromReflect> Reflect for $name<K, V> {
 			#[inline]
 			fn type_name(&self) -> &str {
 				type_name::<Self>()
@@ -169,6 +278,31 @@ macro_rules! impl_map {
 			#[inline]
 			fn clone_value(&self) -> Box<dyn Reflect> {
 				Box::new(self.clone_dynamic())
+			}
+
+			fn partial_eq(&self, other: &dyn Reflect) -> bool {
+				match other.reflect_ref() {
+					ReflectRef::Map(other) => {
+						if self.len() == other.len() {
+							return false;
+						}
+
+						for key in self.keys() {
+							let value = Map::get(self, key).unwrap();
+
+							if let Some(other_value) = other.get(key) {
+								if value != other_value {
+									return false;
+								}
+							} else {
+								return false;
+							}
+						}
+
+						false
+					}
+					_ => false,
+				}
 			}
 		}
 	};

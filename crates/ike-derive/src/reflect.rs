@@ -172,6 +172,15 @@ fn impl_value(name: &Ident, generics: &Generics) -> TokenStream {
             fn clone_value(&self) -> Box<dyn #reflect::Reflect> {
                 Box::new(self.clone())
             }
+
+            #[inline]
+            fn partial_eq(&self, other: &dyn #reflect::Reflect) -> bool {
+                if let Some(other) = other.downcast_ref::<Self>() {
+                    self == other
+                } else {
+                    false
+                }
+            }
         }
     }
 }
@@ -311,6 +320,31 @@ fn impl_struct(name: &Ident, generics: &Generics, fields: &[Field]) -> TokenStre
 
                 Box::new(value)
             }
+
+            #[inline]
+            fn partial_eq(&self, other: &dyn #reflect::Reflect) -> bool {
+                match other.reflect_ref() {
+                    #reflect::ReflectRef::Struct(other) => {
+                        let len = #reflect::Struct::field_len(self);
+
+                        if len == other.field_len() {
+                            for i in 0..len {
+                                if #reflect::Struct::field_at(self, i)
+                                    .unwrap()
+                                    .partial_eq(other.field_at(i).unwrap())
+                                {
+                                    return false;
+                                }
+                            }
+
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    _ => false
+                }
+            }
         }
     }
 }
@@ -411,11 +445,36 @@ fn impl_tuple_struct(name: &Ident, generics: &Generics, fields: &FieldsUnnamed) 
 
                 Box::new(value)
             }
+
+            #[inline]
+            fn partial_eq(&self, other: &dyn #reflect::Reflect) -> bool {
+                match other.reflect_ref() {
+                    #reflect::ReflectRef::TupleStruct(other) => {
+                        let len = #reflect::TupleStruct::field_len(self);
+
+                        if len == other.field_len() {
+                            for i in 0..len {
+                                if #reflect::TupleStruct::field(self, i)
+                                    .unwrap()
+                                    .partial_eq(other.field(i).unwrap())
+                                {
+                                    return false;
+                                }
+                            }
+
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    _ => false
+                }
+            }
         }
     }
 }
 
-fn impl_enum(name: &Ident, generics: &Generics, data: &DataEnum) -> TokenStream {
+fn impl_enum(name: &Ident, generics: &Generics, _data: &DataEnum) -> TokenStream {
     let reflect = get_reflect();
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();

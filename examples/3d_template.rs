@@ -308,11 +308,11 @@ fn spawn_system(
     }
 }
 
-fn main() {
+#[ike::main]
+fn main(app: &mut AppBuilder) {
     env_logger::init();
 
-    App::new()
-        .add_plugin(DefaultPlugins)
+    app.add_plugin(DefaultPlugins)
         .add_plugin(EguiPlugin)
         .init_resource::<MoveOptions>()
         .add_startup_system(setup.system())
@@ -324,6 +324,5 @@ fn main() {
         .register_component::<Rotate>()
         .register_component::<CameraRotate>()
         .register_component::<Move>()
-        .register::<Move>()
-        .run();
+        .register::<Move>();
 }

@@ -25,6 +25,7 @@ pub unsafe trait Reflect: Send + Sync + 'static {
     fn reflect_ref(&self) -> ReflectRef;
     fn reflect_mut(&mut self) -> ReflectMut;
     fn clone_value(&self) -> Box<dyn Reflect>;
+    fn partial_eq(&self, other: &dyn Reflect) -> bool;
 }
 
 pub trait FromReflect: Reflect + Sized {
@@ -44,6 +45,11 @@ impl dyn Reflect {
     }
 
     #[inline]
+    pub fn downcast_ref<T: Reflect>(&self) -> Option<&T> {
+        self.any().downcast_ref()
+    }
+
+    #[inline]
     pub fn downcast_mut<T: Reflect>(&mut self) -> Option<&mut T> {
         self.any_mut().downcast_mut()
     }
@@ -58,6 +64,13 @@ impl dyn Reflect {
         let mut reflect = self.clone_value();
 
         reflect
+    }
+}
+
+impl PartialEq for dyn Reflect {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.partial_eq(other)
     }
 }
 

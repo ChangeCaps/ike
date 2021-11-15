@@ -13,6 +13,8 @@ pub use ike_transform as transform;
 pub use ike_wgpu as wgpu;
 pub use ike_winit as winit;
 
+pub use ike_derive::main;
+
 pub mod prelude {
     pub use crate::DefaultPlugins;
     pub use glam::*;

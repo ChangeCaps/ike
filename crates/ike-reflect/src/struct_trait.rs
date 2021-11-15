@@ -152,4 +152,28 @@ unsafe impl Reflect for DynamicStruct {
             field_indices: self.field_indices.clone(),
         })
     }
+
+    #[inline]
+    fn partial_eq(&self, other: &dyn Reflect) -> bool {
+        match other.reflect_ref() {
+            ReflectRef::Struct(value) => {
+                if self.field_len() == value.field_len() {
+                    for i in 0..self.field_len() {
+                        if self
+                            .field_at(i)
+                            .unwrap()
+                            .partial_eq(value.field_at(i).unwrap())
+                        {
+                            return false;
+                        }
+                    }
+
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
 }

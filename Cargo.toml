@@ -9,13 +9,14 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "ike-editor"]
 
 [dependencies]
 # ike
 ike-assets = { version = "0.0.1", path = "crates/ike-assets" }
 ike-core = { version = "0.0.1", path = "crates/ike-core" }
 ike-debug-line = { version = "0.0.1", path = "crates/ike-debug-line" }
+ike-derive = { version = "0.0.1", path = "crates/ike-derive" }
 ike-gltf = { version = "0.0.1", path = "crates/ike-gltf" }
 ike-input = { version = "0.0.1", path = "crates/ike-input" }
 ike-pbr = { version = "0.0.1", path = "crates/ike-pbr", optional = true }

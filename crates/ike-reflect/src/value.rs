@@ -80,6 +80,15 @@ macro_rules! impl_reflect_value {
             fn clone_value(&self) -> Box<dyn Reflect> {
                 Box::new(self.clone())
             }
+
+            #[inline]
+            fn partial_eq(&self, other: &dyn Reflect) -> bool {
+                if let Some(other) = other.downcast_ref::<Self>() {
+                    self == other
+                } else {
+                    false
+                }
+            }
         }
     };
 }
