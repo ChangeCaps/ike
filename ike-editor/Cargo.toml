@@ -10,5 +10,9 @@ path = "src/main.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-ike = { path = "..", version = "0.0.1" }
+# ike
+ike = { path = "..", version = "0.0.1", default-features = false }
 ike-egui = { path = "../crates/ike-egui", version = "0.0.1" }
+
+# other
+libloading = "0.7"
