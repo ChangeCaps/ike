@@ -80,8 +80,18 @@ impl World {
     }
 
     #[inline]
+    pub fn nodes(&self) -> &HashMap<Entity, String> {
+        &self.nodes
+    }
+
+    #[inline]
     pub fn get_node_name(&self, entity: &Entity) -> Option<&String> {
         self.nodes.get(entity)
+    }
+
+    #[inline]
+    pub fn get_node_name_mut(&mut self, entity: &Entity) -> Option<&mut String> {
+        self.nodes.get_mut(entity)
     }
 
     #[inline]

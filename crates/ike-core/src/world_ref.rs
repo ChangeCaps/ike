@@ -57,12 +57,12 @@ impl<'w, 's> WorldRef<'w, 's> {
     }
 
     #[inline]
-    pub fn get_component<T: AnyComponent>(&self, entity: &Entity) -> Option<ReadGuard<T>> {
+    pub fn get_component<T: AnyComponent>(&self, entity: &Entity) -> Option<ReadGuard<'w, T>> {
         self.world.entities().get_component(entity)
     }
 
     #[inline]
-    pub fn get_component_mut<T: AnyComponent>(&self, entity: &Entity) -> Option<WriteGuard<T>> {
+    pub fn get_component_mut<T: AnyComponent>(&self, entity: &Entity) -> Option<WriteGuard<'w, T>> {
         let mut component = self.world.entities().get_component_mut::<T>(entity)?;
         let change_count = self
             .world
@@ -86,12 +86,12 @@ impl<'w, 's> WorldRef<'w, 's> {
     }
 
     #[inline]
-    pub fn get_resource<T: Resource>(&self) -> Option<ReadGuard<T>> {
+    pub fn get_resource<T: Resource>(&self) -> Option<ReadGuard<'w, T>> {
         self.world.read_resource()
     }
 
     #[inline]
-    pub fn get_resource_mut<T: Resource>(&self) -> Option<WriteGuard<T>> {
+    pub fn get_resource_mut<T: Resource>(&self) -> Option<WriteGuard<'w, T>> {
         self.world.write_resource()
     }
 

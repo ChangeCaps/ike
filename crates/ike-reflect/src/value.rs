@@ -2,8 +2,8 @@ pub use erased_serde::Serialize;
 use ike_core::Entity;
 
 use crate::{
-    FromReflect, FromType, Reflect, ReflectComponent, ReflectDeserialize, ReflectMut, ReflectRef,
-    RegisterType, TypeRegistration, TypeRegistry,
+    FromType, Reflect, ReflectEguiValue, ReflectDeserialize, ReflectMut, ReflectRef, RegisterType,
+    TypeRegistration, TypeRegistry,
 };
 
 use glam::*;
@@ -17,15 +17,19 @@ pub trait Value: Reflect {
 }
 
 macro_rules! impl_reflect_value {
-    ($ty:path) => {
+    (@ext $ident:ident egui) => {
+        $ident.insert(<ReflectEguiValue as FromType<Self>>::from_type());
+    };
+    ($ty:path $(, $ident:ident)?) => {
         impl RegisterType for $ty {
             #[inline]
             fn register(type_registry: &mut TypeRegistry) {
                 if !type_registry.contains(&TypeId::of::<Self>()) {
                     let mut registration = TypeRegistration::from_type::<Self>();
 
-                    registration.insert(<ReflectComponent as FromType<Self>>::from_type());
                     registration.insert(<ReflectDeserialize as FromType<Self>>::from_type());
+
+                    $(impl_reflect_value!(@ext registration $ident);)?
 
                     type_registry.insert(registration);
                 }
@@ -36,17 +40,6 @@ macro_rules! impl_reflect_value {
             #[inline]
             fn serialize(&self) -> &dyn Serialize {
                 self
-            }
-        }
-
-        impl FromReflect for $ty {
-            #[inline]
-            fn from_reflect(reflect: &dyn Reflect) -> Option<Self> {
-                if reflect.any().is::<Self>() {
-                    reflect.clone_value().downcast().ok().map(|value| *value)
-                } else {
-                    None
-                }
             }
         }
 
@@ -89,41 +82,55 @@ macro_rules! impl_reflect_value {
                     false
                 }
             }
+
+            #[inline]
+            fn from_reflect(reflect: &dyn Reflect) -> Option<Self> {
+                if reflect.any().is::<Self>() {
+                    reflect.clone_value().downcast().ok().map(|value| *value)
+                } else {
+                    None
+                }
+            }
+
+            #[inline]
+            fn default_value() -> Self {
+                Default::default()
+            }
         }
     };
 }
 
 // glam
-impl_reflect_value!(Vec2);
-impl_reflect_value!(Vec3);
-impl_reflect_value!(Vec4);
-impl_reflect_value!(IVec2);
-impl_reflect_value!(IVec3);
-impl_reflect_value!(IVec4);
-impl_reflect_value!(UVec2);
-impl_reflect_value!(UVec3);
-impl_reflect_value!(UVec4);
-impl_reflect_value!(Mat2);
-impl_reflect_value!(Mat3);
-impl_reflect_value!(Mat4);
-impl_reflect_value!(Quat);
+impl_reflect_value!(Vec2, egui);
+impl_reflect_value!(Vec3, egui);
+impl_reflect_value!(Vec4, egui);
+impl_reflect_value!(IVec2, egui);
+impl_reflect_value!(IVec3, egui);
+impl_reflect_value!(IVec4, egui);
+impl_reflect_value!(UVec2, egui);
+impl_reflect_value!(UVec3, egui);
+impl_reflect_value!(UVec4, egui);
+impl_reflect_value!(Mat2, egui);
+impl_reflect_value!(Mat3, egui);
+impl_reflect_value!(Mat4, egui);
+impl_reflect_value!(Quat, egui);
 
 // std
-impl_reflect_value!(i8);
-impl_reflect_value!(i16);
-impl_reflect_value!(i32);
-impl_reflect_value!(i64);
+impl_reflect_value!(i8, egui);
+impl_reflect_value!(i16, egui);
+impl_reflect_value!(i32, egui);
+impl_reflect_value!(i64, egui);
 impl_reflect_value!(i128);
-impl_reflect_value!(u8);
-impl_reflect_value!(u16);
-impl_reflect_value!(u32);
-impl_reflect_value!(u64);
+impl_reflect_value!(u8, egui);
+impl_reflect_value!(u16, egui);
+impl_reflect_value!(u32, egui);
+impl_reflect_value!(u64, egui);
 impl_reflect_value!(u128);
-impl_reflect_value!(f32);
-impl_reflect_value!(f64);
-impl_reflect_value!(bool);
-impl_reflect_value!(String);
-impl_reflect_value!(PathBuf);
+impl_reflect_value!(f32, egui);
+impl_reflect_value!(f64, egui);
+impl_reflect_value!(bool, egui);
+impl_reflect_value!(String, egui);
+impl_reflect_value!(PathBuf, egui);
 
 // ike
 impl_reflect_value!(Entity);

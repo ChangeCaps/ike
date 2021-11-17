@@ -37,6 +37,7 @@ pub mod render_graph {
 
 use ike_assets::AssetAppBuilderExt;
 use ike_core::*;
+use ike_reflect::ReflectAppBuilderExt;
 
 pub struct RenderPlugin;
 
@@ -57,12 +58,15 @@ impl Plugin for RenderPlugin {
             )
             .unwrap();
 
-        app.world_mut().insert_resource(render_graph);
-        app.world_mut().insert_resource(MainCamera(None));
+        app.insert_resource(render_graph);
         app.add_asset::<Mesh>();
         app.add_asset::<Texture>();
         app.add_asset::<Environment>();
         app.add_system_to_stage(render_graph_update_system.system(), stage::PRE_RENDER);
+        app.add_system_to_stage(camera_aspect_system.system(), stage::PRE_RENDER);
         app.add_system_to_stage(render_system.system(), stage::RENDER);
+        app.register::<PerspectiveProjection>();
+        app.register::<OrthographicProjection>();
+        app.register::<MainCamera>();
     }
 }

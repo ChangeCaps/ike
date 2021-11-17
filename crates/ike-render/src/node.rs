@@ -62,19 +62,19 @@ impl RenderNode for DepthTextureNode {
     ) -> Result<(), GraphError> {
         let target = input.get::<RenderTexture>(Self::TARGET)?;
 
-        if self.target != Some(target.target()) || self.size != Some(target.size) {
+        if self.target != Some(target.target()) || self.size != Some(target.size()) {
             self.target = Some(target.target());
-            self.size = Some(target.size);
+            self.size = Some(target.size());
 
             let texture = render_device().create_texture(&wgpu::TextureDescriptor {
                 label: None,
                 size: wgpu::Extent3d {
-                    width: target.size.x,
-                    height: target.size.y,
+                    width: target.size().x,
+                    height: target.size().y,
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
-                sample_count: target.samples,
+                sample_count: target.samples(),
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Depth32Float,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,

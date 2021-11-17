@@ -681,7 +681,7 @@ impl RenderNode for PbrNode {
         let mut resources = world.get_resource_mut::<ShaderResources>().unwrap();
         resources.create_pipeline(target.target());
 
-        let view = target.texture().create_view(&Default::default());
+        let view = target.view();
 
         let mut instances: HashMap<_, Vec<[[f32; 4]; 4]>> = HashMap::new();
 
@@ -970,7 +970,7 @@ impl RenderNode for PbrNode {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &view,
+                view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,

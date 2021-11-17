@@ -1,13 +1,44 @@
-use std::collections::HashMap;
+use std::{
+    collections::{hash_map::DefaultHasher, HashMap},
+    hash::{Hash, Hasher},
+};
 
-use ike_assets::Handle;
+use egui::TextureId;
+use ike_assets::{Assets, Handle};
+use ike_core::WorldRef;
 use ike_render::Texture;
+
+pub trait EguiTextureHash {
+    fn hash(&self) -> u64;
+}
+
+impl<T: Hash> EguiTextureHash for T {
+    fn hash(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+
+        Hash::hash(self, &mut hasher);
+
+        hasher.finish()
+    }
+}
+
+pub trait EguiTexture: EguiTextureHash + Send + Sync + 'static {
+    fn get(&self, world: &WorldRef) -> Option<ike_wgpu::TextureView>;
+}
+
+impl EguiTexture for Handle<Texture> {
+    fn get<'a>(&self, world: &WorldRef) -> Option<ike_wgpu::TextureView> {
+        let textures = world.get_resource::<Assets<Texture>>()?;
+
+        let texture = textures.get(self)?;
+
+        Some(texture.texture().create_view(&Default::default()))
+    }
+}
 
 #[derive(Default)]
 pub struct EguiTextures {
-    egui: HashMap<u64, Handle<Texture>>,
-    textures: HashMap<Handle<Texture>, u64>,
-    next_id: u64,
+    textures: HashMap<u64, Box<dyn EguiTexture>>,
 }
 
 impl EguiTextures {
@@ -17,28 +48,30 @@ impl EguiTextures {
     }
 
     #[inline]
-    pub fn insert(&mut self, texture: Handle<Texture>) -> egui::TextureId {
-        let id = self.next_id;
-        self.next_id += 1;
-        self.egui.insert(id, texture.clone());
-        self.textures.insert(texture, id);
+    pub fn insert<T: EguiTexture>(&mut self, texture: T) -> TextureId {
+        let hash = texture.hash();
 
-        egui::TextureId::User(id)
+        self.textures.insert(hash, Box::new(texture));
+
+        TextureId::User(hash)
     }
 
     #[inline]
-    pub fn get_texture(&self, id: &egui::TextureId) -> Option<&Handle<Texture>> {
-        let id = if let egui::TextureId::User(id) = id {
-            id
-        } else {
-            return None;
+    pub fn get_id<T: EguiTexture>(&self, texture: &T) -> Option<TextureId> {
+        Some(TextureId::User(texture.hash()))
+    }
+
+    #[inline]
+    pub fn get_texture<'a>(
+        &self,
+        id: TextureId,
+        world: &'a WorldRef,
+    ) -> Option<ike_wgpu::TextureView> {
+        let hash = match id {
+            TextureId::User(id) => id,
+            TextureId::Egui => return None,
         };
 
-        self.egui.get(id)
-    }
-
-    #[inline]
-    pub fn get_egui(&self, texture: &Handle<Texture>) -> Option<egui::TextureId> {
-        Some(egui::TextureId::User(*self.textures.get(texture)?))
+        self.textures.get(&hash)?.get(world)
     }
 }

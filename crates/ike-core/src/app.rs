@@ -7,6 +7,7 @@ pub mod stage {
     pub const PRE_UPDATE: &str = "pre_update";
     pub const UPDATE: &str = "update";
     pub const POST_UPDATE: &str = "post_update";
+    pub const MAINTAIN: &str = "maintain";
     pub const PRE_RENDER: &str = "pre_render";
     pub const RENDER: &str = "render";
     pub const POST_RENDER: &str = "post_render";
@@ -187,6 +188,11 @@ impl AppBuilder {
     }
 
     #[inline]
+    pub fn build(self) -> App {
+        self.app
+    }
+
+    #[inline]
     pub fn run(&mut self) {
         if let Some(mut runner) = self.runner.take() {
             runner.run(std::mem::replace(&mut self.app, App::default()));
@@ -211,6 +217,7 @@ impl App {
         builder.add_stage(stage::PRE_UPDATE);
         builder.add_stage(stage::UPDATE);
         builder.add_stage(stage::POST_UPDATE);
+        builder.add_stage(stage::MAINTAIN);
         builder.add_stage(stage::PRE_RENDER);
         builder.add_stage(stage::RENDER);
         builder.add_stage(stage::POST_RENDER);
@@ -249,7 +256,65 @@ impl App {
             stage.execute(&mut self.world);
         }
     }
+
+    #[inline]
+    pub fn execute_stage(&mut self, stage: impl AsRef<str>) {
+        let schedule = self
+            .stages
+            .iter_mut()
+            .find_map(|(name, schedule)| {
+                if *name == stage.as_ref() {
+                    Some(schedule)
+                } else {
+                    None
+                }
+            })
+            .expect(&format!("could not find stage '{}'", stage.as_ref()));
+
+        match stage.as_ref() {
+            stage::START => self.components.start.run(&mut self.world),
+            stage::PRE_UPDATE => self.components.pre_update.run(&mut self.world),
+            stage::UPDATE => self.components.update.run(&mut self.world),
+            stage::POST_UPDATE => self.components.post_update.run(&mut self.world),
+            stage::END => self.components.start.run(&mut self.world),
+            _ => {}
+        }
+
+        schedule.execute(&mut self.world);
+    }
 }
+
+pub trait AppTrait: Send + Sync {
+    fn world(&self) -> &World;
+    fn world_mut(&mut self) -> &mut World;
+    fn execute_startup(&mut self);
+    fn execute(&mut self);
+    fn execute_stage(&mut self, stage: &str);
+}
+
+impl AppTrait for App {
+    fn world(&self) -> &World {
+        &self.world
+    }
+
+    fn world_mut(&mut self) -> &mut World {
+        &mut self.world
+    }
+
+    fn execute_startup(&mut self) {
+        self.execute_startup();
+    }
+
+    fn execute(&mut self) {
+        self.execute();
+    }
+
+    fn execute_stage(&mut self, stage: &str) {
+        self.execute_stage(stage);
+    }
+}
+
+pub type DynamicApp = Box<dyn AppTrait>;
 
 #[cfg(test)]
 mod tests {

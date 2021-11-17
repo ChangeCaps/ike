@@ -204,7 +204,7 @@ impl RenderNode for EguiNode {
 
         input.screen_rect = Some(egui::Rect::from_min_size(
             egui::Pos2::ZERO,
-            egui::Vec2::new(target.size.x as f32, target.size.y as f32),
+            egui::Vec2::new(target.size().x as f32, target.size().y as f32),
         ));
 
         if self.egui_texture.is_none() {
@@ -242,7 +242,7 @@ impl RenderNode for EguiNode {
             }
 
             let uniforms = Uniforms {
-                size: target.size.as_vec2().into(),
+                size: target.size().as_vec2().into(),
             };
 
             let gpu_mesh = &mut self.meshes[i];
@@ -265,7 +265,7 @@ impl RenderNode for EguiNode {
             gpu_mesh.vertices.raw();
             gpu_mesh.indices.raw();
 
-            if gpu_mesh.texture != Some(mesh.texture_id) {
+            if gpu_mesh.texture != Some(mesh.texture_id) || true {
                 gpu_mesh.texture = Some(mesh.texture_id);
 
                 match mesh.texture_id {
@@ -298,10 +298,7 @@ impl RenderNode for EguiNode {
                         gpu_mesh.group = Some(group);
                     }
                     id @ egui::TextureId::User(_) => {
-                        let handle = egui_textures.get_texture(&id).unwrap();
-
-                        let texture = textures.get(handle).unwrap();
-                        let view = texture.texture().create_view(&Default::default());
+                        let view = egui_textures.get_texture(id, world).unwrap();
 
                         let group = render_device().create_bind_group(&wgpu::BindGroupDescriptor {
                             label: None,
@@ -338,7 +335,7 @@ impl RenderNode for EguiNode {
 
         let pipeline = &resources.pipelines[&target.target()];
 
-        let view = target.texture().create_view(&Default::default());
+        let view = target.view();
 
         let load = if let Some(color) = self.clear_color {
             wgpu::LoadOp::Clear(color.into())
@@ -349,7 +346,7 @@ impl RenderNode for EguiNode {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("egui pass"),
             color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &view,
+                view,
                 resolve_target: None,
                 ops: wgpu::Operations { load, store: true },
             }],
@@ -361,8 +358,8 @@ impl RenderNode for EguiNode {
         for (i, egui::ClippedMesh(rect, mesh)) in meshes.into_iter().enumerate() {
             let min_x = (rect.min.x as u32).max(0);
             let min_y = (rect.min.y as u32).max(0);
-            let max_x = (rect.max.x as u32).min(target.size.x);
-            let max_y = (rect.max.y as u32).min(target.size.y);
+            let max_x = (rect.max.x as u32).min(target.size().x);
+            let max_y = (rect.max.y as u32).min(target.size().y);
 
             render_pass.set_scissor_rect(min_x, min_y, max_x - min_x, max_y - min_y);
 

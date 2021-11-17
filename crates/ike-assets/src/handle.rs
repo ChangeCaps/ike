@@ -109,6 +109,13 @@ impl<T> Handle<T> {
     }
 }
 
+impl<T> Default for Handle<T> {
+    #[inline]
+    fn default() -> Self {
+        Self::new_rand()
+    }
+}
+
 impl<T> PartialEq for Handle<T> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {

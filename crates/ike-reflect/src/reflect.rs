@@ -26,10 +26,13 @@ pub unsafe trait Reflect: Send + Sync + 'static {
     fn reflect_mut(&mut self) -> ReflectMut;
     fn clone_value(&self) -> Box<dyn Reflect>;
     fn partial_eq(&self, other: &dyn Reflect) -> bool;
-}
 
-pub trait FromReflect: Reflect + Sized {
-    fn from_reflect(reflect: &dyn Reflect) -> Option<Self>;
+    fn from_reflect(reflect: &dyn Reflect) -> Option<Self>
+    where
+        Self: Sized;
+    fn default_value() -> Self
+    where
+        Self: Sized;
 }
 
 impl dyn Reflect {
@@ -55,8 +58,8 @@ impl dyn Reflect {
     }
 
     #[inline]
-    pub fn reflect_into<T: FromReflect>(&self) -> Option<T> {
-        FromReflect::from_reflect(self)
+    pub fn reflect_into<T: Reflect>(&self) -> Option<T> {
+        Reflect::from_reflect(self)
     }
 
     #[inline]

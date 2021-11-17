@@ -3,11 +3,7 @@ use std::time::Instant;
 use ike_core::*;
 use ike_input::{Input, Mouse, TextInput};
 use ike_render::*;
-use winit::{
-    event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::Window,
-};
+use winit::{event::{DeviceEvent, ElementState, Event, KeyboardInput, MouseScrollDelta, VirtualKeyCode, WindowEvent}, event_loop::{ControlFlow, EventLoop}, window::Window};
 
 pub type Key = VirtualKeyCode;
 pub use winit::event::MouseButton;
@@ -35,7 +31,7 @@ impl AppRunner for WinitRunner {
             .insert_resource(Input::<MouseButton>::default());
         app.world_mut().insert_resource(Mouse::default());
 
-        set_render_ctx(render_ctx);
+        set_render_ctx(render_ctx.into());
 
         app.execute_startup();
 
@@ -133,6 +129,20 @@ impl AppRunner for WinitRunner {
                             input.release(button);
                         }
                     }
+                }
+                WindowEvent::MouseWheel { delta, .. } => {
+                    let mut mouse = app.world_mut().write_resource::<Mouse>().unwrap();
+
+                    match delta {
+                        MouseScrollDelta::LineDelta(x, y) => {
+                            mouse.wheel_delta.x += x;
+                            mouse.wheel_delta.y += y;
+                        },
+                        MouseScrollDelta::PixelDelta(delta) => {
+                            mouse.wheel_delta.x += delta.x as f32;
+                            mouse.wheel_delta.y += delta.y as f32;
+                        }
+                    } 
                 }
                 WindowEvent::CursorMoved { position, .. } => {
                     let mut mouse = app.world_mut().write_resource::<Mouse>().unwrap();

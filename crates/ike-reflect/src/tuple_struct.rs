@@ -6,6 +6,7 @@ pub trait TupleStruct: Reflect {
     fn field(&self, index: usize) -> Option<&dyn Reflect>;
     fn field_mut(&mut self, index: usize) -> Option<&mut dyn Reflect>;
     fn field_len(&self) -> usize;
+    fn clone_dynamic(&self) -> DynamicTupleStruct;
 }
 
 #[derive(Default)]
@@ -41,6 +42,18 @@ impl TupleStruct for DynamicTupleStruct {
     fn field_len(&self) -> usize {
         self.fields.len()
     }
+
+    #[inline]
+    fn clone_dynamic(&self) -> DynamicTupleStruct {
+        Self {
+            name: self.name.clone(),
+            fields: self
+                .fields
+                .iter()
+                .map(|field| field.clone_value())
+                .collect(),
+        }
+    }
 }
 
 unsafe impl Reflect for DynamicTupleStruct {
@@ -71,14 +84,7 @@ unsafe impl Reflect for DynamicTupleStruct {
 
     #[inline]
     fn clone_value(&self) -> Box<dyn Reflect> {
-        Box::new(Self {
-            name: self.name.clone(),
-            fields: self
-                .fields
-                .iter()
-                .map(|field| field.clone_value())
-                .collect(),
-        })
+        Box::new(self.clone_dynamic())
     }
 
     #[inline]
@@ -99,5 +105,24 @@ unsafe impl Reflect for DynamicTupleStruct {
             }
             _ => false,
         }
+    }
+
+    #[inline]
+    fn from_reflect(reflect: &dyn Reflect) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        match reflect.reflect_ref() {
+            ReflectRef::TupleStruct(value) => Some(value.clone_dynamic()),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    fn default_value() -> Self
+    where
+        Self: Sized,
+    {
+        Default::default()
     }
 }

@@ -9,6 +9,7 @@ pub trait Struct: Reflect {
     fn field_at_mut(&mut self, index: usize) -> Option<&mut dyn Reflect>;
     fn name_at(&self, index: usize) -> Option<&str>;
     fn field_len(&self) -> usize;
+    fn clone_dynamic(&self) -> DynamicStruct;
 }
 
 pub struct FieldIter<'a> {
@@ -111,6 +112,20 @@ impl Struct for DynamicStruct {
     fn field_len(&self) -> usize {
         self.field_indices.len()
     }
+
+    #[inline]
+    fn clone_dynamic(&self) -> DynamicStruct {
+        Self {
+            name: self.name.clone(),
+            fields: self
+                .fields
+                .iter()
+                .map(|field| field.clone_value())
+                .collect(),
+            field_names: self.field_names.clone(),
+            field_indices: self.field_indices.clone(),
+        }
+    }
 }
 
 unsafe impl Reflect for DynamicStruct {
@@ -141,16 +156,7 @@ unsafe impl Reflect for DynamicStruct {
 
     #[inline]
     fn clone_value(&self) -> Box<dyn Reflect> {
-        Box::new(Self {
-            name: self.name.clone(),
-            fields: self
-                .fields
-                .iter()
-                .map(|field| field.clone_value())
-                .collect(),
-            field_names: self.field_names.clone(),
-            field_indices: self.field_indices.clone(),
-        })
+        Box::new(self.clone_dynamic())
     }
 
     #[inline]
@@ -175,5 +181,24 @@ unsafe impl Reflect for DynamicStruct {
             }
             _ => false,
         }
+    }
+
+    #[inline]
+    fn from_reflect(reflect: &dyn Reflect) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        match reflect.reflect_ref() {
+            ReflectRef::Struct(value) => Some(value.clone_dynamic()),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    fn default_value() -> Self
+    where
+        Self: Sized,
+    {
+        Default::default()
     }
 }

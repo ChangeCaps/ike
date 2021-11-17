@@ -122,7 +122,6 @@ struct Material(Handle<PbrMaterial>, Handle<Mesh>);
 
 fn setup(
     commands: Commands,
-    mut main_camera: ResMut<MainCamera>,
     mut envs: ResMut<Assets<Environment>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<PbrMaterial>>,
@@ -143,8 +142,7 @@ fn setup(
     node.insert(PerspectiveProjection::default());
     node.insert(transform);
     node.insert(CameraRotate(Vec2::ZERO));
-
-    main_camera.0 = Some(node.entity());
+    node.insert(MainCamera);
 
     let light = commands.spawn_node("light");
 
@@ -298,6 +296,7 @@ fn spawn_system(
 
         let mut rb = RigidBody::default();
         rb.kinematic = move_options.is_kinematic;
+        rb.continuous = true;
 
         node.insert(Transform::from_xyz(0.0, 10.0, 0.0));
         node.insert(rb);

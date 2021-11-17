@@ -32,7 +32,7 @@ pub mod prelude {
 
     #[cfg(feature = "physics")]
     pub use ike_physics::{BoxCollider, PhysicsPlugin, RigidBody};
-    pub use ike_reflect::{FromReflect, Reflect, ReflectAppBuilderExt, TypeRegistry};
+    pub use ike_reflect::{Reflect, ReflectAppBuilderExt, TypeRegistry};
     pub use ike_render::{
         render_device, render_queue, Buffer, Camera, Color, Color16, Color8, CubeTexture, EdgeSlot,
         EdgeSlotInfo, Environment, HdrTexture, MainCamera, Mesh, NodeEdge, OrthographicProjection,

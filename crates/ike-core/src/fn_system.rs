@@ -101,7 +101,9 @@ impl<'w, 's, T: Resource> SystemParamFetch<'w, 's> for ResMutFetch<T> {
 
     #[inline]
     fn get(&'s mut self, world: &'w World, _last_change_tick: u64) -> Self::Item {
-        world.write_resource().unwrap()
+        world
+            .write_resource()
+            .expect(&format!("failed to get resource: '{}'", type_name::<T>()))
     }
 
     #[inline]

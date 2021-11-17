@@ -11,6 +11,7 @@ pub fn ike_main(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let expanded = quote_spanned! {input.sig.inputs.span()=>
         #[cfg(not(editor))]
+        #[allow(unused)]
         fn main() {
             #input
 
@@ -22,10 +23,22 @@ pub fn ike_main(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
 
         #[cfg(editor)]
-        unsafe extern "Rust" fn ike_main(app: &mut #ike::core::AppBuilder) {
+        #[no_mangle]
+        unsafe extern "Rust" fn ike_main(
+            render_ctx: std::sync::Arc<#ike::render::RenderCtx>,
+            render_surface: #ike::render::RenderSurface,
+        ) -> #ike::core::DynamicApp {
             #input
 
+            #ike::render::set_render_ctx(render_ctx);
+
+            let mut app = #ike::core::App::new();
+
+            app.insert_resource(render_surface);
+
             main(&mut app);
+
+            Box::new(app.build())
         }
     };
 

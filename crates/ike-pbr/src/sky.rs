@@ -170,7 +170,7 @@ impl RenderNode for SkyNode {
         let target = input.get::<RenderTexture>(Self::TARGET).unwrap();
         let camera = input.get::<Camera>(Self::CAMERA).unwrap();
 
-        let view = target.texture().create_view(&Default::default());
+        let view = target.view();
 
         self.create_resources();
 
@@ -194,7 +194,7 @@ impl RenderNode for SkyNode {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("sky pass"),
             color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &view,
+                view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),

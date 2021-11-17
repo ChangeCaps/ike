@@ -1,6 +1,6 @@
 use glam::{Mat4, UVec2, Vec3};
 
-use ike_core::Entity;
+use ike_reflect::Reflect;
 
 #[derive(Clone, Debug)]
 pub struct Camera {
@@ -16,10 +16,10 @@ impl Camera {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct MainCamera(pub Option<Entity>);
+#[derive(Reflect, Clone, Debug)]
+pub struct MainCamera;
 
-#[derive(Clone, Debug)]
+#[derive(Reflect, Clone, Debug)]
 pub struct PerspectiveProjection {
     pub fov: f32,
     pub aspect: f32,
@@ -48,11 +48,11 @@ impl PerspectiveProjection {
 
     #[inline]
     pub fn proj_matrix(&self) -> Mat4 {
-        Mat4::perspective_infinite_rh(self.fov, self.aspect, self.near)
+        Mat4::perspective_infinite_rh(self.fov.to_radians(), self.aspect, self.near)
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Reflect, Clone, Debug)]
 pub struct OrthographicProjection {
     pub left: f32,
     pub bottom: f32,

@@ -187,9 +187,7 @@ impl RenderNode for DebugLineNode {
 
         self.buffer.write(cast_slice(&vertices));
 
-        let texture = target.texture();
-
-        let view = texture.create_view(&Default::default());
+        let view = target.view();
 
         let mut resources = world.get_resource_mut::<ShaderResources>().unwrap();
 
@@ -206,7 +204,7 @@ impl RenderNode for DebugLineNode {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &view,
+                view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,

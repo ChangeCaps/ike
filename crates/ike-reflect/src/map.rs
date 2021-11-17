@@ -4,7 +4,7 @@ use std::{
     hash::Hash,
 };
 
-use crate::{FromReflect, Reflect, ReflectMut, ReflectRef};
+use crate::{Reflect, ReflectMut, ReflectRef};
 
 pub trait Map: Reflect {
     fn get(&self, key: &dyn Reflect) -> Option<&dyn Reflect>;
@@ -169,35 +169,31 @@ unsafe impl Reflect for DynamicMap {
             _ => false,
         }
     }
+
+    #[inline]
+    fn from_reflect(reflect: &dyn Reflect) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        match reflect.reflect_ref() {
+            ReflectRef::Map(value) => Some(value.clone_dynamic()),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    fn default_value() -> Self
+    where
+        Self: Sized,
+    {
+        Default::default()
+    }
 }
 
 macro_rules! impl_map {
 	($name:ident $(, $req:ident)*) => {
-		impl<K: FromReflect $(+ $req)*, V: FromReflect> FromReflect for $name<K, V> {
-			#[inline]
-			fn from_reflect(reflect: &dyn Reflect) -> Option<Self> {
-				let reflect_map = if let ReflectRef::Map(map) = reflect.reflect_ref() {
-					map
-				} else {
-					return None;
-				};
 
-				let mut map = Self::default();
-
-				for i in 0..reflect_map.len() {
-					let (k, v) = reflect_map.get_at(i).unwrap();
-
-					let k = FromReflect::from_reflect(k)?;
-					let v = FromReflect::from_reflect(v)?;
-
-					map.insert(k, v);
-				}
-
-				Some(map)
-			}
-		}
-
-		impl<K: Reflect + FromReflect $(+ $req)*, V: Reflect + FromReflect> Map for $name<K, V> {
+		impl<K: Reflect $(+ $req)*, V: Reflect> Map for $name<K, V> {
 			#[inline]
 			fn get(&self, key: &dyn Reflect) -> Option<&dyn Reflect> {
 				if let Some(key) = key.reflect_into::<K>() {
@@ -224,7 +220,7 @@ macro_rules! impl_map {
 				} else {
 					None
 				}
-			} 
+			}
 
 			#[inline]
 			fn insert(&mut self, key: Box<dyn Reflect>, value: Box<dyn Reflect>) {
@@ -249,7 +245,7 @@ macro_rules! impl_map {
 			}
 		}
 
-		unsafe impl<K: Reflect + FromReflect $(+ $req)*, V: Reflect + FromReflect> Reflect for $name<K, V> {
+		unsafe impl<K: Reflect $(+ $req)*, V: Reflect> Reflect for $name<K, V> {
 			#[inline]
 			fn type_name(&self) -> &str {
 				type_name::<Self>()
@@ -304,6 +300,33 @@ macro_rules! impl_map {
 					_ => false,
 				}
 			}
+
+            #[inline]
+			fn from_reflect(reflect: &dyn Reflect) -> Option<Self> {
+				let reflect_map = if let ReflectRef::Map(map) = reflect.reflect_ref() {
+					map
+				} else {
+					return None;
+				};
+
+				let mut map = Self::default();
+
+				for i in 0..reflect_map.len() {
+					let (k, v) = reflect_map.get_at(i).unwrap();
+
+					let k = Reflect::from_reflect(k)?;
+					let v = Reflect::from_reflect(v)?;
+
+					map.insert(k, v);
+				}
+
+				Some(map)
+			}
+
+            #[inline]
+            fn default_value() -> Self {
+                Default::default()
+            }
 		}
 	};
 }

@@ -16,7 +16,7 @@ impl Plugin for TransformPlugin {
     fn build(self, app: &mut ike_core::AppBuilder) {
         app.register::<Transform>();
 
-        app.add_system_to_stage(insert_transform_components.system(), stage::POST_UPDATE);
-        app.add_system_to_stage(transform_system.system(), stage::POST_UPDATE);
+        app.add_system_to_stage(insert_transform_components.system(), stage::MAINTAIN);
+        app.add_system_to_stage(transform_system.system(), stage::MAINTAIN);
     }
 }

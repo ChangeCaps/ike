@@ -10,7 +10,9 @@ use serde::{Deserialize, Serialize};
 use crate::{AnyComponent, ComponentStorage, ReadGuard, WriteGuard};
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Default, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct Entity {
     idx: u64,
     gen: u64,
@@ -85,6 +87,11 @@ impl Entities {
     #[inline]
     pub fn storage_raw(&self, type_id: &TypeId) -> Option<&ComponentStorage> {
         self.storage.get(type_id)
+    }
+
+    #[inline]
+    pub fn storage_raw_mut(&mut self, type_id: &TypeId) -> Option<&mut ComponentStorage> {
+        self.storage.get_mut(type_id)
     }
 
     #[inline]
