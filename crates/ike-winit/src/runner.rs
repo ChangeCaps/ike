@@ -3,10 +3,15 @@ use std::time::Instant;
 use ike_core::*;
 use ike_input::{Input, Mouse, TextInput};
 use ike_render::*;
-use winit::{event::{DeviceEvent, ElementState, Event, KeyboardInput, MouseScrollDelta, VirtualKeyCode, WindowEvent}, event_loop::{ControlFlow, EventLoop}, window::Window};
+use winit::{
+    event::{
+        DeviceEvent, ElementState, Event, KeyboardInput, MouseButton, MouseScrollDelta, WindowEvent,
+    },
+    event_loop::{ControlFlow, EventLoop},
+    window::Window,
+};
 
-pub type Key = VirtualKeyCode;
-pub use winit::event::MouseButton;
+use crate::Key;
 
 pub struct WinitRunner;
 
@@ -137,12 +142,12 @@ impl AppRunner for WinitRunner {
                         MouseScrollDelta::LineDelta(x, y) => {
                             mouse.wheel_delta.x += x;
                             mouse.wheel_delta.y += y;
-                        },
+                        }
                         MouseScrollDelta::PixelDelta(delta) => {
                             mouse.wheel_delta.x += delta.x as f32;
                             mouse.wheel_delta.y += delta.y as f32;
                         }
-                    } 
+                    }
                 }
                 WindowEvent::CursorMoved { position, .. } => {
                     let mut mouse = app.world_mut().write_resource::<Mouse>().unwrap();

@@ -3,11 +3,13 @@ use std::sync::atomic::Ordering;
 use ike::{
     core::{stage, CommandQueue},
     prelude::*,
-    reflect::{Inspect, ReflectComponent, ReflectInspect, ReflectMut, Struct, Value},
+    reflect::{ReflectComponent, ReflectInspect, ReflectMut, Struct},
     render::RenderSurface,
 };
 use ike_egui::{
-    egui::{popup, CentralPanel, CtxRef, Response, ScrollArea, SidePanel, TopBottomPanel, Ui},
+    egui::{
+        self, popup, CentralPanel, CtxRef, Response, ScrollArea, SidePanel, TopBottomPanel, Ui,
+    },
     EguiTexture, EguiTextures,
 };
 
@@ -40,6 +42,24 @@ pub fn ui_system(
 ) {
     TopBottomPanel::top("top_panel").show(&egui_ctx, |ui| {
         let _ = ui.button("File");
+
+        if ui.input().modifiers.ctrl && ui.input().key_pressed(egui::Key::S) {
+            let scene = loaded.app.world_mut().world_ref(|world_ref| {
+                let type_registry = unsafe {
+                    world_ref
+                        .world()
+                        .resources()
+                        .read_named::<TypeRegistry>()
+                        .unwrap()
+                };
+
+                Scene::from_world(&world_ref, &type_registry)
+            });
+
+            let scene_str = ron::ser::to_string_pretty(&scene, Default::default()).unwrap();
+
+            std::fs::write("scene.scn", scene_str).unwrap();
+        }
     });
 
     SidePanel::left("left_panel").show(&egui_ctx, |ui| {
@@ -84,10 +104,23 @@ pub fn ui_system(
                                 unsafe { reflect_component.from_storage_mut(storage, selected) }
                             {
                                 ui.separator();
-                                ui.label(registration.short_name());
+
+                                ui.horizontal(|ui| {
+                                    ui.label(registration.short_name());
+
+                                    if ui.button("-").clicked() {
+                                        commands.remove_component_raw(selected, type_id);
+                                    }
+                                });
+
                                 ui.separator();
 
-                                let response = reflect_ui(component, ui, &type_registry);
+                                let response = reflect_ui(
+                                    component,
+                                    ui,
+                                    &type_registry,
+                                    loaded.app.world().resources(),
+                                );
 
                                 if response.map_or(false, |r| r.changed()) {
                                     let changed = storage.get_change_marker(selected).unwrap();
@@ -181,10 +214,16 @@ fn reflect_ui(
     reflect: &mut dyn Reflect,
     ui: &mut Ui,
     type_registry: &TypeRegistry,
+    resources: &Resources,
 ) -> Option<Response> {
+    if let Some(registration) = type_registry.get_name(reflect.type_name()) {
+        if let Some(inspect) = unsafe { registration.data_named::<ReflectInspect>() } {
+            return inspect.inspect(reflect.any_mut(), ui, resources);
+        }
+    }
+
     match reflect.reflect_mut() {
-        ReflectMut::Struct(value) => reflect_ui_struct(value, ui, type_registry),
-        ReflectMut::Value(value) => reflect_ui_value(value, ui, type_registry),
+        ReflectMut::Struct(value) => reflect_ui_struct(value, ui, type_registry, resources),
         _ => None,
     }
 }
@@ -193,6 +232,7 @@ fn reflect_ui_struct(
     value: &mut dyn Struct,
     ui: &mut Ui,
     type_registry: &TypeRegistry,
+    resources: &Resources,
 ) -> Option<Response> {
     let mut response = None;
 
@@ -201,24 +241,10 @@ fn reflect_ui_struct(
         let value = value.field_at_mut(i).unwrap();
         ui.label(&name);
         ui.indent(&name, |ui| {
-            let other = reflect_ui(value, ui, type_registry);
+            let other = reflect_ui(value, ui, type_registry, resources);
             combine_response(&mut response, other);
         });
     }
 
     response
-}
-
-fn reflect_ui_value(
-    value: &mut dyn Value,
-    ui: &mut Ui,
-    type_registry: &TypeRegistry,
-) -> Option<Response> {
-    if let Some(registration) = type_registry.get_name(value.type_name()) {
-        if let Some(inspect) = unsafe { registration.data_named::<ReflectInspect>() } {
-            return inspect.inspect(value.any_mut(), ui);
-        }
-    }
-
-    None
 }

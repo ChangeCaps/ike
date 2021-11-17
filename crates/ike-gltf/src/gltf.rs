@@ -54,7 +54,7 @@ fn load_node(
         load_mesh(&mut node, &mesh, world, buffers, images);
     }
 
-    let parent = Some(scene.insert(node));
+    let parent = Some(scene.add(node));
 
     for gltf_node in gltf_node.children() {
         load_node(scene, &gltf_node, &parent, world, buffers, images)

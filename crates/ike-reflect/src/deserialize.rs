@@ -70,7 +70,9 @@ impl<'a, 'de> Visitor<'de> for ReflectVisitor<'a> {
                         .ok_or_else(|| Error::missing_field(type_field::TYPE))?;
 
                     if let Some(registration) = self.type_registry.get_name(type_name) {
-                        if let Some(deserialize) = registration.data::<ReflectDeserialize>() {
+                        if let Some(deserialize) =
+                            unsafe { registration.data_named::<ReflectDeserialize>() }
+                        {
                             return map.next_value_seed(ValueDeserializer { deserialize });
                         } else {
                             return Err(Error::custom(format!(

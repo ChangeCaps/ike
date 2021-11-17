@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{any::TypeId, marker::PhantomData};
 
 use crossbeam::queue::SegQueue;
 
@@ -65,6 +65,11 @@ impl<'w, 's> Commands<'w, 's> {
     }
 
     #[inline]
+    pub fn remove_component_raw(&self, entity: &Entity, type_id: &TypeId) {
+        self.push(RemoveRaw(*entity, *type_id));
+    }
+
+    #[inline]
     pub fn insert_resource<T: Resource>(&self, resource: T) {
         self.push(InsertResource(resource));
     }
@@ -111,6 +116,16 @@ struct Remove<T>(Entity, PhantomData<fn() -> T>);
 impl<T: AnyComponent> Command for Remove<T> {
     fn apply(self: Box<Self>, world: &mut World) {
         world.entities_mut().remove::<T>(&self.0);
+    }
+}
+
+struct RemoveRaw(Entity, TypeId);
+
+impl Command for RemoveRaw {
+    fn apply(self: Box<Self>, world: &mut World) {
+        if let Some(storage) = world.entities_mut().storage_raw_mut(&self.1) {
+            unsafe { storage.remove_unchecked_raw(&self.0) };
+        }
     }
 }
 

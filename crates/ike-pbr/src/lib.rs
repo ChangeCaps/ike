@@ -10,6 +10,7 @@ pub use sky::*;
 
 use ike_assets::AssetAppBuilderExt;
 use ike_core::*;
+use ike_reflect::ReflectAppBuilderExt;
 use ike_render::*;
 
 pub mod render_graph {
@@ -23,6 +24,8 @@ impl Plugin for PbrPlugin {
     #[inline]
     fn build(self, app: &mut AppBuilder) {
         app.add_asset::<PbrMaterial>();
+        app.register::<DirectionalLight>();
+        app.register::<PointLight>();
 
         let mut render_graph = app.world().write_resource::<RenderGraph>().unwrap();
 

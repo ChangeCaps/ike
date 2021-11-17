@@ -5,10 +5,7 @@ mod load_app;
 mod project;
 mod ui;
 
-use std::{
-    path::{Path, PathBuf},
-    process::Stdio,
-};
+use std::path::{Path, PathBuf};
 
 use build::{BuildCommand, BuildMode};
 use clap::{crate_authors, crate_version, Parser};
@@ -28,7 +25,7 @@ struct Opts {
 
 #[ike::main]
 fn main(app: &mut AppBuilder) {
-    app.set_runner(WinitRunner)
+    app.set_runner(ike::winit::WinitRunner)
         .init_resource::<Inspector>()
         .add_plugin(RenderPlugin)
         .add_plugin(EguiPlugin)

@@ -1,7 +1,14 @@
-use std::{hash::Hash, marker::PhantomData, path::PathBuf, sync::Arc};
+use std::{any::type_name, hash::Hash, marker::PhantomData, path::PathBuf, sync::Arc};
 
+use ike_core::Resources;
 use ike_derive::Reflect;
+use ike_reflect::{
+    egui::{self, popup, ScrollArea},
+    Inspect,
+};
 use serde::{Deserialize, Serialize};
+
+use crate::Assets;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum HandleUntyped {
@@ -50,15 +57,22 @@ impl Inner {
     }
 }
 
+pub trait Asset: Send + Sync + 'static {}
+
+impl<T: Send + Sync + 'static> Asset for T {}
+
 #[derive(Reflect, Serialize, Deserialize)]
 #[serde(bound = "T: 'static")]
 #[reflect(value)]
-pub struct Handle<T: 'static> {
+pub struct Handle<T: Asset> {
     inner: Inner,
     marker: PhantomData<&'static T>,
 }
 
-impl<T> Handle<T> {
+unsafe impl<T: Asset> Send for Handle<T> {}
+unsafe impl<T: Asset> Sync for Handle<T> {}
+
+impl<T: Asset> Handle<T> {
     #[inline]
     pub fn new<U: IntoHandleUntyped>(untyped: U) -> Self {
         Self {
@@ -71,14 +85,6 @@ impl<T> Handle<T> {
     pub fn new_untracked<U: IntoHandleUntyped>(untyped: U) -> Self {
         Self {
             inner: Inner::Untracked(untyped.into_handle_untyped()),
-            marker: PhantomData,
-        }
-    }
-
-    #[inline]
-    pub const fn untracked_from_u64(id: u64) -> Self {
-        Self {
-            inner: Inner::Untracked(HandleUntyped::Id(id)),
             marker: PhantomData,
         }
     }
@@ -109,30 +115,75 @@ impl<T> Handle<T> {
     }
 }
 
-impl<T> Default for Handle<T> {
+impl<T: Asset> Default for Handle<T> {
     #[inline]
     fn default() -> Self {
         Self::new_rand()
     }
 }
 
-impl<T> PartialEq for Handle<T> {
+impl<T: Asset> Inspect for Handle<T> {
+    #[inline]
+    fn inspect(&mut self, ui: &mut egui::Ui, resources: &Resources) -> egui::Response {
+        ui.horizontal(|ui| {
+            let assets = resources.read::<Assets<T>>().unwrap();
+
+            match self.inner.untyped() {
+                HandleUntyped::Id(id) => {
+                    ui.label(id);
+                }
+                HandleUntyped::Path(path) => {
+                    ui.label(path.display());
+                }
+            };
+
+            let popup_id = ui.make_persistent_id(type_name::<Self>());
+            let response = ui.button("*");
+
+            if response.clicked() {
+                ui.memory().toggle_popup(popup_id);
+            }
+
+            popup::popup_below_widget(ui, popup_id, &response, |ui| {
+                ui.set_max_width(300.0);
+
+                ScrollArea::vertical().show(ui, |ui| {
+                    for handle in assets.handles() {
+                        let handle_response = match handle.untyped() {
+                            HandleUntyped::Id(id) => ui.button(id),
+                            HandleUntyped::Path(path) => ui.button(path.display()),
+                        };
+
+                        if handle_response.clicked() {
+                            *self = handle.clone();
+                        }
+                    }
+                });
+            });
+
+            response
+        })
+        .inner
+    }
+}
+
+impl<T: Asset> PartialEq for Handle<T> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.untyped().eq(other.untyped())
     }
 }
 
-impl<T> Eq for Handle<T> {}
+impl<T: Asset> Eq for Handle<T> {}
 
-impl<T> Hash for Handle<T> {
+impl<T: Asset> Hash for Handle<T> {
     #[inline]
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.untyped().hash(state)
     }
 }
 
-impl<T> Clone for Handle<T> {
+impl<T: Asset> Clone for Handle<T> {
     #[inline]
     fn clone(&self) -> Self {
         Self {
@@ -142,7 +193,7 @@ impl<T> Clone for Handle<T> {
     }
 }
 
-impl<T> std::fmt::Debug for Handle<T> {
+impl<T: Asset> std::fmt::Debug for Handle<T> {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)

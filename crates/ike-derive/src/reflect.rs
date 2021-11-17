@@ -1,8 +1,13 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn::{
-    parse::ParseStream, parse_macro_input, parse_quote, Attribute, Data, DataEnum, DeriveInput,
-    Field, Fields, FieldsUnnamed, GenericParam, Generics, Index, TypeParamBound,
+    parenthesized,
+    parse::{Parse, ParseStream},
+    parse_macro_input, parse_quote,
+    punctuated::Punctuated,
+    token::Paren,
+    Attribute, Data, DataEnum, DeriveInput, Field, Fields, FieldsUnnamed, GenericParam, Generics,
+    Index, Path, Token, TypeParamBound,
 };
 
 use crate::get_crate;
@@ -15,12 +20,33 @@ fn get_reflect() -> TokenStream {
     }
 }
 
+syn::custom_keyword!(register);
+
+struct Register {
+    _register: register,
+    types: Punctuated<Path, Token![,]>,
+    _paren: Paren,
+}
+
+impl Parse for Register {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let content;
+
+        Ok(Self {
+            _register: register::parse(input)?,
+            _paren: parenthesized!(content in input),
+            types: Punctuated::parse_terminated(&content)?,
+        })
+    }
+}
+
 const REFLECT: &str = "reflect";
 
 #[derive(Default)]
 struct ContainerArgs {
     value: bool,
     default: bool,
+    register: Vec<Path>,
 }
 
 impl ContainerArgs {
@@ -43,6 +69,12 @@ impl ContainerArgs {
 
                     if input.parse::<Option<default>>()?.is_some() {
                         self.default = true;
+                    }
+
+                    if let Ok(register) = Register::parse(input) {
+                        for ty in register.types.into_iter() {
+                            self.register.push(ty);
+                        }
                     }
 
                     Ok(())
@@ -88,7 +120,7 @@ fn impl_reflect(
     args: &ContainerArgs,
 ) -> Option<TokenStream> {
     if args.value {
-        return Some(impl_value(name, generics));
+        return Some(impl_value(name, generics, args));
     }
 
     match data {
@@ -96,17 +128,17 @@ fn impl_reflect(
             Fields::Named(named) => {
                 let fields: Vec<_> = named.named.iter().cloned().collect();
 
-                Some(impl_struct(name, generics, &fields))
+                Some(impl_struct(name, generics, &fields, args))
             }
-            Fields::Unnamed(unnamed) => Some(impl_tuple_struct(name, generics, unnamed)),
-            Fields::Unit => Some(impl_struct(name, generics, &[])),
+            Fields::Unnamed(unnamed) => Some(impl_tuple_struct(name, generics, unnamed, args)),
+            Fields::Unit => Some(impl_struct(name, generics, &[], args)),
         },
         Data::Enum(data) => Some(impl_enum(name, generics, data)),
         _ => unimplemented!(),
     }
 }
 
-fn impl_value(name: &Ident, generics: &Generics) -> TokenStream {
+fn impl_value(name: &Ident, generics: &Generics, args: &ContainerArgs) -> TokenStream {
     let reflect = get_reflect();
 
     let mut generics = generics.clone();
@@ -114,6 +146,8 @@ fn impl_value(name: &Ident, generics: &Generics) -> TokenStream {
         .make_where_clause()
         .predicates
         .push(parse_quote!(Self: Clone));
+
+    let register_types = &args.register;
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
@@ -125,6 +159,7 @@ fn impl_value(name: &Ident, generics: &Generics) -> TokenStream {
 
                 registration.insert::<#reflect::ReflectComponent>(#reflect::FromType::<Self>::from_type());
                 registration.insert::<#reflect::ReflectDeserialize>(#reflect::FromType::<Self>::from_type());
+                #(registration.insert::<#register_types>(#reflect::FromType::<Self>::from_type());)*
 
                 type_registry.insert(registration);
             }
@@ -194,7 +229,12 @@ fn impl_value(name: &Ident, generics: &Generics) -> TokenStream {
     }
 }
 
-fn impl_struct(name: &Ident, generics: &Generics, fields: &[Field]) -> TokenStream {
+fn impl_struct(
+    name: &Ident,
+    generics: &Generics,
+    fields: &[Field],
+    args: &ContainerArgs,
+) -> TokenStream {
     let reflect = get_reflect();
 
     let field_names = fields
@@ -213,7 +253,27 @@ fn impl_struct(name: &Ident, generics: &Generics, fields: &[Field]) -> TokenStre
 
     let field_count = fields.len();
 
+    let register_types = &args.register;
+
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let default_value = if args.default {
+        quote! {
+            #[inline]
+            fn default_value() -> Self {
+                Default::default()
+            }
+        }
+    } else {
+        quote! {
+            #[inline]
+            fn default_value() -> Self {
+                Self {
+                    #(#field_idents: #reflect::Reflect::default_value(),)*
+                }
+            }
+        }
+    };
 
     quote! {
         impl #impl_generics #reflect::RegisterType for #name #ty_generics #where_clause {
@@ -222,6 +282,7 @@ fn impl_struct(name: &Ident, generics: &Generics, fields: &[Field]) -> TokenStre
                 let mut registration = #reflect::TypeRegistration::from_type::<Self>();
 
                 registration.insert::<#reflect::ReflectComponent>(#reflect::FromType::<Self>::from_type());
+                #(registration.insert::<#register_types>(#reflect::FromType::<Self>::from_type());)*
 
                 type_registry.insert(registration);
 
@@ -358,17 +419,17 @@ fn impl_struct(name: &Ident, generics: &Generics, fields: &[Field]) -> TokenStre
                 }
             }
 
-            #[inline]
-            fn default_value() -> Self {
-                Self {
-                    #(#field_idents: #reflect::Reflect::default_value(),)*
-                }
-            }
+            #default_value
         }
     }
 }
 
-fn impl_tuple_struct(name: &Ident, generics: &Generics, fields: &FieldsUnnamed) -> TokenStream {
+fn impl_tuple_struct(
+    name: &Ident,
+    generics: &Generics,
+    fields: &FieldsUnnamed,
+    args: &ContainerArgs,
+) -> TokenStream {
     let reflect = get_reflect();
 
     let field_indices = (0..fields.unnamed.len()).into_iter().collect::<Vec<_>>();
@@ -390,6 +451,22 @@ fn impl_tuple_struct(name: &Ident, generics: &Generics, fields: &FieldsUnnamed) 
     let field_count = fields.unnamed.len();
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let default_value = if args.default {
+        quote! {
+            #[inline]
+            fn default_value() -> Self {
+                Default::default()
+            }
+        }
+    } else {
+        quote! {
+            #[inline]
+            fn default_value() -> Self {
+                Self(#(<#field_types as #reflect::Reflect>::default_value(),)*)
+            }
+        }
+    };
 
     quote! {
         impl #impl_generics #reflect::TupleStruct for #name #ty_generics #where_clause {
@@ -497,10 +574,7 @@ fn impl_tuple_struct(name: &Ident, generics: &Generics, fields: &FieldsUnnamed) 
                 }
             }
 
-            #[inline]
-            fn default_value() -> Self {
-                Self(#(<#field_types as #reflect::Reflect>::default_value(),)*)
-            }
+            #default_value
         }
     }
 }

@@ -1,20 +1,20 @@
 use std::collections::HashMap;
 
-use crate::Handle;
+use crate::{Asset, Handle};
 
-pub struct Assets<T: 'static> {
+pub struct Assets<T: Asset> {
     inner: HashMap<Handle<T>, T>,
     next_id: u64,
 }
 
-impl<T> Default for Assets<T> {
+impl<T: Asset> Default for Assets<T> {
     #[inline]
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> Assets<T> {
+impl<T: Asset> Assets<T> {
     #[inline]
     pub fn new() -> Self {
         Self {
@@ -36,6 +36,11 @@ impl<T> Assets<T> {
     #[inline]
     pub fn insert(&mut self, handle: Handle<T>, asset: T) {
         self.inner.insert(handle, asset);
+    }
+
+    #[inline]
+    pub fn handles(&self) -> impl Iterator<Item = &Handle<T>> {
+        self.inner.keys()
     }
 
     #[inline]

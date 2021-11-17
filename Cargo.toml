@@ -43,3 +43,4 @@ ron = "0.7"
 default = ["physics", "pbr"]
 physics = ["ike-physics"]
 pbr = ["ike-pbr"]
+runner = ["ike-winit/runner"]

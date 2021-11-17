@@ -4,7 +4,7 @@ use std::{
 };
 
 use erased_serde::Deserializer;
-use ike_core::{AnyComponent, Commands, ComponentStorage, Entity};
+use ike_core::{AnyComponent, Commands, ComponentStorage, Entity, Resources};
 use serde::de::DeserializeOwned;
 
 use crate::Reflect;
@@ -41,6 +41,11 @@ impl TypeRegistry {
     #[inline]
     pub fn get(&self, type_id: &TypeId) -> Option<&TypeRegistration> {
         self.registrations.get(type_id)
+    }
+
+    #[inline]
+    pub fn get_mut(&mut self, type_id: &TypeId) -> Option<&mut TypeRegistration> {
+        self.registrations.get_mut(type_id)
     }
 
     #[inline]
@@ -252,18 +257,23 @@ impl<T: Reflect + DeserializeOwned> FromType<T> for ReflectDeserialize {
 }
 
 pub trait Inspect {
-    fn inspect(&mut self, ui: &mut egui::Ui) -> egui::Response;
+    fn inspect(&mut self, ui: &mut egui::Ui, resources: &Resources) -> egui::Response;
 }
 
 #[derive(Clone)]
 pub struct ReflectInspect {
-    pub inspect: fn(&mut dyn Any, &mut egui::Ui) -> Option<egui::Response>,
+    pub inspect: fn(&mut dyn Any, &mut egui::Ui, &Resources) -> Option<egui::Response>,
 }
 
 impl ReflectInspect {
     #[inline]
-    pub fn inspect(&self, value: &mut dyn Any, ui: &mut egui::Ui) -> Option<egui::Response> {
-        (self.inspect)(value, ui)
+    pub fn inspect(
+        &self,
+        value: &mut dyn Any,
+        ui: &mut egui::Ui,
+        resources: &Resources,
+    ) -> Option<egui::Response> {
+        (self.inspect)(value, ui, resources)
     }
 }
 
@@ -271,9 +281,9 @@ impl<T: Inspect + Any> FromType<T> for ReflectInspect {
     #[inline]
     fn from_type() -> Self {
         Self {
-            inspect: |value, ui| {
+            inspect: |value, ui, resources| {
                 if let Some(value) = value.downcast_mut::<T>() {
-                    Some(value.inspect(ui))
+                    Some(value.inspect(ui, resources))
                 } else {
                     None
                 }

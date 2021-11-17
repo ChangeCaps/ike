@@ -3,6 +3,7 @@ use ike_core::Entity;
 use ike_derive::Reflect;
 
 #[derive(Reflect, Clone, Debug, PartialEq)]
+#[reflect(default)]
 pub struct Transform {
     pub translation: Vec3,
     pub rotation: Quat,

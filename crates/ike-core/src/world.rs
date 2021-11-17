@@ -3,7 +3,9 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use crate::{Entities, Entity, ReadGuard, Resource, Resources, WriteGuard};
+use crate::{
+    CommandQueue, Commands, Entities, Entity, ReadGuard, Resource, Resources, WorldRef, WriteGuard,
+};
 
 pub struct World {
     entities: Entities,
@@ -97,6 +99,19 @@ impl World {
     #[inline]
     pub fn set_node_name(&mut self, entity: &Entity, name: impl Into<String>) {
         self.nodes.insert(*entity, name.into());
+    }
+
+    #[inline]
+    pub fn world_ref<O>(&mut self, f: impl FnOnce(WorldRef) -> O) -> O {
+        let mut command_queue = CommandQueue::default();
+        let commands = Commands::new(self.entities(), &mut command_queue);
+        let world_ref = WorldRef::new(self, commands, self.last_change_tick());
+
+        let o = f(world_ref);
+
+        command_queue.apply(self);
+
+        o
     }
 
     #[inline]

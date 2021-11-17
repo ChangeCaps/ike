@@ -13,6 +13,7 @@ mod type_registry;
 mod value;
 
 pub use deserialize::*;
+pub use egui;
 pub use enum_trait::*;
 pub use ext::*;
 pub use ike_derive::Reflect;

@@ -11,9 +11,10 @@ crate-type = ["cdylib"]
 
 [dependencies]
 # ike
-ike = { path = "..", version = "0.0.1", default-features = false }
+ike = { path = "..", version = "0.0.1", default-features = false, features = ["runner"] }
 ike-egui = { path = "../crates/ike-egui", version = "0.0.1" }
 
 # other
 clap = "3.0.0-beta.5"
 libloading = "0.7"
+ron = "0.7"

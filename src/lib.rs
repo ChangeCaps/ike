@@ -1,6 +1,7 @@
 pub use ike_assets as assets;
 pub use ike_core as core;
 pub use ike_debug_line as debug_line;
+pub use ike_gltf as gltf;
 pub use ike_input as input;
 #[cfg(feature = "pbr")]
 pub use ike_pbr as pbr;
@@ -43,7 +44,7 @@ pub mod prelude {
         GlobalTransform, Parent, Transform, TransformNodeExt, TransformPlugin,
     };
     pub use ike_wgpu as wgpu;
-    pub use ike_winit::{Key, MouseButton, Window, WinitRunner};
+    pub use ike_winit::{Key, MouseButton, Window};
 }
 
 use ike_core::*;
@@ -53,6 +54,7 @@ pub struct DefaultPlugins;
 impl Plugin for DefaultPlugins {
     #[inline]
     fn build(self, app: &mut AppBuilder) {
+        #[cfg(feature = "runner")]
         app.set_runner(winit::WinitRunner);
         app.add_plugin(render::RenderPlugin);
         app.add_plugin(debug_line::DebugLinePlugin);

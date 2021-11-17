@@ -1,14 +1,32 @@
 use bytemuck::{Pod, Zeroable};
+use ike_core::Resources;
+use ike_reflect::{egui, Inspect, Reflect, ReflectInspect};
+use serde::{Deserialize, Serialize};
 
 macro_rules! impl_color {
     ($ident:ident, $ty:ty, $zero:expr, $one:expr) => {
         #[repr(C)]
-        #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
+        #[derive(
+            Reflect, Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable, Serialize, Deserialize,
+        )]
+        #[reflect(value)]
+        #[reflect(register(ReflectInspect))]
         pub struct $ident {
             pub r: $ty,
             pub g: $ty,
             pub b: $ty,
             pub a: $ty,
+        }
+
+        impl Inspect for $ident {
+            fn inspect(&mut self, ui: &mut egui::Ui, _resources: &Resources) -> egui::Response {
+                ui.columns(4, |columns| {
+                    columns[0].add(egui::DragValue::new(&mut self.r))
+                        | columns[1].add(egui::DragValue::new(&mut self.g))
+                        | columns[2].add(egui::DragValue::new(&mut self.b))
+                        | columns[3].add(egui::DragValue::new(&mut self.a))
+                })
+            }
         }
 
         impl $ident {

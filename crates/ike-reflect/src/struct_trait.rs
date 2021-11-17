@@ -63,12 +63,12 @@ impl DynamicStruct {
         if let Some(idx) = self.field_indices.get(name) {
             self.fields[*idx] = value;
         } else {
-            let name = Cow::Owned(String::from(name));
-
             let idx = self.fields.len();
 
             self.fields.push(value);
-            self.field_indices.insert(name, idx);
+            self.field_names.push(Cow::Owned(String::from(name)));
+            self.field_indices
+                .insert(Cow::Owned(String::from(name)), idx);
         }
     }
 

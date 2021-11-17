@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc};
+use std::{fs::read_to_string, path::Path, sync::Arc};
 
 use ike::{core::DynamicApp, prelude::*, render::RenderSurface};
 use libloading::Library;
@@ -29,6 +29,33 @@ impl LoadedApp {
         let mut app = unsafe { symbol(render_ctx, render_surface) };
 
         app.execute_startup();
+
+        if let Some(scene_str) = read_to_string("scene.scn").ok() {
+            let type_registry = unsafe {
+                app.world()
+                    .resources()
+                    .read_named::<TypeRegistry>()
+                    .unwrap()
+            };
+
+            let mut deserialiser = ron::Deserializer::from_str(&scene_str).unwrap();
+
+            let scene = Scene::deserialize(&mut deserialiser, &type_registry).unwrap();
+
+            drop(type_registry);
+
+            app.world_mut().world_ref(|world| {
+                let type_registry = unsafe {
+                    world
+                        .world()
+                        .resources()
+                        .read_named::<TypeRegistry>()
+                        .unwrap()
+                };
+
+                scene.spawn(world.commands(), &type_registry);
+            });
+        }
 
         Ok(LoadedApp { app, library })
     }

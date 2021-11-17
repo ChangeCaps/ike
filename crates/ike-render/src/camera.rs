@@ -20,6 +20,7 @@ impl Camera {
 pub struct MainCamera;
 
 #[derive(Reflect, Clone, Debug)]
+#[reflect(default)]
 pub struct PerspectiveProjection {
     pub fov: f32,
     pub aspect: f32,
@@ -30,7 +31,7 @@ impl Default for PerspectiveProjection {
     #[inline]
     fn default() -> Self {
         Self {
-            fov: std::f32::consts::FRAC_PI_2,
+            fov: 90.0,
             aspect: 1.0,
             near: 0.1,
         }

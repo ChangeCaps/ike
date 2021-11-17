@@ -1,7 +1,9 @@
 use glam::Vec3;
+use ike_reflect::Reflect;
 use ike_render::Color;
 
-#[derive(Clone, Debug)]
+#[derive(Reflect, Clone, Debug)]
+#[reflect(default)]
 pub struct PointLight {
     pub color: Color,
     pub intensity: f32,
@@ -21,7 +23,8 @@ impl Default for PointLight {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Reflect, Clone, Debug)]
+#[reflect(default)]
 pub struct DirectionalLight {
     pub direction: Vec3,
     pub color: Color,
