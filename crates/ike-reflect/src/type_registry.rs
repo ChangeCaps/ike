@@ -3,7 +3,6 @@ use std::{
     collections::HashMap,
 };
 
-use egui::Response;
 use erased_serde::Deserializer;
 use ike_core::{AnyComponent, Commands, ComponentStorage, Entity};
 use serde::de::DeserializeOwned;
@@ -252,29 +251,29 @@ impl<T: Reflect + DeserializeOwned> FromType<T> for ReflectDeserialize {
     }
 }
 
-pub trait EguiValue {
-    fn ui(&mut self, ui: &mut egui::Ui) -> egui::Response;
+pub trait Inspect {
+    fn inspect(&mut self, ui: &mut egui::Ui) -> egui::Response;
 }
 
 #[derive(Clone)]
-pub struct ReflectEguiValue {
-    pub edit: fn(&mut dyn Any, &mut egui::Ui) -> Option<egui::Response>,
+pub struct ReflectInspect {
+    pub inspect: fn(&mut dyn Any, &mut egui::Ui) -> Option<egui::Response>,
 }
 
-impl ReflectEguiValue {
+impl ReflectInspect {
     #[inline]
-    pub fn edit(&self, value: &mut dyn Any, ui: &mut egui::Ui) -> Option<egui::Response> {
-        (self.edit)(value, ui)
+    pub fn inspect(&self, value: &mut dyn Any, ui: &mut egui::Ui) -> Option<egui::Response> {
+        (self.inspect)(value, ui)
     }
 }
 
-impl<T: EguiValue + Any> FromType<T> for ReflectEguiValue {
+impl<T: Inspect + Any> FromType<T> for ReflectInspect {
     #[inline]
     fn from_type() -> Self {
         Self {
-            edit: |value, ui| {
+            inspect: |value, ui| {
                 if let Some(value) = value.downcast_mut::<T>() {
-                    Some(value.ui(ui))
+                    Some(value.inspect(ui))
                 } else {
                     None
                 }

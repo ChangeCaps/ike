@@ -2,7 +2,7 @@ pub use erased_serde::Serialize;
 use ike_core::Entity;
 
 use crate::{
-    FromType, Reflect, ReflectEguiValue, ReflectDeserialize, ReflectMut, ReflectRef, RegisterType,
+    FromType, Reflect, ReflectDeserialize, ReflectInspect, ReflectMut, ReflectRef, RegisterType,
     TypeRegistration, TypeRegistry,
 };
 
@@ -18,7 +18,7 @@ pub trait Value: Reflect {
 
 macro_rules! impl_reflect_value {
     (@ext $ident:ident egui) => {
-        $ident.insert(<ReflectEguiValue as FromType<Self>>::from_type());
+        $ident.insert(<ReflectInspect as FromType<Self>>::from_type());
     };
     ($ty:path $(, $ident:ident)?) => {
         impl RegisterType for $ty {

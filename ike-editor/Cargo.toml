@@ -15,4 +15,5 @@ ike = { path = "..", version = "0.0.1", default-features = false }
 ike-egui = { path = "../crates/ike-egui", version = "0.0.1" }
 
 # other
+clap = "3.0.0-beta.5"
 libloading = "0.7"

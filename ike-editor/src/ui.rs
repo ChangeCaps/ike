@@ -1,7 +1,15 @@
 use std::sync::atomic::Ordering;
 
-use ike::{core::{stage, CommandQueue}, prelude::*, reflect::{ReflectComponent, ReflectEguiValue, ReflectMut, Struct, Value}, render::RenderSurface};
-use ike_egui::{EguiTexture, EguiTextures, egui::{CentralPanel, CtxRef, Response, ScrollArea, SidePanel, TopBottomPanel, Ui, popup}};
+use ike::{
+    core::{stage, CommandQueue},
+    prelude::*,
+    reflect::{Inspect, ReflectComponent, ReflectInspect, ReflectMut, Struct, Value},
+    render::RenderSurface,
+};
+use ike_egui::{
+    egui::{popup, CentralPanel, CtxRef, Response, ScrollArea, SidePanel, TopBottomPanel, Ui},
+    EguiTexture, EguiTextures,
+};
 
 use crate::load_app::LoadedApp;
 
@@ -84,7 +92,8 @@ pub fn ui_system(
                                 if response.map_or(false, |r| r.changed()) {
                                     let changed = storage.get_change_marker(selected).unwrap();
 
-                                    changed.store(loaded.app.world().change_tick(), Ordering::Release);
+                                    changed
+                                        .store(loaded.app.world().change_tick(), Ordering::Release);
                                 }
                             }
                         }
@@ -168,15 +177,23 @@ fn combine_response(response: &mut Option<Response>, other: Option<Response>) {
     }
 }
 
-fn reflect_ui(reflect: &mut dyn Reflect, ui: &mut Ui, type_registry: &TypeRegistry) -> Option<Response> {
+fn reflect_ui(
+    reflect: &mut dyn Reflect,
+    ui: &mut Ui,
+    type_registry: &TypeRegistry,
+) -> Option<Response> {
     match reflect.reflect_mut() {
         ReflectMut::Struct(value) => reflect_ui_struct(value, ui, type_registry),
         ReflectMut::Value(value) => reflect_ui_value(value, ui, type_registry),
-        _ => None
+        _ => None,
     }
 }
 
-fn reflect_ui_struct(value: &mut dyn Struct, ui: &mut Ui, type_registry: &TypeRegistry) -> Option<Response> {
+fn reflect_ui_struct(
+    value: &mut dyn Struct,
+    ui: &mut Ui,
+    type_registry: &TypeRegistry,
+) -> Option<Response> {
     let mut response = None;
 
     for i in 0..value.field_len() {
@@ -192,10 +209,14 @@ fn reflect_ui_struct(value: &mut dyn Struct, ui: &mut Ui, type_registry: &TypeRe
     response
 }
 
-fn reflect_ui_value(value: &mut dyn Value, ui: &mut Ui, type_registry: &TypeRegistry) -> Option<Response> {
+fn reflect_ui_value(
+    value: &mut dyn Value,
+    ui: &mut Ui,
+    type_registry: &TypeRegistry,
+) -> Option<Response> {
     if let Some(registration) = type_registry.get_name(value.type_name()) {
-        if let Some(egui_value) = unsafe { registration.data_named::<ReflectEguiValue>() } {
-            return egui_value.edit(value.any_mut(), ui);
+        if let Some(inspect) = unsafe { registration.data_named::<ReflectInspect>() } {
+            return inspect.inspect(value.any_mut(), ui);
         }
     }
 
