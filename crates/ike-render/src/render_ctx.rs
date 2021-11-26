@@ -21,6 +21,11 @@ pub fn render_queue<'a>() -> &'a ike_wgpu::Queue {
 }
 
 #[inline]
+pub fn is_render_ctx_set() -> bool {
+    RENDER_CTX.get().is_some()
+}
+
+#[inline]
 pub fn get_render_ctx<'a>() -> &'a Arc<RenderCtx> {
     &RENDER_CTX.get().expect("RENDER_CTX not set")
 }

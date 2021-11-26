@@ -1,14 +1,15 @@
 use glam::Vec3;
+use ike_reflect::Reflect;
 use ike_render::Color;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Reflect, Clone, Copy, Debug, Default)]
 pub struct LockAxis {
     pub x: bool,
     pub y: bool,
     pub z: bool,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Reflect, Clone, Debug, Default)]
 pub struct RigidBody {
     pub linear_velocity: Vec3,
     pub angular_velocity: Vec3,
@@ -29,9 +30,11 @@ impl RigidBody {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Reflect, Clone, Debug, Default)]
+#[reflect(default)]
 pub struct BoxCollider {
     pub size: Vec3,
+    #[reflect(ignore)]
     pub debug: Option<Color>,
 }
 

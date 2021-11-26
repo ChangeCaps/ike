@@ -77,6 +77,7 @@ fn to_egui_mouse_button(mouse_button: MouseButton) -> Option<egui::PointerButton
 pub fn egui_input_system(
     mut ctx: ResMut<egui::CtxRef>,
     mut input: ResMut<egui::RawInput>,
+    time: Res<Time>,
     key_input: Res<Input<Key>>,
     mouse_input: Res<Input<MouseButton>>,
     text_input: Res<TextInput>,
@@ -91,6 +92,7 @@ pub fn egui_input_system(
     };
 
     input.modifiers = modifiers;
+    input.time = Some(time.time_since_startup() as f64);
 
     let mouse_pos = egui::Pos2::new(mouse.position.x, mouse.position.y);
     input.events.push(egui::Event::PointerMoved(mouse_pos));

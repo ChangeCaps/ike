@@ -50,6 +50,11 @@ impl<'w, 's> Commands<'w, 's> {
     }
 
     #[inline]
+    pub fn set_node_name(&self, entity: &Entity, name: impl Into<String>) {
+        self.push(SetNodeName(*entity, name.into()));
+    }
+
+    #[inline]
     pub fn despawn(&self, entity: &Entity) {
         self.push(Despawn(*entity));
     }
@@ -94,11 +99,19 @@ impl Command for SpawnNode {
     }
 }
 
+struct SetNodeName(Entity, String);
+
+impl Command for SetNodeName {
+    fn apply(self: Box<Self>, world: &mut World) {
+        world.set_node_name(&self.0, self.1);
+    }
+}
+
 struct Despawn(Entity);
 
 impl Command for Despawn {
     fn apply(self: Box<Self>, world: &mut World) {
-        world.entities_mut().remove_entity(&self.0);
+        world.remove_node(&self.0);
     }
 }
 

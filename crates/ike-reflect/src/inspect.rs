@@ -100,7 +100,10 @@ impl Inspect for UVec4 {
 
 impl Inspect for Quat {
     fn inspect(&mut self, ui: &mut egui::Ui, _resources: &Resources) -> Response {
-        let (mut x, mut y, mut z) = self.to_euler(EulerRot::XYZ);
+        let (mut y, mut x, mut z) = self.to_euler(EulerRot::YXZ);
+        x = x.to_degrees();
+        y = y.to_degrees();
+        z = z.to_degrees();
 
         let response = ui.columns(3, |columns| {
             columns[0].add(DragValue::new(&mut x))
@@ -109,7 +112,12 @@ impl Inspect for Quat {
         });
 
         if response.changed() {
-            *self = Quat::from_euler(EulerRot::XYZ, x, y, z);
+            *self = Quat::from_euler(
+                EulerRot::YXZ,
+                y.to_radians(),
+                x.to_radians(),
+                z.to_radians(),
+            );
         }
 
         response

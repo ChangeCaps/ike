@@ -1,18 +1,21 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
+mod assets;
 mod build;
-mod load_app;
+mod file_browser;
 mod project;
+mod scenes;
 mod ui;
 
 use std::path::{Path, PathBuf};
 
 use build::{BuildCommand, BuildMode};
 use clap::{crate_authors, crate_version, Parser};
-use ike::prelude::*;
+use file_browser::FileBrowser;
+use ike::{prelude::*, render::RenderSurface};
 use ike_egui::{EguiPlugin, EguiTextures};
 use libloading::library_filename;
-use load_app::LoadedApp;
+use scenes::Scenes;
 use ui::{Inspector, MainTexture};
 
 #[derive(Parser)]
@@ -27,14 +30,22 @@ struct Opts {
 fn main(app: &mut AppBuilder) {
     app.set_runner(ike::winit::WinitRunner)
         .init_resource::<Inspector>()
+        .init_resource::<Scenes>()
+        .init_resource::<FileBrowser>()
         .add_plugin(RenderPlugin)
         .add_plugin(EguiPlugin)
         .add_startup_system(setup.system())
         .add_system(ui::ui_system.system());
 }
 
-fn setup(commands: Commands, mut egui_textures: ResMut<EguiTextures>) {
+fn setup(
+    mut scenes: ResMut<Scenes>,
+    mut egui_textures: ResMut<EguiTextures>,
+    mut render_surface: ResMut<RenderSurface>,
+) {
     let opts = Opts::parse();
+
+    render_surface.configure().present_mode = wgpu::PresentMode::Fifo;
 
     egui_textures.insert(MainTexture);
 
@@ -51,13 +62,5 @@ fn setup(commands: Commands, mut egui_textures: ResMut<EguiTextures>) {
     build_command.build_mode(BuildMode::Debug);
     build_command.cfg("editor");
 
-    println!("{}", build_command);
-
-    let output = build_command.command().output().unwrap();
-
-    println!("{}", String::from_utf8_lossy(&output.stderr));
-
-    let loaded_app = unsafe { LoadedApp::load(&lib_path).unwrap() };
-
-    commands.insert_resource(loaded_app);
+    scenes.load(lib_path);
 }

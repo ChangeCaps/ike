@@ -87,6 +87,12 @@ impl World {
     }
 
     #[inline]
+    pub fn remove_node(&mut self, entity: &Entity) {
+        self.nodes.remove(entity);
+        self.entities_mut().remove_entity(entity);
+    }
+
+    #[inline]
     pub fn get_node_name(&self, entity: &Entity) -> Option<&String> {
         self.nodes.get(entity)
     }

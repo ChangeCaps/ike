@@ -85,6 +85,36 @@ impl ContainerArgs {
     }
 }
 
+#[derive(Default)]
+struct FieldArgs {
+    ignore: bool,
+}
+
+impl FieldArgs {
+    #[inline]
+    pub fn from_attrs(&mut self, attrs: &[Attribute]) {
+        for attr in attrs {
+            if attr
+                .path
+                .get_ident()
+                .map(|ident| ident == REFLECT)
+                .unwrap_or(false)
+            {
+                syn::custom_keyword!(ignore);
+
+                attr.parse_args_with(|input: ParseStream| {
+                    if input.parse::<Option<ignore>>()?.is_some() {
+                        self.ignore = true;
+                    }
+
+                    Ok(())
+                })
+                .expect("invalid args format");
+            }
+        }
+    }
+}
+
 pub fn derive_reflect(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -130,7 +160,11 @@ fn impl_reflect(
 
                 Some(impl_struct(name, generics, &fields, args))
             }
-            Fields::Unnamed(unnamed) => Some(impl_tuple_struct(name, generics, unnamed, args)),
+            Fields::Unnamed(unnamed) => {
+                let fields: Vec<_> = unnamed.unnamed.iter().cloned().collect();
+
+                Some(impl_tuple_struct(name, generics, &fields, args))
+            }
             Fields::Unit => Some(impl_struct(name, generics, &[], args)),
         },
         Data::Enum(data) => Some(impl_enum(name, generics, data)),
@@ -237,6 +271,30 @@ fn impl_struct(
 ) -> TokenStream {
     let reflect = get_reflect();
 
+    let mut ignored = false;
+
+    let fields = fields
+        .iter()
+        .filter_map(|field| {
+            let mut args = FieldArgs::default();
+
+            args.from_attrs(&field.attrs);
+
+            if !args.ignore {
+                Some(field)
+            } else {
+                ignored = true;
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let default = if ignored {
+        Some(quote!(..Default::default()))
+    } else {
+        None
+    };
+
     let field_names = fields
         .iter()
         .map(|field| field.ident.as_ref().unwrap().to_string())
@@ -270,6 +328,7 @@ fn impl_struct(
             fn default_value() -> Self {
                 Self {
                     #(#field_idents: #reflect::Reflect::default_value(),)*
+                    #default
                 }
             }
         }
@@ -413,6 +472,7 @@ fn impl_struct(
                         #(
                             #field_idents: #reflect::Reflect::from_reflect(value.field(#field_names)?)?,
                         )*
+                        #default
                     })
                 } else {
                     None
@@ -427,12 +487,27 @@ fn impl_struct(
 fn impl_tuple_struct(
     name: &Ident,
     generics: &Generics,
-    fields: &FieldsUnnamed,
+    fields: &[Field],
     args: &ContainerArgs,
 ) -> TokenStream {
     let reflect = get_reflect();
 
-    let field_indices = (0..fields.unnamed.len()).into_iter().collect::<Vec<_>>();
+    let fields = fields
+        .iter()
+        .filter_map(|field| {
+            let mut args = FieldArgs::default();
+
+            args.from_attrs(&field.attrs);
+
+            if !args.ignore {
+                Some(field)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let field_indices = (0..fields.len()).into_iter().collect::<Vec<_>>();
 
     let field_idents = field_indices
         .iter()
@@ -442,13 +517,9 @@ fn impl_tuple_struct(
         })
         .collect::<Vec<_>>();
 
-    let field_types = fields
-        .unnamed
-        .iter()
-        .map(|field| &field.ty)
-        .collect::<Vec<_>>();
+    let field_types = fields.iter().map(|field| &field.ty).collect::<Vec<_>>();
 
-    let field_count = fields.unnamed.len();
+    let field_count = fields.len();
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 

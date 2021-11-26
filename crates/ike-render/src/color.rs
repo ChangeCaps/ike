@@ -20,12 +20,18 @@ macro_rules! impl_color {
 
         impl Inspect for $ident {
             fn inspect(&mut self, ui: &mut egui::Ui, _resources: &Resources) -> egui::Response {
-                ui.columns(4, |columns| {
-                    columns[0].add(egui::DragValue::new(&mut self.r))
-                        | columns[1].add(egui::DragValue::new(&mut self.g))
-                        | columns[2].add(egui::DragValue::new(&mut self.b))
-                        | columns[3].add(egui::DragValue::new(&mut self.a))
-                })
+                let mut rgba = [self.r as f32, self.g as f32, self.b as f32, self.a as f32];
+
+                let response = ui.color_edit_button_rgba_premultiplied(&mut rgba);
+
+                if response.changed() {
+                    self.r = rgba[0] as $ty;
+                    self.g = rgba[1] as $ty;
+                    self.b = rgba[2] as $ty;
+                    self.a = rgba[3] as $ty;
+                }
+
+                response
             }
         }
 

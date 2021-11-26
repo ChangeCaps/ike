@@ -95,7 +95,9 @@ impl Scene {
                 });
 
                 if let Some(registration) = type_registry.get(type_id) {
-                    if let Some(reflect_component) = registration.data::<ReflectComponent>() {
+                    if let Some(reflect_component) =
+                        unsafe { registration.data_named::<ReflectComponent>() }
+                    {
                         let _ =
                             reflect_component.insert(world_entity, component.as_ref(), commands);
                     }

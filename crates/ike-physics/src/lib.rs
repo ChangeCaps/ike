@@ -9,6 +9,7 @@ pub use resources::*;
 pub use systems::*;
 
 use ike_core::*;
+use ike_reflect::ReflectAppBuilderExt;
 use rapier3d::prelude::{ColliderSet, JointSet, RigidBodySet};
 
 pub mod physics_stage {
@@ -29,6 +30,8 @@ impl Plugin for PhysicsPlugin {
         app.init_resource::<RigidBodies>();
         app.init_resource::<Colliders>();
         app.init_resource::<Gravity>();
+        app.register::<RigidBody>();
+        app.register::<BoxCollider>();
 
         app.add_stage_after(physics_stage::PRE_PHYSICS, stage::POST_UPDATE);
         app.add_stage_after(physics_stage::PHYSICS, physics_stage::PRE_PHYSICS);

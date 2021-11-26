@@ -30,7 +30,9 @@ pub fn ike_main(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         ) -> #ike::core::DynamicApp {
             #input
 
-            #ike::render::set_render_ctx(render_ctx);
+            if !#ike::render::is_render_ctx_set() {
+                #ike::render::set_render_ctx(render_ctx);
+            }
 
             let mut app = #ike::core::App::new();
 
