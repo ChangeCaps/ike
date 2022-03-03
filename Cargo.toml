@@ -12,35 +12,4 @@ license = "MIT"
 members = ["crates/*", "ike-editor"]
 
 [dependencies]
-# ike
-ike-assets = { version = "0.0.1", path = "crates/ike-assets" }
-ike-core = { version = "0.0.1", path = "crates/ike-core" }
-ike-debug-line = { version = "0.0.1", path = "crates/ike-debug-line" }
-ike-derive = { version = "0.0.1", path = "crates/ike-derive" }
-ike-gltf = { version = "0.0.1", path = "crates/ike-gltf" }
-ike-input = { version = "0.0.1", path = "crates/ike-input" }
-ike-pbr = { version = "0.0.1", path = "crates/ike-pbr", optional = true }
-ike-physics = { version = "0.0.1", path = "crates/ike-physics", optional = true }
-ike-reflect = { version = "0.0.1", path = "crates/ike-reflect" }
-ike-render = { version = "0.0.1", path = "crates/ike-render" }
-ike-scene = { version = "0.0.1", path = "crates/ike-scene" }
-ike-transform = { version = "0.0.1", path = "crates/ike-transform" }
-ike-winit = { version = "0.0.1", path = "crates/ike-winit" }
-ike-wgpu = { version = "0.0.1", path = "crates/ike-wgpu" }
 
-# other
-glam = "0.19"
-
-[dev-dependencies]
-# ike
-ike-egui = { version = "0.0.1", path = "crates/ike-egui" }
-
-# other
-env_logger = "0.9"
-ron = "0.7"
-
-[features]
-default = ["physics", "pbr"]
-physics = ["ike-physics"]
-pbr = ["ike-pbr"]
-runner = ["ike-winit/runner"]
