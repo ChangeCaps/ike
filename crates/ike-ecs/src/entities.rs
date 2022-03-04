@@ -21,6 +21,10 @@ impl Entities {
         &mut self.storage
     }
 
+    pub fn entities(&self) -> &BTreeSet<Entity> {
+        &self.entities
+    }
+
     pub fn reserve(&self) -> Entity {
         self.allocator.alloc()
     }
@@ -50,7 +54,11 @@ impl Entities {
         self.storage().read_component(entity)
     }
 
-    pub fn write_component<T: Component>(&self, entity: &Entity) -> Option<ComponentWrite<'_, T>> {
-        self.storage().write_component(entity)
+    pub fn write_component<T: Component>(
+        &self,
+        entity: &Entity,
+        change_tick: ChangeTick,
+    ) -> Option<ComponentWrite<'_, T>> {
+        self.storage().write_component(entity, change_tick)
     }
 }

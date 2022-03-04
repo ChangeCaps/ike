@@ -56,6 +56,10 @@ impl ComponentTicks {
         self.changed.load(Ordering::Acquire)
     }
 
+    pub fn changed_raw(&self) -> &AtomicU64 {
+        &self.changed
+    }
+
     pub fn change_ticks(&self, change_tick: ChangeTick) {
         if let Some(new_tick) = check_tick(self.added(), change_tick) {
             self.added.store(new_tick, Ordering::Release);

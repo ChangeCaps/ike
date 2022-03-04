@@ -3,13 +3,16 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use crate::{ChangeTick, Entities, Resource, ResourceRead, ResourceWrite, Resources};
+use crate::{
+    ChangeTick, Entities, Query, Resource, ResourceRead, ResourceWrite, Resources, WorldQuery,
+};
 
 #[derive(Default)]
 pub struct World {
     entities: Entities,
     resources: Resources,
     change_tick: AtomicU64,
+    last_change_tick: ChangeTick,
 }
 
 impl World {
@@ -18,6 +21,7 @@ impl World {
             entities: Entities::default(),
             resources: Resources::default(),
             change_tick: AtomicU64::new(0),
+            last_change_tick: 0,
         }
     }
 
@@ -69,5 +73,42 @@ impl World {
 
     pub fn change_tick(&self) -> ChangeTick {
         self.change_tick.load(Ordering::Acquire)
+    }
+
+    pub fn last_change_tick(&self) -> ChangeTick {
+        self.last_change_tick
+    }
+
+    pub fn update_last_change_tick(&mut self) {
+        self.last_change_tick = self.change_tick();
+    }
+}
+
+// query
+impl World {
+    pub fn query<Q: WorldQuery>(&self) -> Option<Query<'_, Q>> {
+        Query::new(self, self.last_change_tick)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Component, ComponentStorageKind};
+
+    use super::*;
+
+    struct Foo {}
+
+    impl Component for Foo {
+        const STORAGE: ComponentStorageKind = ComponentStorageKind::Sparse;
+    }
+
+    #[test]
+    fn world_query() {
+        let mut world = World::new();
+
+        let mut query = world.query::<&Foo>().unwrap();
+
+        for foo in query.iter() {}
     }
 }

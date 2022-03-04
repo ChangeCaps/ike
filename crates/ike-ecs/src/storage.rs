@@ -1,4 +1,8 @@
-use std::{any::TypeId, collections::HashMap, mem, ptr};
+use std::{
+    any::TypeId,
+    collections::{BTreeSet, HashMap},
+    mem, ptr,
+};
 
 use crate::{
     AtomicBorrow, ChangeTick, Component, ComponentData, ComponentDescriptor, ComponentRead,
@@ -25,6 +29,18 @@ impl ComponentStorages {
                     self.descriptors.insert(TypeId::of::<T>(), desc);
 
                     self.borrow.insert(TypeId::of::<T>(), AtomicBorrow::new());
+                }
+            }
+        }
+    }
+
+    pub fn contains_component<T: Component>(&self, entity: &Entity) -> bool {
+        match T::STORAGE {
+            ComponentStorageKind::Sparse => {
+                if let Some(sparse) = self.sparse.get(&TypeId::of::<T>()) {
+                    sparse.contains(entity)
+                } else {
+                    false
                 }
             }
         }
@@ -113,11 +129,18 @@ impl ComponentStorages {
     pub fn write_component<'a, T: Component>(
         &'a self,
         entity: &Entity,
+        change_tick: ChangeTick,
     ) -> Option<ComponentWrite<'a, T>> {
         let item = unsafe { &mut *(self.get_component_raw(entity)?) };
         let data = unsafe { self.get_data_unchecked::<T>(entity) };
 
-        ComponentWrite::new(item, &data.borrow, self.get_borrow::<T>()?)
+        ComponentWrite::new(
+            item,
+            &data.borrow,
+            self.get_borrow::<T>()?,
+            &data.ticks.changed_raw(),
+            change_tick,
+        )
     }
 
     pub fn despawn(&mut self, entity: &Entity) {
@@ -128,8 +151,42 @@ impl ComponentStorages {
         }
     }
 
+    pub fn borrow_storage<T: Component>(&self) -> bool {
+        if let Some(borrow) = self.borrow.get(&TypeId::of::<T>()) {
+            borrow.borrow()
+        } else {
+            true
+        }
+    }
+
+    pub fn borrow_storage_mut<T: Component>(&self) -> bool {
+        if let Some(borrow) = self.borrow.get(&TypeId::of::<T>()) {
+            borrow.borrow_mut()
+        } else {
+            true
+        }
+    }
+
+    pub fn release_storage<T: Component>(&self) {
+        if let Some(borrow) = self.borrow.get(&TypeId::of::<T>()) {
+            borrow.release();
+        }
+    }
+
+    pub fn release_storage_mut<T: Component>(&self) {
+        if let Some(borrow) = self.borrow.get(&TypeId::of::<T>()) {
+            borrow.release_mut();
+        }
+    }
+
     pub fn get_borrow<T: Component>(&self) -> Option<&AtomicBorrow> {
         self.borrow.get(&TypeId::of::<T>())
+    }
+
+    pub fn get_entities<T: Component>(&self) -> Option<&BTreeSet<Entity>> {
+        match T::STORAGE {
+            ComponentStorageKind::Sparse => Some(self.sparse.get(&TypeId::of::<T>())?.entities()),
+        }
     }
 }
 
