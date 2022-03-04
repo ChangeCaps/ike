@@ -113,12 +113,12 @@ impl<'a, T> ComponentWrite<'a, T> {
         component_change_tick: &'a AtomicU64,
         change_tick: ChangeTick,
     ) -> Option<Self> {
-        if !component.borrow() {
+        if !component.borrow_mut() {
             return None;
         }
 
         if !storage.borrow() {
-            component.release();
+            component.release_mut();
             return None;
         }
 
@@ -152,7 +152,7 @@ impl<'a, T> DerefMut for ComponentWrite<'a, T> {
 impl<'a, T> Drop for ComponentWrite<'a, T> {
     fn drop(&mut self) {
         self.component.release_mut();
-        self.storage.release_mut();
+        self.storage.release();
     }
 }
 
@@ -193,12 +193,12 @@ impl<'a, T> DerefMut for Mut<'a, T> {
     }
 }
 
-pub struct ResourceRead<'a, T> {
+pub struct Res<'a, T> {
     item: &'a T,
     borrow: &'a AtomicBorrow,
 }
 
-impl<'a, T> ResourceRead<'a, T> {
+impl<'a, T> Res<'a, T> {
     pub fn new(item: &'a T, borrow: &'a AtomicBorrow) -> Option<Self> {
         if borrow.borrow() {
             Some(Self { item, borrow })
@@ -208,7 +208,7 @@ impl<'a, T> ResourceRead<'a, T> {
     }
 }
 
-impl<'a, T> Deref for ResourceRead<'a, T> {
+impl<'a, T> Deref for Res<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -216,18 +216,18 @@ impl<'a, T> Deref for ResourceRead<'a, T> {
     }
 }
 
-impl<'a, T> Drop for ResourceRead<'a, T> {
+impl<'a, T> Drop for Res<'a, T> {
     fn drop(&mut self) {
         self.borrow.release();
     }
 }
 
-pub struct ResourceWrite<'a, T> {
+pub struct ResMut<'a, T> {
     item: &'a mut T,
     borrow: &'a AtomicBorrow,
 }
 
-impl<'a, T> Deref for ResourceWrite<'a, T> {
+impl<'a, T> Deref for ResMut<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -235,13 +235,13 @@ impl<'a, T> Deref for ResourceWrite<'a, T> {
     }
 }
 
-impl<'a, T> DerefMut for ResourceWrite<'a, T> {
+impl<'a, T> DerefMut for ResMut<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.item
     }
 }
 
-impl<'a, T> ResourceWrite<'a, T> {
+impl<'a, T> ResMut<'a, T> {
     pub fn new(item: &'a mut T, borrow: &'a AtomicBorrow) -> Option<Self> {
         if borrow.borrow_mut() {
             Some(Self { item, borrow })
@@ -251,7 +251,7 @@ impl<'a, T> ResourceWrite<'a, T> {
     }
 }
 
-impl<'a, T> Drop for ResourceWrite<'a, T> {
+impl<'a, T> Drop for ResMut<'a, T> {
     fn drop(&mut self) {
         self.borrow.release_mut();
     }

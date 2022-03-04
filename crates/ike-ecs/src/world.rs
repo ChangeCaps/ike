@@ -24,7 +24,10 @@ impl World {
             last_change_tick: 0,
         }
     }
+}
 
+// entities
+impl World {
     pub fn entities(&self) -> &Entities {
         &self.entities
     }
@@ -32,7 +35,10 @@ impl World {
     pub fn entities_mut(&mut self) -> &mut Entities {
         &mut self.entities
     }
+}
 
+// resources
+impl World {
     pub fn resources(&self) -> &Resources {
         &self.resources
     }
@@ -40,10 +46,7 @@ impl World {
     pub fn resources_mut(&mut self) -> &mut Resources {
         &mut self.resources
     }
-}
 
-// resources
-impl World {
     pub fn insert_resource<T: Resource>(&mut self, resource: T) {
         self.resources_mut().insert(resource);
     }

@@ -1,6 +1,6 @@
 use std::{any::TypeId, collections::HashMap, mem};
 
-use crate::{AtomicBorrow, ResourceRead, ResourceWrite};
+use crate::{AtomicBorrow, Res, ResMut};
 
 pub trait Resource: Send + Sync + 'static {}
 
@@ -41,16 +41,16 @@ impl Resources {
         Some(resource)
     }
 
-    pub fn read<'a, T: Resource>(&'a self) -> Option<ResourceRead<'a, T>> {
+    pub fn read<'a, T: Resource>(&'a self) -> Option<Res<'a, T>> {
         let resource = self.resources.get(&TypeId::of::<T>())?;
 
-        ResourceRead::new(unsafe { &*(resource.resource as *mut T) }, &resource.borrow)
+        Res::new(unsafe { &*(resource.resource as *mut T) }, &resource.borrow)
     }
 
-    pub fn write<'a, T: Resource>(&'a self) -> Option<ResourceWrite<'a, T>> {
+    pub fn write<'a, T: Resource>(&'a self) -> Option<ResMut<'a, T>> {
         let resource = self.resources.get(&TypeId::of::<T>())?;
 
-        ResourceWrite::new(
+        ResMut::new(
             unsafe { &mut *(resource.resource as *mut T) },
             &resource.borrow,
         )

@@ -1,13 +1,16 @@
-use crate::{ChangeTick, ChangeTicks, Entity, Fetch, FetchIterState, World};
+use std::marker::PhantomData;
 
-pub struct QueryIter<'a, F: Fetch<'a>> {
+use crate::{ChangeTick, ChangeTicks, Entity, Fetch, FetchIterState, QueryFilter, World};
+
+pub struct QueryIter<'a, F: Fetch<'a>, QF: QueryFilter = ()> {
     state: F::IterState,
     entity: Option<Entity>,
     world: &'a World,
     change_ticks: ChangeTicks,
+    marker: PhantomData<fn() -> QF>,
 }
 
-impl<'a, F: Fetch<'a>> QueryIter<'a, F> {
+impl<'a, F: Fetch<'a>, QF: QueryFilter> QueryIter<'a, F, QF> {
     pub unsafe fn new(world: &'a World, last_change_tick: ChangeTick) -> Self {
         let state = F::IterState::init(world);
 
@@ -18,16 +21,21 @@ impl<'a, F: Fetch<'a>> QueryIter<'a, F> {
             entity,
             world,
             change_ticks: ChangeTicks::new(last_change_tick, world.change_tick()),
+            marker: PhantomData,
         }
     }
 }
 
-impl<'a, F: Fetch<'a>> Iterator for QueryIter<'a, F> {
+impl<'a, F: Fetch<'a>, QF: QueryFilter> Iterator for QueryIter<'a, F, QF> {
     type Item = F::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
         let entity = self.state.next_entity(self.entity.as_ref()?)?;
 
-        unsafe { F::get(self.world, &entity, &self.change_ticks) }
+        if QF::filter(self.world, &entity, self.change_ticks.last_change_tick()) {
+            unsafe { F::get(self.world, &entity, &self.change_ticks) }
+        } else {
+            None
+        }
     }
 }

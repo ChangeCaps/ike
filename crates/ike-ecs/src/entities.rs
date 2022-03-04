@@ -25,16 +25,24 @@ impl Entities {
         &self.entities
     }
 
+    /// Allocates an [`Entity`] without spawning it.
     pub fn reserve(&self) -> Entity {
         self.allocator.alloc()
     }
 
+    /// Spawn reserved [`Entity`].
+    pub fn spawn_reserved_entity(&mut self, entity: Entity) {
+        self.entities.insert(entity);
+    }
+
+    /// Allocates and spawns [`Entity`].
     pub fn spawn(&mut self) -> Entity {
         let entity = self.reserve();
-        self.entities.insert(entity);
+        self.spawn_reserved_entity(entity);
         entity
     }
 
+    /// Free [`Entity`] and drops all components on it.
     pub fn despawn(&mut self, entity: &Entity) {
         self.storage_mut().despawn(entity);
         self.allocator.free(*entity);

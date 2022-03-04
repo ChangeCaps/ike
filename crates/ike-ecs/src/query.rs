@@ -1,16 +1,17 @@
 use std::{collections::BTreeSet, marker::PhantomData};
 
 use crate::{
-    Access, ChangeTick, ChangeTicks, Component, Entity, Mut, QueryIter, SystemAccess, World,
+    Access, ChangeTick, ChangeTicks, Component, Entity, Mut, QueryFilter, QueryIter, SystemAccess,
+    World,
 };
 
-pub struct Query<'a, Q: WorldQuery> {
+pub struct Query<'a, Q: WorldQuery, F: QueryFilter = ()> {
     world: &'a World,
     change_ticks: ChangeTicks,
-    marker: PhantomData<fn() -> Q>,
+    marker: PhantomData<fn() -> (Q, F)>,
 }
 
-impl<'a, Q: WorldQuery> Query<'a, Q> {
+impl<'a, Q: WorldQuery, F: QueryFilter> Query<'a, Q, F> {
     pub fn new(world: &'a World, last_change_tick: ChangeTick) -> Option<Self> {
         if Q::Fetch::borrow(world) {
             Some(Self {
@@ -23,16 +24,32 @@ impl<'a, Q: WorldQuery> Query<'a, Q> {
         }
     }
 
-    pub fn iter(&self) -> QueryIter<'a, Q::ReadOnlyFetch> {
+    pub fn iter(&'a self) -> QueryIter<'a, Q::ReadOnlyFetch, F> {
         unsafe { QueryIter::new(self.world, self.change_ticks.last_change_tick()) }
     }
 
-    pub fn iter_mut(&mut self) -> QueryIter<'a, Q::Fetch> {
+    pub fn iter_mut(&'a mut self) -> QueryIter<'a, Q::Fetch, F> {
         unsafe { QueryIter::new(self.world, self.change_ticks.last_change_tick()) }
+    }
+
+    pub fn get(&'a self, entity: &Entity) -> Option<<Q::ReadOnlyFetch as Fetch<'a>>::Item> {
+        if F::filter(self.world, entity, self.change_ticks.last_change_tick()) {
+            unsafe { Q::ReadOnlyFetch::get(self.world, entity, &self.change_ticks) }
+        } else {
+            None
+        }
+    }
+
+    pub fn get_mut(&'a mut self, entity: &Entity) -> Option<QueryItem<'a, Q>> {
+        if F::filter(self.world, entity, self.change_ticks.last_change_tick()) {
+            unsafe { Q::Fetch::get(self.world, entity, &self.change_ticks) }
+        } else {
+            None
+        }
     }
 }
 
-impl<'a, Q: WorldQuery> Drop for Query<'a, Q> {
+impl<'a, Q: WorldQuery, F: QueryFilter> Drop for Query<'a, Q, F> {
     fn drop(&mut self) {
         Q::Fetch::release(self.world);
     }
