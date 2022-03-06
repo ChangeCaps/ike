@@ -1,8 +1,8 @@
-use std::{collections::BTreeSet, marker::PhantomData};
+use std::marker::PhantomData;
 
 use crate::{
-    Access, ChangeTick, ChangeTicks, Component, Entity, Mut, QueryFilter, QueryIter, SystemAccess,
-    World,
+    Access, ChangeTick, ChangeTicks, Component, Entity, EntitySet, Mut, QueryFilter, QueryIter,
+    SystemAccess, World,
 };
 
 pub struct Query<'a, Q: WorldQuery, F: QueryFilter = ()> {
@@ -24,15 +24,19 @@ impl<'a, Q: WorldQuery, F: QueryFilter> Query<'a, Q, F> {
         }
     }
 
-    pub fn iter(&'a self) -> QueryIter<'a, Q::ReadOnlyFetch, F> {
+    pub fn iter(&self) -> QueryIter<'a, Q::ReadOnlyFetch, F> {
         unsafe { QueryIter::new(self.world, self.change_ticks.last_change_tick()) }
     }
 
-    pub fn iter_mut(&'a mut self) -> QueryIter<'a, Q::Fetch, F> {
+    pub fn iter_mut(&mut self) -> QueryIter<'a, Q::Fetch, F> {
         unsafe { QueryIter::new(self.world, self.change_ticks.last_change_tick()) }
     }
 
-    pub fn get(&'a self, entity: &Entity) -> Option<<Q::ReadOnlyFetch as Fetch<'a>>::Item> {
+    pub fn contains(&self, entity: &Entity) -> bool {
+        self.get(entity).is_some()
+    }
+
+    pub fn get(&self, entity: &Entity) -> Option<<Q::ReadOnlyFetch as Fetch<'a>>::Item> {
         if F::filter(self.world, entity, self.change_ticks.last_change_tick()) {
             unsafe { Q::ReadOnlyFetch::get(self.world, entity, &self.change_ticks) }
         } else {
@@ -40,7 +44,7 @@ impl<'a, Q: WorldQuery, F: QueryFilter> Query<'a, Q, F> {
         }
     }
 
-    pub fn get_mut(&'a mut self, entity: &Entity) -> Option<QueryItem<'a, Q>> {
+    pub fn get_mut(&mut self, entity: &Entity) -> Option<QueryItem<'a, Q>> {
         if F::filter(self.world, entity, self.change_ticks.last_change_tick()) {
             unsafe { Q::Fetch::get(self.world, entity, &self.change_ticks) }
         } else {
@@ -97,7 +101,7 @@ impl WorldQuery for Entity {
 pub struct EntityFetch;
 
 pub struct EntityFetchIterState<'a> {
-    entities: &'a BTreeSet<Entity>,
+    entities: &'a EntitySet,
 }
 
 impl<'a> FetchIterState<'a> for EntityFetchIterState<'a> {
@@ -108,7 +112,7 @@ impl<'a> FetchIterState<'a> for EntityFetchIterState<'a> {
     }
 
     fn next_entity(&self, entity: &Entity) -> Option<Entity> {
-        self.entities.range(entity..).next().cloned()
+        self.entities.after(entity)
     }
 }
 
@@ -137,7 +141,7 @@ impl<'a, T: Component> WorldQuery for &'a T {
 pub struct FetchRead<T>(PhantomData<fn() -> T>);
 
 pub struct ComponentFetchIterState<'a, T> {
-    entities: Option<&'a BTreeSet<Entity>>,
+    entities: Option<&'a EntitySet>,
     marker: PhantomData<fn() -> T>,
 }
 
@@ -150,7 +154,7 @@ impl<'a, T: Component> FetchIterState<'a> for ComponentFetchIterState<'a, T> {
     }
 
     fn next_entity(&self, entity: &Entity) -> Option<Entity> {
-        self.entities?.range(entity..).next().cloned()
+        self.entities?.after(entity)
     }
 }
 
@@ -248,6 +252,40 @@ unsafe impl<'a, T: Component> Fetch<'a> for FetchReadOnlyWrite<T> {
 
 unsafe impl<'a, T: Component> ReadOnlyFetch<'a> for FetchReadOnlyWrite<T> {}
 
+impl<T: WorldQuery> WorldQuery for Option<T> {
+    type Fetch = OptionFetch<T::Fetch>;
+    type ReadOnlyFetch = OptionFetch<T::ReadOnlyFetch>;
+}
+
+pub struct OptionFetch<T>(PhantomData<fn() -> T>);
+
+unsafe impl<'a, T: Fetch<'a>> Fetch<'a> for OptionFetch<T> {
+    type Item = Option<T::Item>;
+    type IterState = T::IterState;
+
+    fn access(access: &mut SystemAccess) {
+        T::access(access);
+    }
+
+    fn borrow(world: &World) -> bool {
+        T::borrow(world)
+    }
+
+    unsafe fn get(
+        world: &'a World,
+        entity: &Entity,
+        change_ticks: &ChangeTicks,
+    ) -> Option<Self::Item> {
+        unsafe { Some(T::get(world, entity, change_ticks)) }
+    }
+
+    fn release(world: &World) {
+        T::release(world);
+    }
+}
+
+unsafe impl<'a, T: ReadOnlyFetch<'a>> ReadOnlyFetch<'a> for OptionFetch<T> {}
+
 macro_rules! tuple_world_query {
     () => {};
     ($first:ident $(,$name:ident)* $(,)?) => {
@@ -264,7 +302,21 @@ macro_rules! tuple_world_query {
             fn next_entity(&self, entity: &Entity) -> Option<Entity> {
                 let ($($name,)*) = self;
 
-                [$($name.next_entity(entity)?),*].into_iter().min()
+                let mut min: Option<Entity> = None;
+
+                $(
+                    if let Some(entity) = $name.next_entity(entity) {
+                        if let Some(ref mut min) = min {
+                            if entity.index() < min.index() {
+                                *min = entity;
+                            }
+                        } else {
+                            min = Some(entity);
+                        }
+                    }
+                )*
+
+                min
             }
         }
 

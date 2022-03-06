@@ -12,7 +12,18 @@ pub enum ComponentStorageKind {
 }
 
 pub trait Component: Send + Sync + 'static {
+    type Storage: ComponentStorage;
+}
+
+pub trait ComponentStorage {
     const STORAGE: ComponentStorageKind;
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SparseStorage;
+
+impl ComponentStorage for SparseStorage {
+    const STORAGE: ComponentStorageKind = ComponentStorageKind::Sparse;
 }
 
 pub struct ComponentData {

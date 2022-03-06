@@ -1,8 +1,11 @@
-use std::marker::PhantomData;
+use std::{
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
 
 use crate::{
-    Access, ChangeTick, CommandQueue, Commands, Fetch, Query, QueryFilter, Res, ResMut, Resource,
-    SystemAccess, World, WorldQuery,
+    Access, ChangeTick, CommandQueue, Commands, Fetch, FromResources, Query, QueryFilter, Res,
+    ResMut, Resource, SystemAccess, World, WorldQuery,
 };
 
 pub trait SystemParam: Sized {
@@ -19,6 +22,42 @@ pub trait SystemParamFetch<'w, 's>: Sized + Send + Sync {
     fn get(&'s mut self, world: &'w World, last_change_tick: ChangeTick) -> Self::Item;
 
     fn apply(self, _world: &mut World) {}
+}
+
+pub struct Local<'a, T>(&'a mut T);
+
+impl<'a, T> Deref for Local<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+impl<'a, T> DerefMut for Local<'a, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0
+    }
+}
+
+impl<'a, T: Resource + FromResources> SystemParam for Local<'a, T> {
+    type Fetch = LocalState<T>;
+}
+
+pub struct LocalState<T>(T);
+
+impl<'w, 's, T: Resource + FromResources> SystemParamFetch<'w, 's> for LocalState<T> {
+    type Item = Local<'s, T>;
+
+    fn init(world: &mut World) -> Self {
+        Self(T::from_resources(world.resources()))
+    }
+
+    fn access(_: &mut SystemAccess) {}
+
+    fn get(&'s mut self, _: &'w World, _: ChangeTick) -> Self::Item {
+        Local(&mut self.0)
+    }
 }
 
 impl<'w, 's> SystemParam for Commands<'w, 's> {
@@ -111,3 +150,45 @@ impl<'w, 's, T: Resource> SystemParamFetch<'w, 's> for ResMutFetch<T> {
         world.resource_mut()
     }
 }
+
+macro_rules! impl_system_param {
+    () => {
+        impl_system_param!(@);
+    };
+    ($first:ident $(,$name:ident)*) => {
+        impl_system_param!($($name),*);
+        impl_system_param!(@ $first $(,$name)*);
+    };
+    (@ $($name:ident),*) => {
+        #[allow(non_snake_case, unused)]
+        impl<'w, 's, $($name: SystemParamFetch<'w, 's>),*> SystemParamFetch<'w, 's> for ($($name,)*) {
+            type Item = ($($name::Item,)*);
+
+            fn init(world: &mut World) -> Self {
+                ($($name::init(world),)*)
+            }
+
+            fn access(access: &mut SystemAccess) {
+                $($name::access(access);)*
+            }
+
+            fn get(&'s mut self, world: &'w World, last_change_tick: ChangeTick) -> Self::Item {
+                let ($($name,)*) = self;
+
+                ($($name.get(world, last_change_tick),)*)
+            }
+
+            fn apply(self, world: &mut World) {
+                let ($($name,)*) = self;
+
+                $($name.apply(world);)*
+            }
+        }
+
+        impl<$($name: SystemParam),*> SystemParam for ($($name,)*) {
+            type Fetch = ($($name::Fetch,)*);
+        }
+    };
+}
+
+impl_system_param!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);

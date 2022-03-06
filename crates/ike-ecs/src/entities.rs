@@ -1,15 +1,13 @@
-use std::collections::BTreeSet;
-
 use crate::{
     ChangeTick, Component, ComponentRead, ComponentStorages, ComponentWrite, Entity,
-    EntityAllocator,
+    EntityAllocator, EntitySet,
 };
 
 #[derive(Default)]
 pub struct Entities {
     storage: ComponentStorages,
     allocator: EntityAllocator,
-    entities: BTreeSet<Entity>,
+    entities: EntitySet,
 }
 
 impl Entities {
@@ -21,7 +19,7 @@ impl Entities {
         &mut self.storage
     }
 
-    pub fn entities(&self) -> &BTreeSet<Entity> {
+    pub fn entities(&self) -> &EntitySet {
         &self.entities
     }
 
@@ -47,6 +45,10 @@ impl Entities {
         self.storage_mut().despawn(entity);
         self.allocator.free(*entity);
         self.entities.remove(entity);
+    }
+
+    pub fn contains_component<T: Component>(&self, entity: &Entity) -> bool {
+        self.storage().contains_component::<T>(entity)
     }
 
     pub fn insert<T: Component>(&mut self, entity: &Entity, component: T, change_tick: ChangeTick) {

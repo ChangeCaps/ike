@@ -1,31 +1,30 @@
 use std::{
     alloc::{self, handle_alloc_error, Layout},
-    collections::BTreeSet,
     mem::MaybeUninit,
     ptr::{self, NonNull},
 };
 
-use crate::{ChangeTick, ComponentData, ComponentDescriptor, Entity};
+use crate::{ChangeTick, ComponentData, ComponentDescriptor, Entity, EntitySet};
 
 /// Sparse component storage.
-pub struct SparseStorage {
+pub struct SparseComponentStorage {
     component_layout: Layout,
     drop: unsafe fn(*mut u8),
     needs_drop: bool,
     capacity: usize,
-    entities: BTreeSet<Entity>,
+    entities: EntitySet,
     component_data: Vec<MaybeUninit<ComponentData>>,
     data: NonNull<u8>,
 }
 
-impl SparseStorage {
+impl SparseComponentStorage {
     pub fn new(desc: &ComponentDescriptor) -> Self {
         Self {
             component_layout: desc.layout,
             drop: desc.drop,
             needs_drop: desc.needs_drop,
             capacity: 0,
-            entities: BTreeSet::new(),
+            entities: EntitySet::new(),
             component_data: Vec::new(),
             data: NonNull::dangling(),
         }
@@ -35,7 +34,7 @@ impl SparseStorage {
         self.entities.clear();
     }
 
-    pub fn entities(&self) -> &BTreeSet<Entity> {
+    pub fn entities(&self) -> &EntitySet {
         &self.entities
     }
 
@@ -114,19 +113,21 @@ impl SparseStorage {
     fn grow_exact(&mut self, additional: usize) {
         let new_capacity = self.capacity + additional;
 
-        let new_layout = repeat_layout(&self.component_layout, new_capacity)
-            .expect("array layout should be vaild");
+        if self.component_layout.size() > 0 {
+            let new_layout = repeat_layout(&self.component_layout, new_capacity)
+                .expect("array layout should be vaild");
 
-        let new_data = if self.capacity == 0 {
-            unsafe { alloc::alloc(new_layout) }
-        } else {
-            let old_layout = repeat_layout(&self.component_layout, self.capacity)
-                .expect("array layout should be valid");
+            let new_data = if self.capacity == 0 {
+                unsafe { alloc::alloc(new_layout) }
+            } else {
+                let old_layout = repeat_layout(&self.component_layout, self.capacity)
+                    .expect("array layout should be valid");
 
-            unsafe { alloc::realloc(self.data.as_ptr(), old_layout, new_layout.size()) }
-        };
+                unsafe { alloc::realloc(self.data.as_ptr(), old_layout, new_layout.size()) }
+            };
 
-        self.data = NonNull::new(new_data).unwrap_or_else(|| handle_alloc_error(new_layout));
+            self.data = NonNull::new(new_data).unwrap_or_else(|| handle_alloc_error(new_layout));
+        }
 
         self.capacity = new_capacity;
 
@@ -135,10 +136,10 @@ impl SparseStorage {
     }
 }
 
-impl Drop for SparseStorage {
+impl Drop for SparseComponentStorage {
     fn drop(&mut self) {
         if self.needs_drop {
-            for entity in &self.entities {
+            for entity in self.entities.iter() {
                 // SAFETY:
                 // entity comes from self.entities therefore entity must have been inserted
                 // which means entity.index() is a valid index
@@ -148,10 +149,12 @@ impl Drop for SparseStorage {
             }
         }
 
-        let layout = repeat_layout(&self.component_layout, self.capacity)
-            .expect("array layout should be valid");
+        if self.component_layout.size() > 0 {
+            let layout = repeat_layout(&self.component_layout, self.capacity)
+                .expect("array layout should be valid");
 
-        unsafe { alloc::dealloc(self.data.as_ptr(), layout) };
+            unsafe { alloc::dealloc(self.data.as_ptr(), layout) };
+        }
     }
 }
 

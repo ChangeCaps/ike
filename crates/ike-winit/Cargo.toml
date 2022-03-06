@@ -1,0 +1,16 @@
+[package]
+name = "ike-winit"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# ike
+ike-app = { version = "0.1.0", path = "../ike-app" }
+ike-ecs = { version = "0.1.0", path = "../ike-ecs" }
+ike-render = { version = "0.1.0", path = "../ike-render" }
+
+# other
+pollster = "0.2"
+winit = "0.26"

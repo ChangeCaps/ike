@@ -4,7 +4,8 @@ use std::{
 };
 
 use crate::{
-    ChangeTick, Entities, Query, Resource, ResourceRead, ResourceWrite, Resources, WorldQuery,
+    ChangeTick, CommandQueue, Commands, Component, ComponentRead, ComponentWrite, Entities, Entity,
+    FromResources, Query, Res, ResMut, Resource, Resources, WorldQuery,
 };
 
 #[derive(Default)]
@@ -20,9 +21,20 @@ impl World {
         Self {
             entities: Entities::default(),
             resources: Resources::default(),
-            change_tick: AtomicU64::new(0),
+            change_tick: AtomicU64::new(1),
             last_change_tick: 0,
         }
+    }
+
+    pub fn commands<O>(&mut self, f: impl FnOnce(Commands) -> O) -> O {
+        let command_queue = CommandQueue::new();
+        let commands = Commands::new(self, &command_queue);
+
+        let out = f(commands);
+
+        command_queue.apply(self);
+
+        out
     }
 }
 
@@ -34,6 +46,14 @@ impl World {
 
     pub fn entities_mut(&mut self) -> &mut Entities {
         &mut self.entities
+    }
+
+    pub fn get<T: Component>(&self, entity: &Entity) -> Option<ComponentRead<'_, T>> {
+        self.entities().read_component(entity)
+    }
+
+    pub fn get_mut<T: Component>(&self, entity: &Entity) -> Option<ComponentWrite<'_, T>> {
+        self.entities().write_component(entity, self.change_tick())
     }
 }
 
@@ -51,8 +71,16 @@ impl World {
         self.resources_mut().insert(resource);
     }
 
+    pub fn init_resource<T: Resource + FromResources>(&mut self) {
+        self.resources_mut().init::<T>();
+    }
+
+    pub fn remove_resource<T: Resource>(&mut self) -> Option<T> {
+        self.resources_mut().remove()
+    }
+
     #[track_caller]
-    pub fn resource<T: Resource>(&self) -> ResourceRead<T> {
+    pub fn resource<T: Resource>(&self) -> Res<T> {
         self.resources().read().expect(&format!(
             "resource '{}' not present in world",
             type_name::<T>()
@@ -60,7 +88,7 @@ impl World {
     }
 
     #[track_caller]
-    pub fn resource_mut<T: Resource>(&self) -> ResourceWrite<T> {
+    pub fn resource_mut<T: Resource>(&self) -> ResMut<T> {
         self.resources().write().expect(&format!(
             "resource '{}' not present in world",
             type_name::<T>()
@@ -70,8 +98,8 @@ impl World {
 
 // change tick
 impl World {
-    pub fn increment_change_tick(&self) {
-        self.change_tick.fetch_add(1, Ordering::Release);
+    pub fn increment_change_tick(&self) -> ChangeTick {
+        self.change_tick.fetch_add(1, Ordering::AcqRel)
     }
 
     pub fn change_tick(&self) -> ChangeTick {
@@ -96,14 +124,14 @@ impl World {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Component, ComponentStorageKind};
+    use crate::{Component, SparseStorage};
 
     use super::*;
 
     struct Foo {}
 
     impl Component for Foo {
-        const STORAGE: ComponentStorageKind = ComponentStorageKind::Sparse;
+        type Storage = SparseStorage;
     }
 
     #[test]

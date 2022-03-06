@@ -4,6 +4,8 @@ use crate::{AtomicBorrow, Res, ResMut};
 
 pub trait Resource: Send + Sync + 'static {}
 
+impl<T: Send + Sync + 'static> Resource for T {}
+
 struct ResourceBox {
     resource: *mut dyn Resource,
     borrow: AtomicBorrow,
@@ -31,6 +33,14 @@ impl Resources {
         );
     }
 
+    pub fn init<T: Resource + FromResources>(&mut self) {
+        if !self.contains::<T>() {
+            let resource = T::from_resources(self);
+
+            self.insert(resource);
+        }
+    }
+
     pub fn remove<T: Resource>(&mut self) -> Option<T> {
         let resource_box = self.resources.remove(&TypeId::of::<T>())?;
 
@@ -39,6 +49,10 @@ impl Resources {
         mem::forget(resource_box);
 
         Some(resource)
+    }
+
+    pub fn contains<T: Resource>(&self) -> bool {
+        self.resources.contains_key(&TypeId::of::<T>())
     }
 
     pub fn read<'a, T: Resource>(&'a self) -> Option<Res<'a, T>> {
@@ -54,5 +68,15 @@ impl Resources {
             unsafe { &mut *(resource.resource as *mut T) },
             &resource.borrow,
         )
+    }
+}
+
+pub trait FromResources {
+    fn from_resources(resources: &Resources) -> Self;
+}
+
+impl<T: Default> FromResources for T {
+    fn from_resources(_: &Resources) -> Self {
+        T::default()
     }
 }

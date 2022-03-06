@@ -174,6 +174,11 @@ impl<'a, T> Mut<'a, T> {
             change_tick,
         }
     }
+
+    /// Gets inner item without marking the it as changed.
+    pub fn as_mut_unchanged(&mut self) -> &T {
+        self.item
+    }
 }
 
 impl<'a, T> Deref for Mut<'a, T> {

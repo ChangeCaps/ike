@@ -1,30 +1,27 @@
-use std::{
-    any::TypeId,
-    collections::{BTreeSet, HashMap},
-    mem, ptr,
-};
+use std::{any::TypeId, collections::HashMap, mem, ptr};
 
 use crate::{
     AtomicBorrow, ChangeTick, Component, ComponentData, ComponentDescriptor, ComponentRead,
-    ComponentStorageKind, ComponentWrite, Entity, SparseStorage,
+    ComponentStorage, ComponentStorageKind, ComponentTicks, ComponentWrite, Entity, EntitySet,
+    SparseComponentStorage,
 };
 
 #[derive(Default)]
 pub struct ComponentStorages {
     pub descriptors: HashMap<TypeId, ComponentDescriptor>,
     pub borrow: HashMap<TypeId, AtomicBorrow>,
-    pub sparse: HashMap<TypeId, SparseStorage>,
+    pub sparse: HashMap<TypeId, SparseComponentStorage>,
 }
 
 impl ComponentStorages {
     pub fn init_storage<T: Component>(&mut self) {
-        match T::STORAGE {
+        match <T::Storage as ComponentStorage>::STORAGE {
             ComponentStorageKind::Sparse => {
                 if !self.sparse.contains_key(&TypeId::of::<T>()) {
                     let desc = ComponentDescriptor::new::<T>();
 
                     self.sparse
-                        .insert(TypeId::of::<T>(), SparseStorage::new(&desc));
+                        .insert(TypeId::of::<T>(), SparseComponentStorage::new(&desc));
 
                     self.descriptors.insert(TypeId::of::<T>(), desc);
 
@@ -35,7 +32,7 @@ impl ComponentStorages {
     }
 
     pub fn contains_component<T: Component>(&self, entity: &Entity) -> bool {
-        match T::STORAGE {
+        match <T::Storage as ComponentStorage>::STORAGE {
             ComponentStorageKind::Sparse => {
                 if let Some(sparse) = self.sparse.get(&TypeId::of::<T>()) {
                     sparse.contains(entity)
@@ -52,7 +49,7 @@ impl ComponentStorages {
         mut component: T,
         change_tick: ChangeTick,
     ) {
-        match T::STORAGE {
+        match <T::Storage as ComponentStorage>::STORAGE {
             ComponentStorageKind::Sparse => {
                 self.init_storage::<T>();
 
@@ -76,7 +73,7 @@ impl ComponentStorages {
     }
 
     pub fn remove_component<T: Component>(&mut self, entity: &Entity) -> Option<T> {
-        match T::STORAGE {
+        match <T::Storage as ComponentStorage>::STORAGE {
             ComponentStorageKind::Sparse => {
                 let sparse = self.sparse.get_mut(&TypeId::of::<T>())?;
 
@@ -92,7 +89,7 @@ impl ComponentStorages {
     }
 
     pub fn get_component_raw<T: Component>(&self, entity: &Entity) -> Option<*mut T> {
-        match T::STORAGE {
+        match <T::Storage as ComponentStorage>::STORAGE {
             ComponentStorageKind::Sparse => {
                 let sparse = self.sparse.get(&TypeId::of::<T>())?;
 
@@ -108,7 +105,7 @@ impl ComponentStorages {
     /// # Safety
     /// A valid T must be present at entity.
     pub unsafe fn get_data_unchecked<T: Component>(&self, entity: &Entity) -> &ComponentData {
-        match T::STORAGE {
+        match <T::Storage as ComponentStorage>::STORAGE {
             ComponentStorageKind::Sparse => {
                 let sparse = self.sparse.get(&TypeId::of::<T>()).unwrap();
                 unsafe { sparse.get_data_unchecked(entity.index() as usize) }
@@ -183,8 +180,16 @@ impl ComponentStorages {
         self.borrow.get(&TypeId::of::<T>())
     }
 
-    pub fn get_entities<T: Component>(&self) -> Option<&BTreeSet<Entity>> {
-        match T::STORAGE {
+    pub fn get_component_ticks<T: Component>(&self, entity: &Entity) -> Option<&ComponentTicks> {
+        if self.contains_component::<T>(entity) {
+            Some(unsafe { &self.get_data_unchecked::<T>(entity).ticks })
+        } else {
+            None
+        }
+    }
+
+    pub fn get_entities<T: Component>(&self) -> Option<&EntitySet> {
+        match <T::Storage as ComponentStorage>::STORAGE {
             ComponentStorageKind::Sparse => Some(self.sparse.get(&TypeId::of::<T>())?.entities()),
         }
     }
@@ -192,6 +197,8 @@ impl ComponentStorages {
 
 #[cfg(test)]
 mod tests {
+    use crate::SparseStorage;
+
     use super::*;
 
     #[derive(Default)]
@@ -202,7 +209,7 @@ mod tests {
     }
 
     impl Component for Foo {
-        const STORAGE: ComponentStorageKind = ComponentStorageKind::Sparse;
+        type Storage = SparseStorage;
     }
 
     #[derive(Default)]
@@ -213,7 +220,7 @@ mod tests {
     }
 
     impl Component for Bar {
-        const STORAGE: ComponentStorageKind = ComponentStorageKind::Sparse;
+        type Storage = SparseStorage;
     }
 
     #[test]

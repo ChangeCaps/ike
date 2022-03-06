@@ -1,0 +1,18 @@
+[package]
+name = "ike-pbr"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# ike
+ike-app = { version = "0.1.0", path = "../ike-app" }
+ike-assets = { version = "0.1.0", path = "../ike-assets" }
+ike-ecs = { version = "0.1.0", path = "../ike-ecs" }
+ike-math = { version = "0.1.0", path = "../ike-math" }
+ike-render = { version = "0.1.0", path = "../ike-render" }
+ike-transform = { version = "0.1.0", path = "../ike-transform" }
+
+# other
+bytemuck = { version = "1.8", features = ["derive"] }

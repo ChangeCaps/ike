@@ -100,6 +100,14 @@ pub trait ExclusiveSystem: Send + Sync + 'static {
     fn run(&mut self, world: &mut World);
 }
 
+impl<F: FnMut(&mut World) + Send + Sync + 'static> ExclusiveSystem for F {
+    fn run(&mut self, world: &mut World) {
+        world.increment_change_tick();
+
+        self(world);
+    }
+}
+
 pub trait System: Send + Sync + 'static {
     fn access(&self) -> SystemAccess;
 
@@ -110,69 +118,4 @@ pub trait System: Send + Sync + 'static {
     fn init(&mut self, world: &mut World);
 
     fn apply(&mut self, world: &mut World);
-}
-
-#[derive(Default)]
-pub struct ScheduleStep {
-    pub access: SystemAccess,
-    pub systems: Vec<Box<dyn System>>,
-}
-
-#[derive(Default)]
-pub struct Schedule {
-    steps: Vec<ScheduleStep>,
-    exclusive_systems: BTreeMap<TypeId, Box<dyn ExclusiveSystem>>,
-}
-
-impl Schedule {
-    #[inline]
-    pub fn add_system<T: System>(&mut self, system: T) {
-        let access = system.access();
-
-        for step in &mut self.steps {
-            if step.access.compatible(&access) {
-                step.access.combine(access);
-
-                step.systems.push(Box::new(system));
-
-                return;
-            }
-        }
-
-        let mut step = ScheduleStep {
-            access,
-            systems: Vec::new(),
-        };
-
-        step.systems.push(Box::new(system));
-
-        self.steps.push(step);
-    }
-
-    #[inline]
-    pub fn add_exclusive_system<T: ExclusiveSystem>(&mut self, system: T) {
-        self.exclusive_systems
-            .insert(TypeId::of::<T>(), Box::new(system));
-    }
-
-    #[inline]
-    pub fn execute(&mut self, world: &mut World) {
-        for system in self.exclusive_systems.values_mut() {
-            system.run(world);
-        }
-
-        for step in &mut self.steps {
-            for system in &mut step.systems {
-                system.init(world);
-            }
-
-            step.systems.iter_mut().for_each(|system| {
-                system.run(world);
-            });
-
-            for system in &mut step.systems {
-                system.apply(world);
-            }
-        }
-    }
 }

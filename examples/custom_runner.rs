@@ -1,0 +1,61 @@
+use ike::prelude::*;
+
+struct CustomRunner;
+
+impl AppRunner for CustomRunner {
+    fn run(&mut self, world: &mut World, stages: &mut AppStages) {
+        println!("starting runner!");
+
+        stages.execute(world);
+    }
+}
+
+struct Foo(i32);
+
+impl Component for Foo {
+    type Storage = SparseStorage;
+}
+
+struct Odd;
+
+impl Component for Odd {
+    type Storage = SparseStorage;
+}
+
+fn setup(commands: Commands) {
+    println!("setup system");
+
+    for i in 0..10 {
+        let spawn = commands.spawn();
+        spawn.insert(Foo(i));
+
+        if i % 2 == 1 {
+            spawn.insert(Odd);
+        }
+    }
+}
+
+fn list_foos(query: Query<&Foo>) {
+    println!("all foos:");
+
+    for foo in query.iter() {
+        println!("foo({})", foo.0);
+    }
+}
+
+fn list_even_foos(query: Query<&Foo, Without<Odd>>) {
+    println!("even foos:");
+
+    for foo in query.iter() {
+        println!("foo({})", foo.0);
+    }
+}
+
+fn main() {
+    App::new()
+        .with_runner(CustomRunner)
+        .add_startup_system(setup.system())
+        .add_system(list_foos.system())
+        .add_system(list_even_foos.system())
+        .run();
+}

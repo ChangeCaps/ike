@@ -27,7 +27,7 @@ impl ChangeTicks {
         self.change_tick().wrapping_sub(self.last_change_tick())
     }
 
-    pub const fn is_changed(&self, component_tick: ChangeTick) -> bool {
+    pub fn is_changed(&self, component_tick: ChangeTick) -> bool {
         let component_delta = self.change_tick().wrapping_sub(component_tick);
 
         component_delta < self.delta()
@@ -60,7 +60,7 @@ impl ComponentTicks {
         &self.changed
     }
 
-    pub fn change_ticks(&self, change_tick: ChangeTick) {
+    pub fn check_ticks(&self, change_tick: ChangeTick) {
         if let Some(new_tick) = check_tick(self.added(), change_tick) {
             self.added.store(new_tick, Ordering::Release);
         }

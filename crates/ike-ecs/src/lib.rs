@@ -1,10 +1,12 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 mod borrow;
+mod children;
 mod commands;
 mod component;
 mod entities;
 mod entity;
+mod event;
 mod fn_system;
 mod query;
 mod query_filter;
@@ -12,6 +14,7 @@ mod query_iter;
 mod resources;
 mod schedule;
 mod sparse;
+mod spawn_entity;
 mod storage;
 mod system;
 mod system_param;
@@ -19,10 +22,12 @@ mod ticks;
 mod world;
 
 pub use borrow::*;
+pub use children::*;
 pub use commands::*;
 pub use component::*;
 pub use entities::*;
 pub use entity::*;
+pub use event::*;
 pub use fn_system::*;
 pub use query::*;
 pub use query_filter::*;
@@ -30,6 +35,7 @@ pub use query_iter::*;
 pub use resources::*;
 pub use schedule::*;
 pub use sparse::*;
+pub use spawn_entity::*;
 pub use storage::*;
 pub use system::*;
 pub use system_param::*;
