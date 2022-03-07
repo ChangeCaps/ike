@@ -9,8 +9,6 @@ use crate::{
 
 impl RenderGraph {
     pub fn run(&mut self, world: &World, input: Vec<SlotValue>) -> RenderGraphResult<()> {
-        self.validate_nodes()?;
-
         let mut render_context = {
             let device = world.resource::<RenderDevice>().clone();
             let queue = world.resource::<RenderQueue>().clone();
@@ -67,8 +65,9 @@ impl RenderGraph {
 
             let mut inputs = Vec::new();
 
-            for edge in state.input_edges.iter() {
+            for edge in state.input_edges.clone() {
                 if !processed.contains(&edge.output_node()) {
+                    self.nodes.insert(node, state);
                     continue 'handle_node;
                 }
 
@@ -82,14 +81,14 @@ impl RenderGraph {
 
                         inputs.push((
                             output_index,
-                            output_state.outputs[*output_index].as_ref().unwrap(),
+                            output_state.outputs[output_index].as_ref().unwrap(),
                         ));
                     }
                     Edge::NodeEdge { .. } => {}
                 }
             }
 
-            inputs.sort_by_key(|(index, _)| **index);
+            inputs.sort_by_key(|(index, _)| *index);
 
             let mut graph_context = RenderGraphContext {
                 inputs: inputs

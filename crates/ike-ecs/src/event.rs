@@ -97,6 +97,44 @@ impl<T: Resource> Events<T> {
     }
 }
 
+pub struct EventWriter<'w, T: Resource> {
+    events: ResMut<'w, Events<T>>,
+}
+
+impl<'w, T: Resource> EventWriter<'w, T> {
+    pub fn send(&mut self, event: T) {
+        self.events.send(event);
+    }
+}
+
+impl<'w, T: Resource> SystemParam for EventWriter<'w, T> {
+    type Fetch = EventWriterFetch<'w, T>;
+}
+
+pub struct EventWriterFetch<'w, T: Resource> {
+    events: <ResMut<'w, Events<T>> as SystemParam>::Fetch,
+}
+
+impl<'w0, 'w, 's, T: Resource> SystemParamFetch<'w, 's> for EventWriterFetch<'w0, T> {
+    type Item = EventWriter<'w, T>;
+
+    fn init(world: &mut World) -> Self {
+        Self {
+            events: SystemParamFetch::init(world),
+        }
+    }
+
+    fn access(access: &mut SystemAccess) {
+        access.borrow_resource::<Events<T>>(Access::Write);
+    }
+
+    fn get(&'s mut self, world: &'w World, last_change_tick: ChangeTick) -> Self::Item {
+        EventWriter {
+            events: SystemParamFetch::get(&mut self.events, world, last_change_tick),
+        }
+    }
+}
+
 pub struct EventReader<'w, 's, T: Resource> {
     last_event_count: Local<'s, usize>,
     event: Res<'w, Events<T>>,

@@ -15,8 +15,14 @@ pub type TextureViewDescriptor<'a> = wgpu::TextureViewDescriptor<'a>;
 pub type SurfaceConfiguration = wgpu::SurfaceConfiguration;
 pub type PresentMode = wgpu::PresentMode;
 pub type SurfaceError = wgpu::SurfaceError;
+pub type TextureDescriptor<'a> = wgpu::TextureDescriptor<'a>;
 pub type TextureUsages = wgpu::TextureUsages;
 pub type TextureFormat = wgpu::TextureFormat;
+pub type TextureDimension = wgpu::TextureDimension;
+pub type Extent3d = wgpu::Extent3d;
+pub type Sampler = wgpu::Sampler;
+pub type SamplerDescriptor<'a> = wgpu::SamplerDescriptor<'a>;
+pub type CompareFunction = wgpu::CompareFunction;
 pub type CommandEncoder = wgpu::CommandEncoder;
 pub type CommandBuffer = wgpu::CommandBuffer;
 pub type CommandEncoderDescriptor<'a> = wgpu::CommandEncoderDescriptor<'a>;
@@ -37,6 +43,7 @@ pub type BindGroupLayoutDescriptor<'a> = wgpu::BindGroupLayoutDescriptor<'a>;
 pub type BindingType = wgpu::BindingType;
 pub type BufferBindingType = wgpu::BufferBindingType;
 pub type BindingResource<'a> = wgpu::BindingResource<'a>;
+pub type SamplerBindingType = wgpu::SamplerBindingType;
 pub type ShaderStages = wgpu::ShaderStages;
 pub type TextureSampleType = wgpu::TextureSampleType;
 pub type TextureViewDimension = wgpu::TextureViewDimension;
@@ -44,6 +51,9 @@ pub type PipelineLayout = wgpu::PipelineLayout;
 pub type PipelineLayoutDescriptor<'a> = wgpu::PipelineLayoutDescriptor<'a>;
 pub type RenderPipeline = wgpu::RenderPipeline;
 pub type RenderPipelineDescriptor<'a> = wgpu::RenderPipelineDescriptor<'a>;
+pub type DepthStencilState = wgpu::DepthStencilState;
+pub type StencilState = wgpu::StencilState;
+pub type DepthBiasState = wgpu::DepthBiasState;
 pub type VertexState<'a> = wgpu::VertexState<'a>;
 pub type VertexBufferLayout<'a> = wgpu::VertexBufferLayout<'a>;
 pub type VertexStepMode = wgpu::VertexStepMode;
@@ -97,6 +107,25 @@ impl RenderDevice {
     pub fn create_buffer_init(&self, desc: &BufferInitDescriptor<'_>) -> Buffer {
         let raw = self.raw.create_buffer_init(desc);
         Buffer::from_raw(raw)
+    }
+
+    pub fn create_texture(&self, desc: &TextureDescriptor<'_>) -> Texture {
+        let raw = self.raw.create_texture(desc);
+        Texture::from_raw(raw, desc.format, desc.size.width, desc.size.height)
+    }
+
+    pub fn create_texture_with_data(
+        &self,
+        queue: &RenderQueue,
+        desc: &TextureDescriptor<'_>,
+        data: &[u8],
+    ) -> Texture {
+        let raw = self.raw.create_texture_with_data(queue.raw(), desc, data);
+        Texture::from_raw(raw, desc.format, desc.size.width, desc.size.height)
+    }
+
+    pub fn create_sampler(&self, desc: &SamplerDescriptor<'_>) -> Sampler {
+        self.raw.create_sampler(desc)
     }
 
     pub fn create_command_encoder(&self, desc: &CommandEncoderDescriptor<'_>) -> CommandEncoder {
@@ -193,8 +222,8 @@ impl Surface {
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
-        self.width = width;
-        self.height = height;
+        self.width = width.max(1);
+        self.height = height.max(1);
         *self.config_surface.get_mut() = true;
     }
 
@@ -219,6 +248,8 @@ impl Surface {
         Ok(SurfaceTexture::from_raw(
             self.raw.get_current_texture()?,
             self.format,
+            self.width,
+            self.height,
         ))
     }
 }
@@ -227,11 +258,23 @@ impl Surface {
 pub struct SurfaceTexture {
     raw: RawSurfaceTexture,
     format: TextureFormat,
+    width: u32,
+    height: u32,
 }
 
 impl SurfaceTexture {
-    pub fn from_raw(raw: RawSurfaceTexture, format: TextureFormat) -> Self {
-        Self { raw, format }
+    pub fn from_raw(
+        raw: RawSurfaceTexture,
+        format: TextureFormat,
+        width: u32,
+        height: u32,
+    ) -> Self {
+        Self {
+            raw,
+            format,
+            width,
+            height,
+        }
     }
 
     pub fn raw(&self) -> &RawSurfaceTexture {
@@ -246,6 +289,8 @@ impl SurfaceTexture {
         TextureView::from_raw(
             self.raw.texture.create_view(desc),
             desc.format.unwrap_or(self.format),
+            self.width,
+            self.height,
         )
     }
 
@@ -257,13 +302,17 @@ impl SurfaceTexture {
 pub struct Texture {
     raw: Arc<RawTexture>,
     format: TextureFormat,
+    width: u32,
+    height: u32,
 }
 
 impl Texture {
-    pub fn from_raw(raw: RawTexture, format: TextureFormat) -> Self {
+    pub fn from_raw(raw: RawTexture, format: TextureFormat, width: u32, height: u32) -> Self {
         Self {
             raw: Arc::new(raw),
             format,
+            width,
+            height,
         }
     }
 
@@ -275,10 +324,20 @@ impl Texture {
         self.format
     }
 
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
     pub fn create_view(&self, desc: &TextureViewDescriptor<'_>) -> TextureView {
         TextureView::from_raw(
             self.raw.create_view(desc),
             desc.format.unwrap_or(self.format),
+            self.width,
+            self.height,
         )
     }
 
@@ -291,13 +350,17 @@ impl Texture {
 pub struct TextureView {
     raw: Arc<RawTextureView>,
     format: TextureFormat,
+    width: u32,
+    height: u32,
 }
 
 impl TextureView {
-    pub fn from_raw(raw: RawTextureView, format: TextureFormat) -> Self {
+    pub fn from_raw(raw: RawTextureView, format: TextureFormat, width: u32, height: u32) -> Self {
         Self {
             raw: Arc::new(raw),
             format,
+            width,
+            height,
         }
     }
 
@@ -307,6 +370,14 @@ impl TextureView {
 
     pub fn format(&self) -> TextureFormat {
         self.format
+    }
+
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
     }
 
     pub fn raw(&self) -> &RawTextureView {

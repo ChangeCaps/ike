@@ -2,7 +2,7 @@ use bytemuck::{cast_slice, cast_slice_mut, cast_vec};
 use ike_math::{Vec2, Vec3, Vec4};
 use std::borrow::Cow;
 
-use crate::{Buffer, BufferInitDescriptor, BufferUsages, RenderDevice};
+use crate::{Buffer, BufferInitDescriptor, BufferUsages, Color, RenderDevice};
 
 #[derive(Clone, Debug)]
 pub enum VertexAttribute {
@@ -72,6 +72,8 @@ impl_as_vertex_attribute!([f32; 4], Float32x4);
 impl_as_vertex_attribute!(Vec2, Float32x2);
 impl_as_vertex_attribute!(Vec3, Float32x3);
 impl_as_vertex_attribute!(Vec4, Float32x4);
+
+impl_as_vertex_attribute!(Color, Float32x4);
 
 #[derive(Clone, Debug, Default)]
 pub struct Mesh {

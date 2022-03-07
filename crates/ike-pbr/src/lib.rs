@@ -5,7 +5,8 @@ pub use material::*;
 pub use pbr_node::*;
 
 use ike_app::{App, Plugin};
-use ike_render::RenderGraph;
+use ike_assets::AddAsset;
+use ike_render::{input, RenderGraph, TextureNode};
 
 pub mod node {
     pub const PBR_NODE: &str = "pbr_node";
@@ -16,6 +17,7 @@ pub struct PbrPlugin;
 impl Plugin for PbrPlugin {
     fn build(self, app: &mut App) {
         app.world.init_resource::<PbrResources>();
+        app.add_asset::<PbrMaterial>();
 
         let mut render_graph = app.world.resource_mut::<RenderGraph>();
 
@@ -23,9 +25,13 @@ impl Plugin for PbrPlugin {
         render_graph.add_node(node::PBR_NODE, PbrNode::default());
 
         render_graph
+            .add_node_edge(ike_render::node::DEPENDENCIES, node::PBR_NODE)
+            .unwrap();
+
+        render_graph
             .add_slot_edge(
                 input_node,
-                ike_render::node::SURFACE_TEXTURE,
+                input::SURFACE_TEXTURE,
                 node::PBR_NODE,
                 PbrNode::RENDER_TARGET,
             )
@@ -33,11 +39,15 @@ impl Plugin for PbrPlugin {
 
         render_graph
             .add_slot_edge(
-                input_node,
-                ike_render::node::CAMERA,
+                ike_render::node::DEPTH,
+                TextureNode::TEXTURE,
                 node::PBR_NODE,
-                PbrNode::CAMERA,
+                PbrNode::DEPTH,
             )
+            .unwrap();
+
+        render_graph
+            .add_slot_edge(input_node, input::CAMERA, node::PBR_NODE, PbrNode::CAMERA)
             .unwrap();
     }
 }

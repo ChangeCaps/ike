@@ -8,7 +8,11 @@ fn main() {
         .run();
 }
 
-fn setup(commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
+fn setup(
+    commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<PbrMaterial>>,
+) {
     let mut camera_transform = Transform::from_xyz(2.0, 1.0, 1.0);
     camera_transform.look_at(Vec3::ZERO, Vec3::Y);
 
@@ -18,21 +22,31 @@ fn setup(commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
         .insert(GlobalTransform::default())
         .insert(Camera::default());
 
-    let mesh = meshes.add(Mesh::cube(Vec3::ONE / 2.0));
+    commands.spawn().insert(DirectionalLight {
+        direction: Vec3::new(-1.0, -1.0, -1.0),
+        ..Default::default()
+    });
 
-    for x in -10..=10 {
-        for z in -10..=10 {
+    let mesh = meshes.add(Mesh::cube(Vec3::ONE / 2.0));
+    let material = materials.add(PbrMaterial {
+        base_color: Color::RED,
+        ..Default::default()
+    });
+
+    for x in -2..=2 {
+        for z in -2..=2 {
             commands
                 .spawn()
                 .insert(Transform::from_xyz(x as f32, 0.0, z as f32))
                 .insert(GlobalTransform::default())
-                .insert(mesh.clone());
+                .insert(mesh.clone())
+                .insert(material.clone());
         }
     }
 }
 
 fn rotate(mut query: Query<&mut Transform, With<Handle<Mesh>>>) {
     for mut transform in query.iter_mut() {
-        transform.rotation *= Quat::from_rotation_z(0.1);
+        transform.rotation *= Quat::from_rotation_z(0.01);
     }
 }

@@ -1,4 +1,5 @@
 use std::{
+    any::type_name,
     hash::{Hash, Hasher},
     marker::PhantomData,
     path::Path,
@@ -150,10 +151,25 @@ impl HandleUntyped {
         }
     }
 
+    pub fn as_weak(&self) -> Self {
+        Self {
+            id: self.id,
+            tracker: None,
+        }
+    }
+
     pub fn reference_count(&self) -> Option<u32> {
         self.tracker
             .as_ref()
             .map(|tracker| tracker.reference_count())
+    }
+}
+
+impl std::fmt::Debug for HandleUntyped {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HandleUntyped")
+            .field("id", &self.id)
+            .finish()
     }
 }
 
@@ -210,6 +226,13 @@ impl<T: Asset> Handle<T> {
         }
     }
 
+    pub fn as_weak(&self) -> Self {
+        Self {
+            inner: self.inner.as_weak(),
+            marker: PhantomData,
+        }
+    }
+
     pub fn cast<U: Asset>(&self) -> Handle<U> {
         Handle {
             inner: HandleUntyped {
@@ -231,6 +254,14 @@ impl<T: Asset> Clone for Handle<T> {
             inner: self.inner.clone(),
             marker: self.marker.clone(),
         }
+    }
+}
+
+impl<T: Asset> std::fmt::Debug for Handle<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct(&format!("Handle<{}>", type_name::<T>()))
+            .field("inner", &self.inner)
+            .finish()
     }
 }
 

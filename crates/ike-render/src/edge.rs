@@ -98,3 +98,12 @@ impl Edges {
         self.edges.iter()
     }
 }
+
+impl IntoIterator for Edges {
+    type Item = Edge;
+    type IntoIter = std::vec::IntoIter<Edge>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.edges.into_iter()
+    }
+}

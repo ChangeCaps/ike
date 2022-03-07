@@ -1,6 +1,8 @@
 use std::mem;
 
-use ike_ecs::{update_parent_system, ExclusiveSystem, Resource, System, SystemFn, World};
+use ike_ecs::{
+    update_parent_system, Events, ExclusiveSystem, FromResources, Resource, System, SystemFn, World,
+};
 
 use crate::{AppRunner, AppStages, Plugin, RunOnce};
 
@@ -92,6 +94,13 @@ impl App {
         self
     }
 
+    pub fn add_event<T: Resource>(&mut self) -> &mut Self {
+        self.world.init_resource::<Events<T>>();
+        self.add_system_to_stage(Events::<T>::update_system.system(), stage::END);
+
+        self
+    }
+
     pub fn with_runner(&mut self, runner: impl AppRunner + 'static) -> &mut Self {
         self.runner = Box::new(runner);
 
@@ -100,6 +109,12 @@ impl App {
 
     pub fn insert_resource<T: Resource>(&mut self, resource: T) -> &mut Self {
         self.world.insert_resource(resource);
+
+        self
+    }
+
+    pub fn init_resource<T: Resource + FromResources>(&mut self) -> &mut Self {
+        self.world.init_resource::<T>();
 
         self
     }

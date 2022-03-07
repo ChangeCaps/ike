@@ -30,6 +30,7 @@ pub trait Projection {
     fn matrix(&self, aspect: f32) -> Mat4;
 }
 
+#[derive(Clone)]
 pub struct Perspective {
     pub fov: f32,
     pub near: f32,
@@ -50,7 +51,28 @@ impl Default for Perspective {
     }
 }
 
-pub struct Orthographic {}
+#[derive(Clone)]
+pub struct Orthographic {
+    pub left: f32,
+    pub right: f32,
+    pub bottom: f32,
+    pub top: f32,
+    pub near: f32,
+    pub far: f32,
+}
+
+impl Orthographic {
+    pub fn matrix(&self) -> Mat4 {
+        Mat4::orthographic_rh(
+            self.left,
+            self.right,
+            self.bottom,
+            self.top,
+            self.near,
+            self.far,
+        )
+    }
+}
 
 pub struct Camera {
     projection: Box<dyn Projection + Send + Sync>,

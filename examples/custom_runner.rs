@@ -3,10 +3,10 @@ use ike::prelude::*;
 struct CustomRunner;
 
 impl AppRunner for CustomRunner {
-    fn run(&mut self, world: &mut World, stages: &mut AppStages) {
+    fn run(self: Box<Self>, mut app: App) {
         println!("starting runner!");
 
-        stages.execute(world);
+        app.update();
     }
 }
 

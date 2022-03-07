@@ -1,5 +1,5 @@
 [package]
-name = "ike-render"
+name = "ike-light"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,12 +10,9 @@ edition = "2021"
 ike-app = { version = "0.1.0", path = "../ike-app" }
 ike-assets = { version = "0.1.0", path = "../ike-assets" }
 ike-ecs = { version = "0.1.0", path = "../ike-ecs" }
-ike-id = { version = "0.1.0", path = "../ike-id" }
-ike-math = { version = "0.1.0", path = "../ike-math", features = ["bytemuck"] }
+ike-math = { version = "0.1.0", path = "../ike-math" }
+ike-render = { version = "0.1.0", path = "../ike-render" }
 ike-transform = { version = "0.1.0", path = "../ike-transform" }
 
 # other
-bytemuck = { version = "1.8", features = ["extern_crate_alloc", "derive"] }
-crossbeam = "0.8"
-thiserror = "1.0"
-wgpu = "0.12"
+bytemuck = { version = "1.8", features = ["derive"] }

@@ -1,81 +1,139 @@
-use std::mem;
+use std::collections::HashMap;
 
-use bytemuck::{bytes_of, Pod, Zeroable};
-use ike_assets::{Assets, Handle};
+use bytemuck::bytes_of;
+use ike_assets::{Assets, Handle, HandleId};
 use ike_ecs::{FromResources, Resources, World};
+use ike_light::LightBindings;
 use ike_math::Mat4;
 use ike_render::{
     include_wgsl, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType,
-    BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites, FragmentState, IndexFormat,
-    LoadOp, Mesh, MeshBuffers, Operations, PipelineLayout, PipelineLayoutDescriptor, RawCamera,
-    RawColor, RenderContext, RenderDevice, RenderGraphContext, RenderNode,
-    RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
-    RenderQueue, ShaderStages, SlotInfo, TextureFormat, TextureView, VertexAttribute,
+    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, Buffer,
+    BufferBindingType, BufferInitDescriptor, BufferUsages, ColorTargetState, ColorWrites,
+    CompareFunction, DepthStencilState, FragmentState, Image, ImageTexture, IndexFormat, LoadOp,
+    Mesh, MeshBindings, MeshBuffers, Operations, PipelineLayout, PipelineLayoutDescriptor,
+    RawCamera, RawColor, RenderContext, RenderDevice, RenderGraphContext, RenderNode,
+    RenderPassColorAttachment, RenderPassDepthStencilAttachemnt, RenderPassDescriptor,
+    RenderPipeline, RenderPipelineDescriptor, RenderQueue, SamplerBindingType, ShaderStages,
+    SlotInfo, TextureFormat, TextureSampleType, TextureView, TextureViewDimension, VertexAttribute,
     VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
 };
 use ike_transform::GlobalTransform;
 
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct Object {
-    transform: [[f32; 4]; 4],
-    view_proj: [[f32; 4]; 4],
-    camera_position: [f32; 3],
-    _padding: [u8; 4],
-}
+use crate::PbrMaterial;
 
-impl Object {
-    pub fn new(transform: Mat4, camera: &RawCamera) -> Self {
-        Self {
-            transform: transform.to_cols_array_2d(),
-            view_proj: camera.view_proj().to_cols_array_2d(),
-            camera_position: camera.position.into(),
-            _padding: [0u8; 4],
-        }
-    }
-}
-
-struct ObjectBinding {
+struct MaterialBinding {
+    base_color: Option<Handle<Image>>,
+    metallic_roughness: Option<Handle<Image>>,
+    normal_map: Option<Handle<Image>>,
+    emission: Option<Handle<Image>>,
     buffer: Buffer,
     bind_group: BindGroup,
 }
 
-impl ObjectBinding {
-    pub fn new(device: &RenderDevice, layout: &BindGroupLayout) -> Self {
-        let buffer = device.create_buffer(&BufferDescriptor {
-            label: Some("ike_pbr_oject_binding_buffer"),
-            size: mem::size_of::<Object>() as u64,
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("ike_pbr_oject_binding_group"),
-            layout,
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: buffer.raw().as_entire_binding(),
-            }],
-        });
-
-        Self { buffer, bind_group }
+impl MaterialBinding {
+    fn get_texture<'a>(
+        image: &Option<Handle<Image>>,
+        default_image: &'a ImageTexture,
+        image_textures: &'a Assets<ImageTexture>,
+    ) -> &'a ImageTexture {
+        image
+            .as_ref()
+            .and_then(|image| image_textures.get(image))
+            .unwrap_or(default_image)
     }
 
-    pub fn write(&self, queue: &RenderQueue, object: &Object) {
-        queue.write_buffer(&self.buffer, 0, bytes_of(object));
+    pub fn new(
+        material: &PbrMaterial,
+        device: &RenderDevice,
+        layout: &BindGroupLayout,
+        default_image: &ImageTexture,
+        image_textures: &Assets<ImageTexture>,
+    ) -> Self {
+        let raw_material = material.as_raw();
+
+        let buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("pbr_material_buffer"),
+            contents: bytes_of(&raw_material),
+            usage: BufferUsages::COPY_DST | BufferUsages::UNIFORM,
+        });
+
+        let base_color =
+            Self::get_texture(&material.base_color_texture, default_image, image_textures);
+        let metallic_roughness = Self::get_texture(
+            &material.metallic_roughness_texture,
+            default_image,
+            image_textures,
+        );
+        let emission = Self::get_texture(&material.emission_texture, default_image, image_textures);
+        let normal_map = Self::get_texture(&material.normal_map, default_image, image_textures);
+
+        let bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("pbr_material_bind_group"),
+            layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: buffer.raw().as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::TextureView(base_color.texture_view.raw()),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: BindingResource::Sampler(&base_color.sampler),
+                },
+                BindGroupEntry {
+                    binding: 3,
+                    resource: BindingResource::TextureView(metallic_roughness.texture_view.raw()),
+                },
+                BindGroupEntry {
+                    binding: 4,
+                    resource: BindingResource::Sampler(&metallic_roughness.sampler),
+                },
+                BindGroupEntry {
+                    binding: 5,
+                    resource: BindingResource::TextureView(emission.texture_view.raw()),
+                },
+                BindGroupEntry {
+                    binding: 6,
+                    resource: BindingResource::Sampler(&emission.sampler),
+                },
+                BindGroupEntry {
+                    binding: 7,
+                    resource: BindingResource::TextureView(normal_map.texture_view.raw()),
+                },
+                BindGroupEntry {
+                    binding: 8,
+                    resource: BindingResource::Sampler(&normal_map.sampler),
+                },
+            ],
+        });
+
+        Self {
+            base_color: material.base_color_texture.clone(),
+            metallic_roughness: material.metallic_roughness_texture.clone(),
+            normal_map: material.normal_map.clone(),
+            emission: material.emission_texture.clone(),
+            buffer,
+            bind_group,
+        }
     }
 }
 
 pub struct PbrResources {
     pub object_bind_group_layout: BindGroupLayout,
+    pub material_bind_group_layout: BindGroupLayout,
     pub pipeline_layout: PipelineLayout,
     pub render_pipeline: RenderPipeline,
+    pub default_image: ImageTexture,
 }
 
 impl FromResources for PbrResources {
     fn from_resources(resources: &Resources) -> Self {
         let device = resources.read::<RenderDevice>().unwrap();
+        let queue = resources.read::<RenderQueue>().unwrap();
+        let light_bindings = resources.read::<LightBindings>().unwrap();
 
         let object_bind_group_layout =
             device.create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -92,9 +150,94 @@ impl FromResources for PbrResources {
                 }],
             });
 
+        let material_bind_group_layout =
+            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("ike_pbr_material_bind_group_layout"),
+                entries: &[
+                    BindGroupLayoutEntry {
+                        binding: 0,
+                        ty: BindingType::Buffer {
+                            ty: BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        visibility: ShaderStages::VERTEX_FRAGMENT,
+                        count: None,
+                    },
+                    BindGroupLayoutEntry {
+                        binding: 1,
+                        ty: BindingType::Texture {
+                            sample_type: TextureSampleType::Float { filterable: true },
+                            view_dimension: TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        visibility: ShaderStages::VERTEX_FRAGMENT,
+                        count: None,
+                    },
+                    BindGroupLayoutEntry {
+                        binding: 2,
+                        ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                        visibility: ShaderStages::VERTEX_FRAGMENT,
+                        count: None,
+                    },
+                    BindGroupLayoutEntry {
+                        binding: 3,
+                        ty: BindingType::Texture {
+                            sample_type: TextureSampleType::Float { filterable: true },
+                            view_dimension: TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        visibility: ShaderStages::VERTEX_FRAGMENT,
+                        count: None,
+                    },
+                    BindGroupLayoutEntry {
+                        binding: 4,
+                        ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                        visibility: ShaderStages::VERTEX_FRAGMENT,
+                        count: None,
+                    },
+                    BindGroupLayoutEntry {
+                        binding: 5,
+                        ty: BindingType::Texture {
+                            sample_type: TextureSampleType::Float { filterable: true },
+                            view_dimension: TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        visibility: ShaderStages::VERTEX_FRAGMENT,
+                        count: None,
+                    },
+                    BindGroupLayoutEntry {
+                        binding: 6,
+                        ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                        visibility: ShaderStages::VERTEX_FRAGMENT,
+                        count: None,
+                    },
+                    BindGroupLayoutEntry {
+                        binding: 7,
+                        ty: BindingType::Texture {
+                            sample_type: TextureSampleType::Float { filterable: false },
+                            view_dimension: TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        visibility: ShaderStages::VERTEX_FRAGMENT,
+                        count: None,
+                    },
+                    BindGroupLayoutEntry {
+                        binding: 8,
+                        ty: BindingType::Sampler(SamplerBindingType::NonFiltering),
+                        visibility: ShaderStages::VERTEX_FRAGMENT,
+                        count: None,
+                    },
+                ],
+            });
+
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("ike_pbr_pipeline_layout"),
-            bind_group_layouts: &[&object_bind_group_layout],
+            bind_group_layouts: &[
+                &object_bind_group_layout,
+                &material_bind_group_layout,
+                &light_bindings.bind_group_layout,
+            ],
             push_constant_ranges: &[],
         });
 
@@ -125,6 +268,15 @@ impl FromResources for PbrResources {
                             offset: 0,
                         }],
                     },
+                    VertexBufferLayout {
+                        step_mode: VertexStepMode::Vertex,
+                        array_stride: 8,
+                        attributes: &[VertexAttribute {
+                            format: VertexFormat::Float32x2,
+                            shader_location: 2,
+                            offset: 0,
+                        }],
+                    },
                 ],
             },
             fragment: Some(FragmentState {
@@ -136,23 +288,34 @@ impl FromResources for PbrResources {
                     write_mask: ColorWrites::ALL,
                 }],
             }),
-            depth_stencil: None,
+            depth_stencil: Some(DepthStencilState {
+                format: TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: CompareFunction::LessEqual,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
             multisample: Default::default(),
             primitive: Default::default(),
             multiview: None,
         });
 
+        let default_image = Image::default().create_texture(&device, &queue);
+
         Self {
             object_bind_group_layout,
+            material_bind_group_layout,
             pipeline_layout,
             render_pipeline,
+            default_image,
         }
     }
 }
 
 #[derive(Default)]
 pub struct PbrNode {
-    object_bindings: Vec<ObjectBinding>,
+    mesh_bindings: MeshBindings,
+    material_bindings: HashMap<HandleId, MaterialBinding>,
 }
 
 impl PbrNode {
@@ -165,6 +328,7 @@ impl RenderNode for PbrNode {
     fn input() -> Vec<SlotInfo> {
         vec![
             SlotInfo::new::<TextureView>(Self::RENDER_TARGET),
+            SlotInfo::new::<TextureView>(Self::DEPTH),
             SlotInfo::new::<RawCamera>(Self::CAMERA),
         ]
     }
@@ -194,27 +358,45 @@ impl RenderNode for PbrNode {
         world: &World,
     ) -> ike_render::RenderGraphResult<()> {
         let target = graph_context.get_input::<TextureView>(Self::RENDER_TARGET)?;
+        let depth = graph_context.get_input::<TextureView>(Self::DEPTH)?;
         let camera = graph_context.get_input::<RawCamera>(Self::CAMERA)?;
 
         let meshes = world.resource::<Assets<Mesh>>();
         let mesh_buffers = world.resource::<Assets<MeshBuffers>>();
+        let materials = world.resource::<Assets<PbrMaterial>>();
+        let image_textures = world.resource::<Assets<ImageTexture>>();
         let pbr_resources = world.resource::<PbrResources>();
+        let light_bindings = world.resource::<LightBindings>();
 
         let mesh_query = world
-            .query::<(&Handle<Mesh>, Option<&GlobalTransform>)>()
+            .query::<(
+                &Handle<Mesh>,
+                &Handle<PbrMaterial>,
+                Option<&GlobalTransform>,
+            )>()
             .unwrap();
 
-        for (i, (_, global_transform)) in mesh_query.iter().enumerate() {
-            if self.object_bindings.len() <= i {
-                self.object_bindings.push(ObjectBinding::new(
-                    &render_context.device,
-                    &pbr_resources.object_bind_group_layout,
-                ));
-            }
+        for (i, (_, material_handle, global_transform)) in mesh_query.iter().enumerate() {
+            self.mesh_bindings.require(i, &render_context.device);
 
             let transform = global_transform.map_or(Mat4::IDENTITY, |transform| transform.matrix());
 
-            self.object_bindings[i].write(&render_context.queue, &Object::new(transform, camera));
+            self.mesh_bindings[i].write(&render_context.queue, transform, camera);
+
+            if !self.material_bindings.contains_key(&material_handle.into()) {
+                let material = materials.get(material_handle).unwrap();
+
+                let material_binding = MaterialBinding::new(
+                    material,
+                    &render_context.device,
+                    &pbr_resources.material_bind_group_layout,
+                    &pbr_resources.default_image,
+                    &image_textures,
+                );
+
+                self.material_bindings
+                    .insert(material_handle.into(), material_binding);
+            }
         }
 
         let mut render_pass = render_context
@@ -229,13 +411,21 @@ impl RenderNode for PbrNode {
                         store: true,
                     },
                 }],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(RenderPassDepthStencilAttachemnt {
+                    view: depth.raw(),
+                    depth_ops: Some(Operations {
+                        load: LoadOp::Clear(1.0),
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                }),
             });
 
         render_pass.set_pipeline(&pbr_resources.render_pipeline);
 
-        for (i, (mesh_handle, _)) in mesh_query.iter().enumerate() {
-            let object_binding = &self.object_bindings[i];
+        for (i, (mesh_handle, material_handle, _)) in mesh_query.iter().enumerate() {
+            let object_binding = &self.mesh_bindings[i];
+            let material_binding = &self.material_bindings[&material_handle.into()];
             let mesh = meshes.get(mesh_handle).unwrap();
             let mesh_buffers = mesh_buffers.get(mesh_handle.cast::<MeshBuffers>()).unwrap();
 
@@ -251,12 +441,20 @@ impl RenderNode for PbrNode {
                 continue;
             }
 
+            if let Some(uv_0) = mesh_buffers.get_attribute(Mesh::UV_0) {
+                render_pass.set_vertex_buffer(2, uv_0.raw().slice(..));
+            } else {
+                continue;
+            }
+
             render_pass.set_index_buffer(
                 mesh_buffers.get_indices().raw().slice(..),
                 IndexFormat::Uint32,
             );
 
             render_pass.set_bind_group(0, &object_binding.bind_group, &[]);
+            render_pass.set_bind_group(1, &material_binding.bind_group, &[]);
+            render_pass.set_bind_group(2, &light_bindings.bind_group, &[]);
 
             render_pass.draw_indexed(0..mesh.get_indices().len() as u32, 0, 0..1);
         }

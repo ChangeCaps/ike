@@ -1,4 +1,4 @@
-use std::{any::type_name, marker::PhantomData};
+use std::marker::PhantomData;
 
 use crate::{ChangeTick, ChangeTicks, Entity, Fetch, FetchIterState, QueryFilter, World};
 

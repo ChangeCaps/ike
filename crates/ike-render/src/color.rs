@@ -1,5 +1,9 @@
+use std::ops::Mul;
+
+use bytemuck::{Pod, Zeroable};
+
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd, Pod, Zeroable)]
 pub struct Color {
     pub r: f32,
     pub g: f32,
@@ -33,5 +37,18 @@ impl Into<[f32; 4]> for Color {
 impl Into<[f32; 3]> for Color {
     fn into(self) -> [f32; 3] {
         [self.r, self.g, self.b]
+    }
+}
+
+impl Mul<f32> for Color {
+    type Output = Self;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        Self {
+            r: self.r * rhs,
+            g: self.g * rhs,
+            b: self.b * rhs,
+            a: self.a * rhs,
+        }
     }
 }

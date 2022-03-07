@@ -126,8 +126,6 @@ impl World {
 mod tests {
     use crate::{Component, SparseStorage};
 
-    use super::*;
-
     struct Foo {}
 
     impl Component for Foo {
@@ -135,11 +133,5 @@ mod tests {
     }
 
     #[test]
-    fn world_query() {
-        let mut world = World::new();
-
-        let mut query = world.query::<&Foo>().unwrap();
-
-        for foo in query.iter() {}
-    }
+    fn world_query() {}
 }

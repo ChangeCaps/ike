@@ -310,21 +310,6 @@ impl RenderGraph {
             .ok_or(RenderGraphError::InvalidNode(label))
     }
 
-    pub fn validate_nodes(&self) -> RenderGraphResult<()> {
-        for state in self.nodes.values() {
-            for (input_index, slot) in state.input_slots.iter().enumerate() {
-                if !state.input_edges.contains_input_slot(input_index) {
-                    return Err(RenderGraphError::UnconnectedInputNodeSlot(
-                        state.id,
-                        slot.label().clone(),
-                    ));
-                }
-            }
-        }
-
-        Ok(())
-    }
-
     pub fn validate_edge(&self, edge: &Edge) -> RenderGraphResult<()> {
         if self.has_edge(edge) {
             return Err(RenderGraphError::EdgeAlreadyExists(*edge));
@@ -391,9 +376,24 @@ impl RenderGraph {
     }
 }
 
+#[derive(Default)]
 pub struct GraphInputNode;
 
 impl RenderNode for GraphInputNode {
+    fn run(
+        &mut self,
+        _graph_context: &mut RenderGraphContext<'_>,
+        _render_context: &mut RenderContext,
+        _world: &World,
+    ) -> RenderGraphResult<()> {
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+pub struct EmptyNode;
+
+impl RenderNode for EmptyNode {
     fn run(
         &mut self,
         _graph_context: &mut RenderGraphContext<'_>,

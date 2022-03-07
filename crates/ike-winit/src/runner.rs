@@ -42,7 +42,7 @@ impl WinitRunner {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("ike_device"),
-                    features: wgpu::Features::TEXTURE_BINDING_ARRAY,
+                    features: wgpu::Features::POLYGON_MODE_LINE,
                     limits: wgpu::Limits::default(),
                 },
                 None,

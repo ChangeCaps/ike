@@ -103,6 +103,10 @@ impl GlobalTransform {
     pub const fn transform(&self) -> Transform {
         self.0
     }
+
+    pub fn matrix(&self) -> Mat4 {
+        self.0.matrix()
+    }
 }
 
 impl Component for GlobalTransform {
