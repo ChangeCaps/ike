@@ -7,7 +7,7 @@ use std::{
 };
 
 use ahash::AHasher;
-use ike_ecs::{Component, SparseStorage};
+use ike_ecs::Component;
 
 use crate::Asset;
 
@@ -199,6 +199,7 @@ impl Hash for HandleUntyped {
     }
 }
 
+#[derive(Component)]
 pub struct Handle<T: Asset> {
     inner: HandleUntyped,
     marker: PhantomData<&'static T>,
@@ -289,8 +290,4 @@ impl<T: Asset> Hash for Handle<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.inner.hash(state);
     }
-}
-
-impl<T: Asset> Component for Handle<T> {
-    type Storage = SparseStorage;
 }

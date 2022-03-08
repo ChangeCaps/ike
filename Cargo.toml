@@ -15,10 +15,14 @@ members = ["crates/*"]
 # ike
 ike-app = { version = "0.1.0", path = "crates/ike-app" }
 ike-assets = { version = "0.1.0", path = "crates/ike-assets" }
+ike-core = { version = "0.1.0", path = "crates/ike-core" }
 ike-ecs = { version = "0.1.0", path = "crates/ike-ecs" }
+ike-id = { version = "0.1.0", path = "crates/ike-id" }
 ike-light = { version = "0.1.0", path = "crates/ike-light" }
+ike-macro = { version = "0.1.0", path = "crates/ike-macro" }
 ike-math = { version = "0.1.0", path = "crates/ike-math" }
 ike-pbr = { version = "0.1.0", path = "crates/ike-pbr" }
+ike-physics = { version = "0.1.0", path = "crates/ike-physics" }
 ike-render = { version = "0.1.0", path = "crates/ike-render" }
 ike-transform = { version = "0.1.0", path = "crates/ike-transform" }
 ike-winit = { version = "0.1.0", path = "crates/ike-winit" }

@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-    Access, ChangeTick, CommandQueue, Commands, Fetch, FromResources, Query, QueryFilter, Res,
-    ResMut, Resource, SystemAccess, World, WorldQuery,
+    Access, ChangeTick, CommandQueue, Commands, Fetch, FromWorld, Query, QueryFilter, Res, ResMut,
+    Resource, SystemAccess, World, WorldQuery,
 };
 
 pub trait SystemParam: Sized {
@@ -40,17 +40,17 @@ impl<'a, T> DerefMut for Local<'a, T> {
     }
 }
 
-impl<'a, T: Resource + FromResources> SystemParam for Local<'a, T> {
+impl<'a, T: Resource + FromWorld> SystemParam for Local<'a, T> {
     type Fetch = LocalState<T>;
 }
 
 pub struct LocalState<T>(T);
 
-impl<'w, 's, T: Resource + FromResources> SystemParamFetch<'w, 's> for LocalState<T> {
+impl<'w, 's, T: Resource + FromWorld> SystemParamFetch<'w, 's> for LocalState<T> {
     type Item = Local<'s, T>;
 
     fn init(world: &mut World) -> Self {
-        Self(T::from_resources(world.resources()))
+        Self(T::from_world(world))
     }
 
     fn access(_: &mut SystemAccess) {}

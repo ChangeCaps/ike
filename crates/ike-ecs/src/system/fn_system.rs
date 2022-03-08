@@ -1,4 +1,4 @@
-use std::any::type_name;
+use std::{any::type_name, borrow::Cow};
 
 use crate::{ChangeTick, System, SystemAccess, SystemParam, SystemParamFetch, World};
 
@@ -20,7 +20,9 @@ macro_rules! impl_system_param_fn {
         #[allow(non_snake_case, unused)]
         impl<$($name: SystemParam,)* Func: Send + Sync + 'static> SystemParamFn<($($name,)*)> for Func
         where
-            Func: FnMut($($name),*) + FnMut($(<$name::Fetch as SystemParamFetch<'_, '_>>::Item),*),
+            for<'a> &'a mut Func:
+                FnMut($($name),*) +
+                FnMut($(<$name::Fetch as SystemParamFetch>::Item),*),
         {
             fn access() -> SystemAccess {
                 let mut access = SystemAccess::default();
@@ -33,7 +35,14 @@ macro_rules! impl_system_param_fn {
             fn run(&mut self, params: &mut ($($name::Fetch,)*), world: &World, last_change_tick: ChangeTick) {
                 let ($($name,)*) = params;
 
-                self($($name.get(world, last_change_tick)),*);
+                fn call_inner<$($name),*>(
+                    mut f: impl FnMut($($name),*),
+                    $($name: $name),*
+                ) {
+                    f($($name),*);
+                }
+
+                call_inner(self, $($name.get(world, last_change_tick)),*);
             }
         }
     };
@@ -43,7 +52,7 @@ impl_system_param_fn!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);
 
 pub struct FnSystem<F, Params: SystemParam> {
     func: F,
-    name: String,
+    name: Cow<'static, str>,
     state: Option<Params::Fetch>,
     last_change_tick: ChangeTick,
 }
@@ -56,7 +65,7 @@ where
         F::access()
     }
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &Cow<'static, str> {
         &self.name
     }
 
@@ -78,13 +87,13 @@ where
     }
 }
 
-pub trait SystemFn<Params> {
+pub trait IntoSystem<Params> {
     type System: System;
 
     fn system(self) -> Self::System;
 }
 
-impl<F, Params> SystemFn<Params> for F
+impl<F, Params> IntoSystem<Params> for F
 where
     F: SystemParamFn<Params>,
     Params: SystemParam + 'static,
@@ -94,7 +103,7 @@ where
     fn system(self) -> Self::System {
         FnSystem {
             func: self,
-            name: String::from(type_name::<F>()),
+            name: Cow::Borrowed(type_name::<F>()),
             state: None,
             last_change_tick: 0,
         }

@@ -5,6 +5,7 @@ use std::{
 };
 
 use crate::{AtomicBorrow, ChangeTick, ComponentTicks};
+pub use ike_macro::Component;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComponentStorageKind {

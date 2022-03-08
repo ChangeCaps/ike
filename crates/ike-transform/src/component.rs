@@ -1,9 +1,9 @@
 use std::ops::{Deref, DerefMut, Mul};
 
-use ike_ecs::{Component, SparseStorage};
+use ike_ecs::Component;
 use ike_math::{const_vec3, Mat3, Mat4, Quat, Vec3};
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct Transform {
     pub translation: Vec3,
     pub rotation: Quat,
@@ -51,6 +51,21 @@ impl Transform {
         }
     }
 
+    pub const fn with_translation(mut self, translation: Vec3) -> Self {
+        self.translation = translation;
+        self
+    }
+
+    pub const fn with_rotation(mut self, rotation: Quat) -> Self {
+        self.rotation = rotation;
+        self
+    }
+
+    pub const fn with_scale(mut self, scale: Vec3) -> Self {
+        self.scale = scale;
+        self
+    }
+
     pub fn matrix(&self) -> Mat4 {
         Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.translation)
     }
@@ -61,10 +76,6 @@ impl Transform {
         let up = forward.cross(right);
         self.rotation = Quat::from_mat3(&Mat3::from_cols(right, up, forward));
     }
-}
-
-impl Component for Transform {
-    type Storage = SparseStorage;
 }
 
 impl Mul<Vec3> for Transform {
@@ -90,7 +101,7 @@ impl Mul<Transform> for Transform {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct GlobalTransform(pub Transform);
 
 impl GlobalTransform {
@@ -107,10 +118,6 @@ impl GlobalTransform {
     pub fn matrix(&self) -> Mat4 {
         self.0.matrix()
     }
-}
-
-impl Component for GlobalTransform {
-    type Storage = SparseStorage;
 }
 
 impl Deref for GlobalTransform {

@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     ChangeTick, CommandQueue, Commands, Component, ComponentRead, ComponentWrite, Entities, Entity,
-    FromResources, Query, Res, ResMut, Resource, Resources, WorldQuery,
+    Query, Res, ResMut, Resource, Resources, WorldQuery,
 };
 
 #[derive(Default)]
@@ -67,12 +67,19 @@ impl World {
         &mut self.resources
     }
 
+    pub fn contains_resource<T: Resource>(&self) -> bool {
+        self.resources().contains::<T>()
+    }
+
     pub fn insert_resource<T: Resource>(&mut self, resource: T) {
         self.resources_mut().insert(resource);
     }
 
-    pub fn init_resource<T: Resource + FromResources>(&mut self) {
-        self.resources_mut().init::<T>();
+    pub fn init_resource<T: Resource + FromWorld>(&mut self) {
+        if !self.contains_resource::<T>() {
+            let resource = T::from_world(self);
+            self.insert_resource(resource);
+        }
     }
 
     pub fn remove_resource<T: Resource>(&mut self) -> Option<T> {
@@ -94,6 +101,20 @@ impl World {
             type_name::<T>()
         ))
     }
+
+    #[track_caller]
+    pub fn resource_or_init<T: Resource + FromWorld>(&mut self) -> Res<T> {
+        self.init_resource::<T>();
+
+        self.resource()
+    }
+
+    #[track_caller]
+    pub fn resource_mut_or_init<T: Resource + FromWorld>(&mut self) -> ResMut<T> {
+        self.init_resource::<T>();
+
+        self.resource_mut()
+    }
 }
 
 // change tick
@@ -113,12 +134,26 @@ impl World {
     pub fn update_last_change_tick(&mut self) {
         self.last_change_tick = self.change_tick();
     }
+
+    pub fn set_last_change_tick(&mut self, last_change_tick: ChangeTick) {
+        self.last_change_tick = last_change_tick;
+    }
 }
 
 // query
 impl World {
     pub fn query<Q: WorldQuery>(&self) -> Option<Query<'_, Q>> {
         Query::new(self, self.last_change_tick)
+    }
+}
+
+pub trait FromWorld {
+    fn from_world(world: &mut World) -> Self;
+}
+
+impl<T: Default> FromWorld for T {
+    fn from_world(_: &mut World) -> Self {
+        T::default()
     }
 }
 

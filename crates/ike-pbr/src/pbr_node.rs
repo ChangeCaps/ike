@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bytemuck::bytes_of;
 use ike_assets::{Assets, Handle, HandleId};
-use ike_ecs::{FromResources, Resources, World};
+use ike_ecs::{FromWorld, World};
 use ike_light::LightBindings;
 use ike_math::Mat4;
 use ike_render::{
@@ -10,9 +10,9 @@ use ike_render::{
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, Buffer,
     BufferBindingType, BufferInitDescriptor, BufferUsages, ColorTargetState, ColorWrites,
     CompareFunction, DepthStencilState, FragmentState, Image, ImageTexture, IndexFormat, LoadOp,
-    Mesh, MeshBindings, MeshBuffers, Operations, PipelineLayout, PipelineLayoutDescriptor,
-    RawCamera, RawColor, RenderContext, RenderDevice, RenderGraphContext, RenderNode,
-    RenderPassColorAttachment, RenderPassDepthStencilAttachemnt, RenderPassDescriptor,
+    Mesh, MeshBindings, MeshBuffers, MultisampleState, Operations, PipelineLayout,
+    PipelineLayoutDescriptor, RawCamera, RawColor, RenderContext, RenderDevice, RenderGraphContext,
+    RenderNode, RenderPassColorAttachment, RenderPassDepthStencilAttachemnt, RenderPassDescriptor,
     RenderPipeline, RenderPipelineDescriptor, RenderQueue, SamplerBindingType, ShaderStages,
     SlotInfo, TextureFormat, TextureSampleType, TextureView, TextureViewDimension, VertexAttribute,
     VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
@@ -129,11 +129,11 @@ pub struct PbrResources {
     pub default_image: ImageTexture,
 }
 
-impl FromResources for PbrResources {
-    fn from_resources(resources: &Resources) -> Self {
-        let device = resources.read::<RenderDevice>().unwrap();
-        let queue = resources.read::<RenderQueue>().unwrap();
-        let light_bindings = resources.read::<LightBindings>().unwrap();
+impl FromWorld for PbrResources {
+    fn from_world(world: &mut World) -> Self {
+        let device = world.resource::<RenderDevice>();
+        let queue = world.resource::<RenderQueue>();
+        let light_bindings = world.resource::<LightBindings>();
 
         let object_bind_group_layout =
             device.create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -295,7 +295,10 @@ impl FromResources for PbrResources {
                 stencil: Default::default(),
                 bias: Default::default(),
             }),
-            multisample: Default::default(),
+            multisample: MultisampleState {
+                count: 4,
+                ..Default::default()
+            },
             primitive: Default::default(),
             multiview: None,
         });
@@ -320,6 +323,7 @@ pub struct PbrNode {
 
 impl PbrNode {
     pub const RENDER_TARGET: &'static str = "render_target";
+    pub const MSAA_TEXTURE: &'static str = "msaa_texture";
     pub const DEPTH: &'static str = "depth";
     pub const CAMERA: &'static str = "camera";
 }
@@ -328,6 +332,7 @@ impl RenderNode for PbrNode {
     fn input() -> Vec<SlotInfo> {
         vec![
             SlotInfo::new::<TextureView>(Self::RENDER_TARGET),
+            SlotInfo::new::<TextureView>(Self::MSAA_TEXTURE),
             SlotInfo::new::<TextureView>(Self::DEPTH),
             SlotInfo::new::<RawCamera>(Self::CAMERA),
         ]
@@ -358,6 +363,7 @@ impl RenderNode for PbrNode {
         world: &World,
     ) -> ike_render::RenderGraphResult<()> {
         let target = graph_context.get_input::<TextureView>(Self::RENDER_TARGET)?;
+        let msaa_texture = graph_context.get_input::<TextureView>(Self::MSAA_TEXTURE)?;
         let depth = graph_context.get_input::<TextureView>(Self::DEPTH)?;
         let camera = graph_context.get_input::<RawCamera>(Self::CAMERA)?;
 
@@ -404,8 +410,8 @@ impl RenderNode for PbrNode {
             .begin_render_pass(&RenderPassDescriptor {
                 label: Some("pbr_pass"),
                 color_attachments: &[RenderPassColorAttachment {
-                    view: target.raw(),
-                    resolve_target: None,
+                    view: msaa_texture.raw(),
+                    resolve_target: Some(target.raw()),
                     ops: Operations {
                         load: LoadOp::Clear(RawColor::BLACK),
                         store: true,

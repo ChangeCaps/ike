@@ -1,4 +1,4 @@
-use std::{any::TypeId, collections::BTreeMap};
+use std::{any::TypeId, borrow::Cow, collections::BTreeMap};
 
 use crate::{Component, Resource, World};
 
@@ -44,13 +44,19 @@ pub struct SystemAccess {
 
 impl SystemAccess {
     pub fn borrow_component<T: Component>(&mut self, access: Access) {
-        self.access
-            .insert(AccessType::Component(TypeId::of::<T>()), access);
+        self.insert(AccessType::Component(TypeId::of::<T>()), access);
     }
 
     pub fn borrow_resource<T: Resource>(&mut self, access: Access) {
-        self.access
-            .insert(AccessType::Component(TypeId::of::<T>()), access);
+        self.insert(AccessType::Resource(TypeId::of::<T>()), access);
+    }
+
+    pub fn insert(&mut self, ty: AccessType, access: Access) {
+        if self.access.get(&ty) == Some(&Access::Write) {
+            panic!("system access overlap");
+        }
+
+        self.access.insert(ty, access);
     }
 
     pub fn borrow_world(&mut self) {
@@ -96,22 +102,10 @@ impl SystemAccess {
     }
 }
 
-pub trait ExclusiveSystem: Send + Sync + 'static {
-    fn run(&mut self, world: &mut World);
-}
-
-impl<F: FnMut(&mut World) + Send + Sync + 'static> ExclusiveSystem for F {
-    fn run(&mut self, world: &mut World) {
-        world.increment_change_tick();
-
-        self(world);
-    }
-}
-
 pub trait System: Send + Sync + 'static {
     fn access(&self) -> SystemAccess;
 
-    fn name(&self) -> &str;
+    fn name(&self) -> &Cow<'static, str>;
 
     fn run(&mut self, world: &World);
 

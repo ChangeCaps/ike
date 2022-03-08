@@ -1,9 +1,9 @@
 use bytemuck::{bytes_of, Pod, Zeroable};
-use ike_ecs::{FromResources, Resources};
+use ike_ecs::{FromWorld, World};
 use ike_render::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingResource, BindingType, Buffer, BufferBindingType,
-    BufferDescriptor, BufferUsages, CompareFunction, Extent3d, RenderDevice, RenderQueue, Sampler,
+    BufferDescriptor, BufferUsages, Extent3d, RenderDevice, RenderQueue, Sampler,
     SamplerBindingType, SamplerDescriptor, ShaderStages, Texture, TextureDescriptor,
     TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureViewDescriptor,
     TextureViewDimension,
@@ -47,9 +47,9 @@ impl LightBindings {
     }
 }
 
-impl FromResources for LightBindings {
-    fn from_resources(resources: &Resources) -> Self {
-        let device = resources.read::<RenderDevice>().unwrap();
+impl FromWorld for LightBindings {
+    fn from_world(world: &mut World) -> Self {
+        let device = world.resource::<RenderDevice>();
 
         let buffer = device.create_buffer(&BufferDescriptor {
             label: Some("ike_lights_buffer"),
@@ -80,7 +80,6 @@ impl FromResources for LightBindings {
 
         let sampler = device.create_sampler(&SamplerDescriptor {
             label: Some("ike_shadow_map_sampler"),
-            compare: Some(CompareFunction::LessEqual),
             ..Default::default()
         });
 
@@ -109,7 +108,7 @@ impl FromResources for LightBindings {
                 },
                 BindGroupLayoutEntry {
                     binding: 2,
-                    ty: BindingType::Sampler(SamplerBindingType::Comparison),
+                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
                     visibility: ShaderStages::VERTEX_FRAGMENT,
                     count: None,
                 },

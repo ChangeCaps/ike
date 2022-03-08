@@ -63,6 +63,7 @@ pub type FragmentState<'a> = wgpu::FragmentState<'a>;
 pub type ColorTargetState = wgpu::ColorTargetState;
 pub type BlendState = wgpu::BlendState;
 pub type ColorWrites = wgpu::ColorWrites;
+pub type MultisampleState = wgpu::MultisampleState;
 pub type ShaderModule = wgpu::ShaderModule;
 pub type ShaderModuleDescriptor<'a> = wgpu::ShaderModuleDescriptor<'a>;
 

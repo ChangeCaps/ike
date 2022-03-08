@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use ike_assets::{Assets, Handle};
-use ike_ecs::{FromResources, Resources, World};
+use ike_ecs::{FromWorld, World};
 use ike_math::Mat4;
 use ike_render::{
     include_wgsl, CompareFunction, DepthStencilState, IndexFormat, LoadOp, Mesh, MeshBinding,
@@ -19,9 +19,9 @@ pub struct LightPipeline {
     pub render_pipeline: RenderPipeline,
 }
 
-impl FromResources for LightPipeline {
-    fn from_resources(resources: &Resources) -> Self {
-        let device = resources.read::<RenderDevice>().unwrap();
+impl FromWorld for LightPipeline {
+    fn from_world(world: &mut World) -> Self {
+        let device = world.resource::<RenderDevice>();
 
         let bind_group_layout = MeshBinding::bind_group_layout(&device);
 

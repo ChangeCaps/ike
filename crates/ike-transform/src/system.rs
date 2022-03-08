@@ -80,7 +80,8 @@ fn propagate_recursive(
 
 #[cfg(test)]
 mod tests {
-    use ike_ecs::{update_parent_system, Schedule, SystemFn, World};
+    use ike_app::CoreStage;
+    use ike_ecs::{update_parent_system, Schedule, World};
     use ike_math::Vec3;
 
     use super::*;
@@ -90,8 +91,12 @@ mod tests {
         let mut world = World::new();
 
         let mut schedule = Schedule::new();
-        schedule.add_system(update_parent_system.system());
-        schedule.add_system(transform_propagate_system.system());
+        schedule
+            .add_system_to_stage(update_parent_system, CoreStage::Update)
+            .unwrap();
+        schedule
+            .add_system_to_stage(transform_propagate_system, CoreStage::Update)
+            .unwrap();
 
         let mut children = Vec::new();
 

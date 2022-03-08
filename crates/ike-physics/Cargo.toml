@@ -1,5 +1,5 @@
 [package]
-name = "ike-assets"
+name = "ike-physics"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,9 +8,11 @@ edition = "2021"
 [dependencies]
 # ike
 ike-app = { version = "0.1.0", path = "../ike-app" }
+ike-core = { version = "0.1.0", path = "../ike-core" }
 ike-ecs = { version = "0.1.0", path = "../ike-ecs" }
-ike-id = { version = "0.1.0", path = "../ike-id" } 
+ike-id = { version = "0.1.0", path = "../ike-id" }
+ike-math = { version = "0.1.0", path = "../ike-math" }
+ike-transform = { version = "0.1.0", path = "../ike-transform" }
 
 # other
-ahash = "0.7"
-rand = "0.8"
+rapier3d = "0.11"

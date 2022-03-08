@@ -54,8 +54,8 @@ fn list_even_foos(query: Query<&Foo, Without<Odd>>) {
 fn main() {
     App::new()
         .with_runner(CustomRunner)
-        .add_startup_system(setup.system())
-        .add_system(list_foos.system())
-        .add_system(list_even_foos.system())
+        .add_startup_system(setup)
+        .add_system(list_foos)
+        .add_system(list_even_foos)
         .run();
 }

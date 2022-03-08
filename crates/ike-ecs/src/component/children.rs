@@ -3,8 +3,9 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::{Changed, Commands, Component, Entity, Query, SparseStorage, With, Without};
+use crate::{Changed, Commands, Component, Entity, Query, With, Without};
 
+#[derive(Component)]
 pub struct Parent {
     pub parent: Entity,
 }
@@ -29,17 +30,10 @@ impl DerefMut for Parent {
     }
 }
 
-impl Component for Parent {
-    type Storage = SparseStorage;
-}
-
+#[derive(Component)]
 pub struct PreviousParent(Entity);
 
-impl Component for PreviousParent {
-    type Storage = SparseStorage;
-}
-
-#[derive(Default)]
+#[derive(Component, Default)]
 pub struct Children {
     pub children: BTreeSet<Entity>,
 }
@@ -62,10 +56,6 @@ impl Children {
     pub fn new() -> Self {
         Self::default()
     }
-}
-
-impl Component for Children {
-    type Storage = SparseStorage;
 }
 
 pub fn update_parent_system(

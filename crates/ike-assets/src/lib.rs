@@ -6,11 +6,12 @@ pub use assets::*;
 pub use event::*;
 pub use handle::*;
 
-use ike_app::{App, Plugin};
-use ike_ecs::SystemFn;
+use ike_app::{App, CoreStage, Plugin};
+use ike_ecs::StageLabel;
 
-pub mod stage {
-    pub const ASSET_EVENT: &str = "asset_event";
+#[derive(StageLabel, Clone, Copy, Debug, Hash)]
+pub enum AssetStage {
+    AssetEvent,
 }
 
 pub trait AddAsset: Sized {
@@ -19,7 +20,7 @@ pub trait AddAsset: Sized {
 
 impl AddAsset for App {
     fn add_asset<T: Asset>(&mut self) -> &mut Self {
-        self.add_system_to_stage(AssetEvent::<T>::system.system(), stage::ASSET_EVENT);
+        self.add_system_to_stage(AssetEvent::<T>::system, AssetStage::AssetEvent);
 
         self.world.insert_resource(Assets::<T>::new());
 
@@ -34,6 +35,6 @@ pub struct AssetsPlugin;
 
 impl Plugin for AssetsPlugin {
     fn build(self, app: &mut App) {
-        app.add_stage_after(stage::ASSET_EVENT, ike_app::stage::POST_UPDATE);
+        app.add_stage_after(AssetStage::AssetEvent, CoreStage::PostUpdate);
     }
 }

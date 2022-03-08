@@ -33,14 +33,6 @@ impl Resources {
         );
     }
 
-    pub fn init<T: Resource + FromResources>(&mut self) {
-        if !self.contains::<T>() {
-            let resource = T::from_resources(self);
-
-            self.insert(resource);
-        }
-    }
-
     pub fn remove<T: Resource>(&mut self) -> Option<T> {
         let resource_box = self.resources.remove(&TypeId::of::<T>())?;
 
@@ -68,15 +60,5 @@ impl Resources {
             unsafe { &mut *(resource.resource as *mut T) },
             &resource.borrow,
         )
-    }
-}
-
-pub trait FromResources {
-    fn from_resources(resources: &Resources) -> Self;
-}
-
-impl<T: Default> FromResources for T {
-    fn from_resources(_: &Resources) -> Self {
-        T::default()
     }
 }
