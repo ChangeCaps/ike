@@ -6,3 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# ike
+ike-app = { version = "0.1.0", path = "../ike-app" }
+ike-ecs = { version = "0.1.0", path = "../ike-ecs" }
+ike-macro = { version = "0.1.0", path = "../ike-macro" }
+ike-render = { version = "0.1.0", path = "../ike-render", optional = true }
+ike-physics = { version = "0.1.0", path = "../ike-physics", optional = true }
+
+[features]
+default = []
+render = ["ike-render"]
+physics = ["ike-physics"]

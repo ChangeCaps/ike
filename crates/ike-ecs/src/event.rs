@@ -154,8 +154,8 @@ fn internal_event_reader<'a, T>(
     *last_event_count = events.event_count - unread_count;
 
     let iterator = match events.state {
-        State::A => a.iter().chain(b),
-        State::B => b.iter().chain(a),
+        State::A => b.iter().chain(a),
+        State::B => a.iter().chain(b),
     };
 
     iterator

@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::HashMap,
     ops::{Deref, DerefMut},
 };
 
@@ -35,11 +35,11 @@ pub struct PreviousParent(Entity);
 
 #[derive(Component, Default)]
 pub struct Children {
-    pub children: BTreeSet<Entity>,
+    pub children: Vec<Entity>,
 }
 
 impl Deref for Children {
-    type Target = BTreeSet<Entity>;
+    type Target = Vec<Entity>;
 
     fn deref(&self) -> &Self::Target {
         &self.children
@@ -68,7 +68,7 @@ pub fn update_parent_system(
     for entity in removed_parent_query.iter() {
         if let Some(mut children) = children_query.get_mut(&entity) {
             let previous_parent = previous_parent_query.get(&entity).unwrap();
-            children.remove(&previous_parent.0);
+            children.retain(|entity| *entity != previous_parent.0);
             commands.remove::<PreviousParent>(&entity);
         }
     }
@@ -82,7 +82,7 @@ pub fn update_parent_system(
             }
 
             if let Some(mut chilren) = children_query.get_mut(&previous_parent.0) {
-                chilren.remove(&entity);
+                chilren.retain(|child| *child != entity);
             }
 
             previous_parent.0 = parent.parent;
@@ -91,12 +91,9 @@ pub fn update_parent_system(
         }
 
         if let Some(mut children) = children_query.get_mut(&parent) {
-            children.insert(entity);
+            children.push(entity);
         } else {
-            new_children
-                .entry(parent.parent)
-                .or_default()
-                .insert(entity);
+            new_children.entry(parent.parent).or_default().push(entity);
         }
     }
 

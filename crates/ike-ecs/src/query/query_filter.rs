@@ -52,6 +52,14 @@ impl<T: Component> QueryFilter for Without<T> {
     }
 }
 
+pub struct Or<T, U>(PhantomData<fn() -> (T, U)>);
+
+impl<T: QueryFilter, U: QueryFilter> QueryFilter for Or<T, U> {
+    fn filter(world: &World, entity: &Entity, last_change_tick: ChangeTick) -> bool {
+        T::filter(world, entity, last_change_tick) || U::filter(world, entity, last_change_tick)
+    }
+}
+
 macro_rules! impl_query_filter {
     () => {};
     ($first:ident $(,$name:ident)*) => {
@@ -61,7 +69,7 @@ macro_rules! impl_query_filter {
     (@ $($name:ident),*) => {
         impl<$($name: QueryFilter),*> QueryFilter for ($($name,)*) {
             fn filter(world: &World, entity: &Entity, last_change_tick: ChangeTick) -> bool {
-                $($name::filter(world, entity, last_change_tick))||*
+                $($name::filter(world, entity, last_change_tick))&&*
             }
         }
     };

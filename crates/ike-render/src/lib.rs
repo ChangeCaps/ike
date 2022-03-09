@@ -50,6 +50,7 @@ pub mod input {
 pub mod node {
     pub const DEPENDENCIES: &str = "dependencies";
     pub const DEPTH: &str = "depth";
+    pub const MSAA_DEPTH: &str = "msaa_depth";
     pub const MSAA: &str = "msaa";
 }
 
@@ -72,6 +73,23 @@ impl Plugin for RenderPlugin {
 
         render_graph.add_node(
             node::DEPTH,
+            TextureNode::new(TextureDescriptor {
+                label: Some("ike_depth_texture"),
+                size: Extent3d {
+                    width: 1,
+                    height: 1,
+                    depth_or_array_layers: 1,
+                },
+                dimension: TextureDimension::D2,
+                mip_level_count: 1,
+                sample_count: 1,
+                format: TextureFormat::Depth32Float,
+                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+            }),
+        );
+
+        render_graph.add_node(
+            node::MSAA_DEPTH,
             TextureNode::new(TextureDescriptor {
                 label: Some("ike_depth_texture"),
                 size: Extent3d {
@@ -109,6 +127,15 @@ impl Plugin for RenderPlugin {
                 input_node,
                 input::SURFACE_TEXTURE,
                 node::DEPTH,
+                TextureNode::TEXTURE,
+            )
+            .unwrap();
+
+        render_graph
+            .add_slot_edge(
+                input_node,
+                input::SURFACE_TEXTURE,
+                node::MSAA_DEPTH,
                 TextureNode::TEXTURE,
             )
             .unwrap();

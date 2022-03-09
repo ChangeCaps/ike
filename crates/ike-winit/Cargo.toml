@@ -9,6 +9,8 @@ edition = "2021"
 # ike
 ike-app = { version = "0.1.0", path = "../ike-app" }
 ike-ecs = { version = "0.1.0", path = "../ike-ecs" }
+ike-input = { version = "0.1.0", path = "../ike-input" }
+ike-math = { version = "0.1.0", path = "../ike-math" }
 ike-render = { version = "0.1.0", path = "../ike-render" }
 
 # other

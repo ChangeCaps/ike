@@ -145,7 +145,7 @@ struct Lights {
 	directional_lights: array<DirectionalLight, MAX_DIRECTIONAL_LIGHTS>;
 };
 
-[[group(2), binding(0)]]
+[[group(2), binding(0)]] 
 var<uniform> lights: Lights;
 
 [[group(2), binding(1)]]
@@ -179,6 +179,8 @@ struct Material {
 };
 
 struct FragmentInput {
+	[[builtin(position)]]
+	position: vec4<f32>;
 	[[builtin(front_facing)]]
 	front_facing: bool;
 	[[location(0)]]
@@ -229,6 +231,19 @@ fn rotate(pos: vec2<f32>, trig: vec2<f32>) -> vec2<f32> {
 	);
 }
 
+fn plane_bias(position: vec3<f32>) -> vec2<f32> {
+	var dx = dpdx(position);
+	dx = dx - dx * 0.5;
+	var dy = dpdy(position);
+	dy = dy - dy * 0.5;
+
+	var bias: vec2<f32>;
+	bias.x = dy.y * dx.z - dx.y * dy.z;
+	bias.y = dx.x * dy.z - dy.x * dx.z;
+	let det = dx.x * dy.y - dx.y * dy.x;
+	return bias / det;
+}
+
 fn is_uv_invalid(uv: vec2<f32>) -> bool {
 	return any(uv < vec2<f32>(0.0)) || any(uv > vec2<f32>(1.0));
 }
@@ -253,6 +268,7 @@ fn find_blocker(
 	shadow_uv: vec2<f32>,
 	z0: f32,
 	bias: f32,
+	plane_bias: vec2<f32>,
 	radius: vec2<f32>,
 	trig: vec2<f32>,
 	samples: u32,
@@ -260,20 +276,22 @@ fn find_blocker(
 	var blocker_sum = 0.0;
 	var num_blockers = 0.0;
 
-	let biased_depth = z0; 
+	let biased_depth = z0 - bias; 
 
 	for (var i = 0u; i < samples; i = i + 1u) {
-		let offset = poisson_offsets[i] * radius;
+		var offset = poisson_offsets[i] * radius;
+		offset = rotate(offset, trig);
 
-		let offset_uv = shadow_uv + rotate(offset, trig);
+		let offset_uv = shadow_uv + offset;
 
 		if (is_uv_invalid(offset_uv)) {
 			continue;
 		}
 
-		let depth = textureSample(shadow_maps, shadow_map_sampler, offset_uv, map_index);
+		let depth = textureSample(shadow_maps, shadow_map_sampler, offset_uv, map_index);	
+		let bias = dot(offset, plane_bias);
 
-		if (depth < biased_depth) {
+		if (biased_depth + bias > depth) {
 			blocker_sum = blocker_sum + depth;
 			num_blockers = num_blockers + 1.0;
 		}
@@ -290,6 +308,7 @@ fn pcf_filter(
 	shadow_uv: vec2<f32>,
 	z0: f32,
 	bias: f32,
+	plane_bias: vec2<f32>,
 	filter_radius: vec2<f32>,
 	trig: vec2<f32>,
 	samples: u32,
@@ -299,9 +318,10 @@ fn pcf_filter(
 	let biased_depth = z0 - bias;
 
 	for (var i = 0u; i < samples; i = i + 1u) {
-		let offset = poisson_offsets[i] * filter_radius;
+		var offset = poisson_offsets[i] * filter_radius;
+		offset = rotate(offset, trig);
 
-		let offset_uv = shadow_uv + rotate(offset, trig);
+		let offset_uv = shadow_uv + offset;
 
 		if (is_uv_invalid(offset_uv)) {
 			sum = sum + 1.0;
@@ -309,8 +329,9 @@ fn pcf_filter(
 		}
 
 		let depth = textureSample(shadow_maps, shadow_map_sampler, offset_uv, map_index);
+		let bias = dot(offset, plane_bias);
 
-		if (biased_depth <= depth) {
+		if (biased_depth + bias < depth) {
 			sum = sum + 1.0;
 		}
 	}
@@ -325,6 +346,7 @@ fn d_pcss_filter(
 	shadow_uv: vec2<f32>,
 	z: f32,
 	bias: f32,
+	plane_bias: vec2<f32>,
 	z_vs: f32,
 	trig: vec2<f32>,
 ) -> f32 {
@@ -337,6 +359,7 @@ fn d_pcss_filter(
 		shadow_uv, 
 		z, 
 		bias, 
+		plane_bias,
 		search_radius, 
 		trig, 
 		light.blocker_samples
@@ -348,7 +371,7 @@ fn d_pcss_filter(
 
 	let avg_blocker_depth_vs = z_clip_to_eye(blocker.x, light.near, light.far);
 	let penumbra = penumbra_radius_uv(z_vs, avg_blocker_depth_vs) * 0.005 * light.shadow_softness;
-	let penumbra = 1.0 - pow(1.0 - penumbra, light.shadow_falloff);
+	let penumbra = 1.0 - pow(1.0 - penumbra, light.shadow_falloff); 
 	let filter_radius = vec2<f32>((penumbra - 0.015 * light.shadow_softness)) / light.size;
 
 	return pcf_filter(
@@ -357,6 +380,7 @@ fn d_pcss_filter(
 		shadow_uv, 
 		z, 
 		bias, 
+		plane_bias,
 		filter_radius, 
 		trig, 
 		light.pcf_samples
@@ -377,6 +401,7 @@ fn d_shadow(
 	}
 
 	let light_space = light_camera_space.xyz / light_camera_space.w;
+	let plane_bias = plane_bias(light_camera_space.xyz);
 
 	if (light_space.z < 0.0) {
 		return 1.0;
@@ -394,11 +419,10 @@ fn d_shadow(
 
 	let trig = vec2<f32>(cos(angle), sin(angle));
 
-	let bias_scale = 0.1;
-	var bias = max(bias_scale * (1.0 - dot(normal, light.dir_to_light)), bias_scale * 0.01);
-	bias = bias / (light.far - light.near);
+	let bias_scale = 1.0;
+	let bias = (light.far - light.near) / 12500.0;
 
-	return d_pcss_filter(index, shadow_uv, z, bias, z_vs, trig);
+	return d_pcss_filter(index, shadow_uv, z, bias, plane_bias, z_vs, trig);
 }
 
 fn directional_light(
@@ -464,5 +488,5 @@ fn frag(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 	lit_color = lit_color / (lit_color + 1.0);
 	lit_color = pow(lit_color, vec3<f32>(1.0 / 2.2));
 
-	return vec4<f32>(lit_color, 1.0);
+	return vec4<f32>(lit_color, 1.0); 
 }

@@ -17,6 +17,9 @@ pub struct SparseComponentStorage {
     data: NonNull<u8>,
 }
 
+unsafe impl Send for SparseComponentStorage {}
+unsafe impl Sync for SparseComponentStorage {}
+
 impl SparseComponentStorage {
     pub fn new(desc: &ComponentDescriptor) -> Self {
         Self {

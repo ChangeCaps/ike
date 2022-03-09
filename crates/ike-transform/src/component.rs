@@ -66,6 +66,18 @@ impl Transform {
         self
     }
 
+    pub fn local_x(&self) -> Vec3 {
+        self.rotation * Vec3::X
+    }
+
+    pub fn local_y(&self) -> Vec3 {
+        self.rotation * Vec3::Y
+    }
+
+    pub fn local_z(&self) -> Vec3 {
+        self.rotation * Vec3::Z
+    }
+
     pub fn matrix(&self) -> Mat4 {
         Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.translation)
     }

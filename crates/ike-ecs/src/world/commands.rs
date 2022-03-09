@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crossbeam::queue::SegQueue;
 
-use crate::{Component, Entity, SpawnEntity, World};
+use crate::{Children, Component, Entity, SpawnEntity, World};
 
 pub trait Command: Send + Sync + 'static {
     fn run(self: Box<Self>, world: &mut World);
@@ -59,6 +59,14 @@ impl<'w, 's> Commands<'w, 's> {
     pub fn remove<T: Component>(&self, entity: &Entity) {
         self.push(Remove::<T>(*entity, PhantomData));
     }
+
+    pub fn despawn(&self, entity: &Entity) {
+        self.push(Despawn(*entity));
+    }
+
+    pub fn despawn_recursive(&self, entity: &Entity) {
+        self.push(DespawnRecursive(*entity));
+    }
 }
 
 struct Spawn(Entity);
@@ -84,4 +92,30 @@ impl<T: Component> Command for Remove<T> {
     fn run(self: Box<Self>, world: &mut World) {
         world.entities_mut().remove::<T>(&self.0);
     }
+}
+
+struct Despawn(Entity);
+
+impl Command for Despawn {
+    fn run(self: Box<Self>, world: &mut World) {
+        world.entities_mut().despawn(&self.0);
+    }
+}
+
+struct DespawnRecursive(Entity);
+
+impl Command for DespawnRecursive {
+    fn run(self: Box<Self>, world: &mut World) {
+        despawn_recursive(world, self.0);
+    }
+}
+
+fn despawn_recursive(world: &mut World, entity: Entity) {
+    if let Some(mut children) = world.get_component_mut::<Children>(&entity) {
+        for entity in std::mem::take(&mut children.children) {
+            despawn_recursive(world, entity);
+        }
+    }
+
+    world.despawn(&entity);
 }

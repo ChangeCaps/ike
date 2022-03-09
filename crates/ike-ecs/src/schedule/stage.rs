@@ -1,4 +1,8 @@
+use std::collections::HashSet;
+
 use ike_id::RawLabel;
+#[cfg(feature = "rayon")]
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{
     ExclusiveSystem, ScheduleError, StageLabel, System, SystemAccess, SystemDescriptor, World,
@@ -94,16 +98,24 @@ impl ScheduleStage {
         self.parallel_order.clear();
         let mut step = Vec::new();
         let mut access = SystemAccess::default();
+        let mut step_dependencies = HashSet::new();
 
         for index in order {
             let system = &self.parallel_systems[index];
+            let system_dependencies = &graph[&index];
 
-            if system.access.compatible(&access) {
+            let dependencies_incompatible = system_dependencies
+                .keys()
+                .map(|index| step_dependencies.insert(*index))
+                .fold(false, |acc, val| acc || val);
+
+            if access.compatible(&system.access) && !dependencies_incompatible {
                 access.combine(system.access.clone());
 
                 step.push(index);
             } else {
-                access = SystemAccess::default();
+                access = system.access.clone();
+                step_dependencies = system_dependencies.keys().cloned().collect();
 
                 self.parallel_order.push(step);
                 step = vec![index];
@@ -144,21 +156,39 @@ impl ScheduleStage {
             self.exclusive_systems[index].system.run(world);
         }
 
-        let parallel_systems = self.parallel_systems.as_mut_ptr();
+        struct Ptr(*mut ParallelSystem);
+
+        impl Ptr {
+            pub unsafe fn get_mut(&self, index: usize) -> &mut ParallelSystem {
+                unsafe { &mut *self.0.add(index) }
+            }
+        }
+
+        unsafe impl Send for Ptr {}
+        unsafe impl Sync for Ptr {}
+
+        let parallel_systems = Ptr(self.parallel_systems.as_mut_ptr());
 
         for step in &self.parallel_order {
             for &index in step {
-                let system = unsafe { &mut *parallel_systems.add(index) };
+                let system = unsafe { parallel_systems.get_mut(index) };
                 system.system.init(world);
             }
 
+            #[cfg(feature = "rayon")]
+            step.par_iter().for_each(|index| {
+                let system = unsafe { parallel_systems.get_mut(*index) };
+                system.system.run(world);
+            });
+
+            #[cfg(not(feature = "rayon"))]
             for &index in step {
-                let system = unsafe { &mut *parallel_systems.add(index) };
+                let system = unsafe { parallel_systems.get_mut(index) };
                 system.system.run(world);
             }
 
             for &index in step {
-                let system = unsafe { &mut *parallel_systems.add(index) };
+                let system = unsafe { parallel_systems.get_mut(index) };
                 system.system.apply(world);
             }
         }

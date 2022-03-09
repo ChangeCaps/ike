@@ -1,6 +1,6 @@
 use crate::{
-    ChangeTick, Component, ComponentRead, ComponentStorages, ComponentWrite, Entity,
-    EntityAllocator, EntitySet,
+    ChangeTick, Comp, CompMut, Component, ComponentStorages, Entity, EntityAllocator, EntitySet,
+    Mut,
 };
 
 #[derive(Default)]
@@ -60,15 +60,23 @@ impl Entities {
         self.storage_mut().remove_component(entity)
     }
 
-    pub fn read_component<T: Component>(&self, entity: &Entity) -> Option<ComponentRead<'_, T>> {
+    pub fn read<T: Component>(&self, entity: &Entity) -> Option<Comp<'_, T>> {
         self.storage().read_component(entity)
     }
 
-    pub fn write_component<T: Component>(
+    pub fn write<T: Component>(
         &self,
         entity: &Entity,
         change_tick: ChangeTick,
-    ) -> Option<ComponentWrite<'_, T>> {
+    ) -> Option<CompMut<'_, T>> {
         self.storage().write_component(entity, change_tick)
+    }
+
+    pub fn get_mut<T: Component>(
+        &mut self,
+        entity: &Entity,
+        change_tick: ChangeTick,
+    ) -> Option<Mut<'_, T>> {
+        self.storage_mut().get_component_mut(entity, change_tick)
     }
 }

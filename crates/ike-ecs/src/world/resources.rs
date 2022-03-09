@@ -11,6 +11,9 @@ struct ResourceBox {
     borrow: AtomicBorrow,
 }
 
+unsafe impl Send for ResourceBox {}
+unsafe impl Sync for ResourceBox {}
+
 impl Drop for ResourceBox {
     fn drop(&mut self) {
         unsafe { Box::from_raw(self.resource) };

@@ -93,7 +93,7 @@ impl App {
 
     pub fn add_event<T: Resource>(&mut self) -> &mut Self {
         self.world.init_resource::<Events<T>>();
-        self.add_system_to_stage(Events::<T>::update_system, CoreStage::End);
+        self.add_system_to_stage(Events::<T>::update_system, CoreStage::Start);
 
         self
     }

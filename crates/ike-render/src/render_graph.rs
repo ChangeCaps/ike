@@ -335,7 +335,7 @@ impl RenderGraph {
 
                 if input_node_state
                     .input_edges
-                    .contains_output_slot(input_index)
+                    .contains_input_slot(input_index)
                 {
                     return Err(RenderGraphError::NodeInputSlotAlreadyOccupied {
                         node: input_node,

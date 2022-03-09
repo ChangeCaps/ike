@@ -22,17 +22,17 @@ impl Default for DirectionalLight {
             direction: -Vec3::Y,
             color: Color::WHITE,
             projection: Orthographic {
-                left: -50.0,
-                right: 50.0,
-                bottom: -50.0,
-                top: 50.0,
-                near: -100.0,
-                far: 100.0,
+                left: -25.0,
+                right: 25.0,
+                bottom: -25.0,
+                top: 25.0,
+                near: -25.0,
+                far: 25.0,
             },
-            shadow_softness: 1.0,
+            shadow_softness: 2.0,
             shadow_falloff: 4.0,
             blocker_samples: 16,
-            pcf_samples: 32,
+            pcf_samples: 48,
         }
     }
 }

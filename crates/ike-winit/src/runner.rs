@@ -1,12 +1,17 @@
 use ike_app::{App, AppRunner};
 
+use ike_ecs::Events;
+use ike_input::{KeyboardInput, MouseButtonInput};
+use ike_math::Vec2;
 use ike_render::{wgpu, RenderDevice, RenderQueue, Surface};
 use winit::{
-    event::{Event, WindowEvent},
+    event::{DeviceEvent, Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
 };
 
-use crate::{RawWindow, Window};
+use crate::{
+    convert_mouse_button, convert_virtual_key_code, element_state_pressed, RawWindow, Window,
+};
 
 pub struct WinitRunner {
     event_loop: EventLoop<()>,
@@ -66,18 +71,73 @@ impl AppRunner for WinitRunner {
             .run(move |event, _, control_flow| match event {
                 Event::RedrawRequested(_) => {
                     app.update();
+
+                    if let Some(mut window) = app.world.resources_mut().write::<Window>() {
+                        window.cursor_delta = Vec2::ZERO;
+                    }
                 }
                 Event::MainEventsCleared => {
-                    app.world.resource::<Window>().request_redraw();
+                    if let Some(window) = app.world.resources().read::<Window>() {
+                        window.request_redraw();
+                    }
                 }
+                Event::DeviceEvent { event, .. } => match event {
+                    DeviceEvent::MouseMotion { delta: (x, y) } => {
+                        if let Some(mut window) = app.world.resources_mut().write::<Window>() {
+                            window.cursor_delta.x += x as f32;
+                            window.cursor_delta.y += y as f32;
+                        }
+                    }
+                    _ => {}
+                },
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => {
                         *control_flow = ControlFlow::Exit;
                     }
                     WindowEvent::Resized(new_inner_size) => {
-                        app.world
-                            .resource_mut::<Surface>()
-                            .resize(new_inner_size.width, new_inner_size.height);
+                        if let Some(mut window) = app.world.resources_mut().write::<Surface>() {
+                            window.resize(new_inner_size.width, new_inner_size.height);
+                        }
+                    }
+                    WindowEvent::KeyboardInput {
+                        input:
+                            winit::event::KeyboardInput {
+                                virtual_keycode: Some(key),
+                                state,
+                                ..
+                            },
+                        ..
+                    } => {
+                        let input = KeyboardInput {
+                            key: convert_virtual_key_code(key),
+                            pressed: element_state_pressed(state),
+                        };
+
+                        if let Some(mut events) =
+                            app.world.resources_mut().write::<Events<KeyboardInput>>()
+                        {
+                            events.send(input);
+                        }
+                    }
+                    WindowEvent::MouseInput { state, button, .. } => {
+                        let input = MouseButtonInput {
+                            button: convert_mouse_button(button),
+                            pressed: element_state_pressed(state),
+                        };
+
+                        if let Some(mut events) = app
+                            .world
+                            .resources_mut()
+                            .write::<Events<MouseButtonInput>>()
+                        {
+                            events.send(input);
+                        }
+                    }
+                    WindowEvent::CursorMoved { position, .. } => {
+                        if let Some(mut window) = app.world.resources_mut().write::<Window>() {
+                            window.cursor_position.x = position.x as f32;
+                            window.cursor_position.y = position.y as f32;
+                        }
                     }
                     _ => {}
                 },

@@ -1,5 +1,5 @@
 use ike_ecs::{Component, SparseStorage};
-use ike_math::{Mat4, Vec3};
+use ike_math::{Mat4, Vec3, Vec4};
 
 #[derive(Clone, Copy, Debug)]
 pub struct RawCamera {
@@ -23,6 +23,10 @@ impl RawCamera {
 
     pub fn view_proj(&self) -> Mat4 {
         self.proj * self.view.inverse()
+    }
+
+    pub fn project_point(&self, point: Vec4) -> Vec4 {
+        self.view_proj() * point
     }
 }
 

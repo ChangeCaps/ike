@@ -12,7 +12,7 @@ pub enum ComponentStorageKind {
     Sparse,
 }
 
-pub trait Component: Send + Sync + 'static {
+pub trait Component: Sized + Send + Sync + 'static {
     type Storage: ComponentStorage;
 }
 

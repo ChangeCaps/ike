@@ -1,6 +1,15 @@
-use ike_ecs::{Changed, Children, Entity, Parent, Query, With, Without};
+use ike_ecs::{Changed, Children, Commands, Entity, Parent, Query, With, Without};
 
 use crate::{GlobalTransform, Transform};
+
+pub fn add_global_transform_system(
+    commands: Commands,
+    query: Query<Entity, (With<Transform>, Without<GlobalTransform>)>,
+) {
+    for entity in query.iter() {
+        commands.insert(&entity, GlobalTransform::default());
+    }
+}
 
 pub fn transform_propagate_system(
     root_query: Query<
@@ -129,14 +138,14 @@ mod tests {
         assert_eq!(
             Vec3::new(3.0, 0.0, 1.0),
             world
-                .get::<GlobalTransform>(&children[0])
+                .component::<GlobalTransform>(&children[0])
                 .unwrap()
                 .translation
         );
         assert_eq!(
             Vec3::new(4.0, 4.0, -1.0),
             world
-                .get::<GlobalTransform>(&children[1])
+                .component::<GlobalTransform>(&children[1])
                 .unwrap()
                 .translation
         );

@@ -39,6 +39,8 @@ pub fn render_system(world: &mut World) {
         Err(err) => {
             eprintln!("{}", err);
 
+            drop(surface);
+            world.insert_resource(render_graph);
             return;
         }
     };

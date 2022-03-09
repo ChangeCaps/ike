@@ -16,13 +16,22 @@ members = ["crates/*"]
 ike-app = { version = "0.1.0", path = "crates/ike-app" }
 ike-assets = { version = "0.1.0", path = "crates/ike-assets" }
 ike-core = { version = "0.1.0", path = "crates/ike-core" }
+ike-debug = { version = "0.1.0", path = "crates/ike-debug" }
 ike-ecs = { version = "0.1.0", path = "crates/ike-ecs" }
 ike-id = { version = "0.1.0", path = "crates/ike-id" }
+ike-input = { version = "0.1.0", path = "crates/ike-input" }
 ike-light = { version = "0.1.0", path = "crates/ike-light" }
 ike-macro = { version = "0.1.0", path = "crates/ike-macro" }
 ike-math = { version = "0.1.0", path = "crates/ike-math" }
+ike-node = { version = "0.1.0", path = "crates/ike-node" }
 ike-pbr = { version = "0.1.0", path = "crates/ike-pbr" }
-ike-physics = { version = "0.1.0", path = "crates/ike-physics" }
-ike-render = { version = "0.1.0", path = "crates/ike-render" }
+ike-physics = { version = "0.1.0", path = "crates/ike-physics", optional = true }
+ike-render = { version = "0.1.0", path = "crates/ike-render", optional = true }
 ike-transform = { version = "0.1.0", path = "crates/ike-transform" }
 ike-winit = { version = "0.1.0", path = "crates/ike-winit" }
+
+[features]
+default = ["physics", "render", "rayon"]
+rayon = ["ike-ecs/rayon"]
+physics = ["ike-physics", "ike-node/physics"]
+render = ["ike-render", "ike-node/render"]

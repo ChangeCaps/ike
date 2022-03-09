@@ -29,6 +29,10 @@ impl Plugin for PbrPlugin {
             .unwrap();
 
         render_graph
+            .add_node_edge(node::PBR_NODE, ike_debug::node::DEBUG_LINE)
+            .unwrap();
+
+        render_graph
             .add_slot_edge(
                 input_node,
                 input::SURFACE_TEXTURE,
@@ -48,7 +52,7 @@ impl Plugin for PbrPlugin {
 
         render_graph
             .add_slot_edge(
-                ike_render::node::DEPTH,
+                ike_render::node::MSAA_DEPTH,
                 TextureNode::TEXTURE,
                 node::PBR_NODE,
                 PbrNode::DEPTH,

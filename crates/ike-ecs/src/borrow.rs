@@ -53,13 +53,13 @@ impl AtomicBorrow {
     }
 }
 
-pub struct ComponentRead<'a, T> {
+pub struct Comp<'a, T> {
     item: &'a T,
     component: &'a AtomicBorrow,
     storage: &'a AtomicBorrow,
 }
 
-impl<'a, T> ComponentRead<'a, T> {
+impl<'a, T> Comp<'a, T> {
     pub fn new(
         item: &'a T,
         component: &'a AtomicBorrow,
@@ -82,7 +82,7 @@ impl<'a, T> ComponentRead<'a, T> {
     }
 }
 
-impl<'a, T> Deref for ComponentRead<'a, T> {
+impl<'a, T> Deref for Comp<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -90,14 +90,14 @@ impl<'a, T> Deref for ComponentRead<'a, T> {
     }
 }
 
-impl<'a, T> Drop for ComponentRead<'a, T> {
+impl<'a, T> Drop for Comp<'a, T> {
     fn drop(&mut self) {
         self.component.release();
         self.storage.release();
     }
 }
 
-pub struct ComponentWrite<'a, T> {
+pub struct CompMut<'a, T> {
     item: &'a mut T,
     component: &'a AtomicBorrow,
     storage: &'a AtomicBorrow,
@@ -105,7 +105,7 @@ pub struct ComponentWrite<'a, T> {
     change_tick: ChangeTick,
 }
 
-impl<'a, T> ComponentWrite<'a, T> {
+impl<'a, T> CompMut<'a, T> {
     pub fn new(
         item: &'a mut T,
         component: &'a AtomicBorrow,
@@ -132,7 +132,7 @@ impl<'a, T> ComponentWrite<'a, T> {
     }
 }
 
-impl<'a, T> Deref for ComponentWrite<'a, T> {
+impl<'a, T> Deref for CompMut<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -140,7 +140,7 @@ impl<'a, T> Deref for ComponentWrite<'a, T> {
     }
 }
 
-impl<'a, T> DerefMut for ComponentWrite<'a, T> {
+impl<'a, T> DerefMut for CompMut<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.component_change_tick
             .store(self.change_tick, Ordering::Release);
@@ -149,7 +149,7 @@ impl<'a, T> DerefMut for ComponentWrite<'a, T> {
     }
 }
 
-impl<'a, T> Drop for ComponentWrite<'a, T> {
+impl<'a, T> Drop for CompMut<'a, T> {
     fn drop(&mut self) {
         self.component.release_mut();
         self.storage.release();
@@ -176,7 +176,7 @@ impl<'a, T> Mut<'a, T> {
     }
 
     /// Gets inner item without marking the it as changed.
-    pub fn as_mut_unchanged(&mut self) -> &T {
+    pub fn as_mut_unchanged(&mut self) -> &mut T {
         self.item
     }
 }

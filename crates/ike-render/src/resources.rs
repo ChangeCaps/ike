@@ -64,6 +64,11 @@ pub type ColorTargetState = wgpu::ColorTargetState;
 pub type BlendState = wgpu::BlendState;
 pub type ColorWrites = wgpu::ColorWrites;
 pub type MultisampleState = wgpu::MultisampleState;
+pub type PrimitiveState = wgpu::PrimitiveState;
+pub type PrimitiveTopology = wgpu::PrimitiveTopology;
+pub type Face = wgpu::Face;
+pub type PolygonMode = wgpu::PolygonMode;
+pub type FrontFace = wgpu::FrontFace;
 pub type ShaderModule = wgpu::ShaderModule;
 pub type ShaderModuleDescriptor<'a> = wgpu::ShaderModuleDescriptor<'a>;
 
@@ -226,6 +231,10 @@ impl Surface {
         self.width = width.max(1);
         self.height = height.max(1);
         *self.config_surface.get_mut() = true;
+    }
+
+    pub fn format(&self) -> TextureFormat {
+        self.format
     }
 
     pub fn config_surface(&self) {

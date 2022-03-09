@@ -95,6 +95,10 @@ impl Schedule {
             stage.execute(world);
         }
     }
+
+    pub fn iter_stages(&self) -> impl Iterator<Item = &ScheduleStage> {
+        self.stages.iter()
+    }
 }
 
 #[derive(thiserror::Error, Debug)]

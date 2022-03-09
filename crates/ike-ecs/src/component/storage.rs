@@ -1,8 +1,8 @@
 use std::{any::TypeId, collections::HashMap, mem, ptr};
 
 use crate::{
-    AtomicBorrow, ChangeTick, Component, ComponentData, ComponentDescriptor, ComponentRead,
-    ComponentStorage, ComponentStorageKind, ComponentTicks, ComponentWrite, Entity, EntitySet,
+    AtomicBorrow, ChangeTick, Comp, CompMut, Component, ComponentData, ComponentDescriptor,
+    ComponentStorage, ComponentStorageKind, ComponentTicks, Entity, EntitySet, Mut,
     SparseComponentStorage,
 };
 
@@ -113,31 +113,39 @@ impl ComponentStorages {
         }
     }
 
-    pub fn read_component<'a, T: Component>(
-        &'a self,
-        entity: &Entity,
-    ) -> Option<ComponentRead<'a, T>> {
-        let item = unsafe { &*(self.get_component_raw(entity)?) };
+    pub fn read_component<'a, T: Component>(&'a self, entity: &Entity) -> Option<Comp<'a, T>> {
+        let item = unsafe { &*self.get_component_raw(entity)? };
         let data = unsafe { self.get_data_unchecked::<T>(entity) };
 
-        ComponentRead::new(item, &data.borrow, self.get_borrow::<T>()?)
+        Comp::new(item, &data.borrow, self.get_borrow::<T>()?)
     }
 
     pub fn write_component<'a, T: Component>(
         &'a self,
         entity: &Entity,
         change_tick: ChangeTick,
-    ) -> Option<ComponentWrite<'a, T>> {
-        let item = unsafe { &mut *(self.get_component_raw(entity)?) };
+    ) -> Option<CompMut<'a, T>> {
+        let item = unsafe { &mut *self.get_component_raw(entity)? };
         let data = unsafe { self.get_data_unchecked::<T>(entity) };
 
-        ComponentWrite::new(
+        CompMut::new(
             item,
             &data.borrow,
             self.get_borrow::<T>()?,
-            &data.ticks.changed_raw(),
+            data.ticks.changed_raw(),
             change_tick,
         )
+    }
+
+    pub fn get_component_mut<'a, T: Component>(
+        &'a mut self,
+        entity: &Entity,
+        change_tick: ChangeTick,
+    ) -> Option<Mut<'a, T>> {
+        let item = unsafe { &mut *self.get_component_raw(entity)? };
+        let data = unsafe { self.get_data_unchecked::<T>(entity) };
+
+        Some(Mut::new(item, data.ticks.changed_raw(), change_tick))
     }
 
     pub fn despawn(&mut self, entity: &Entity) {

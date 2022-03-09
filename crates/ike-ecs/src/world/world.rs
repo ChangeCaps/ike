@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-    ChangeTick, CommandQueue, Commands, Component, ComponentRead, ComponentWrite, Entities, Entity,
-    Query, Res, ResMut, Resource, Resources, WorldQuery,
+    ChangeTick, CommandQueue, Commands, Comp, Component, CompMut, Entities, Entity, Mut,
+    Query, QueryFilter, Res, ResMut, Resource, Resources, WorldQuery,
 };
 
 #[derive(Default)]
@@ -48,12 +48,21 @@ impl World {
         &mut self.entities
     }
 
-    pub fn get<T: Component>(&self, entity: &Entity) -> Option<ComponentRead<'_, T>> {
-        self.entities().read_component(entity)
+    pub fn component<T: Component>(&self, entity: &Entity) -> Option<Comp<T>> {
+        self.entities().read(entity)
     }
 
-    pub fn get_mut<T: Component>(&self, entity: &Entity) -> Option<ComponentWrite<'_, T>> {
-        self.entities().write_component(entity, self.change_tick())
+    pub fn component_mut<T: Component>(&self, entity: &Entity) -> Option<CompMut<T>> {
+        self.entities().write(entity, self.change_tick())
+    }
+
+    pub fn get_component_mut<T: Component>(&mut self, entity: &Entity) -> Option<Mut<T>> {
+        let change_tick = self.change_tick();
+        self.entities_mut().get_mut(entity, change_tick)
+    }
+
+    pub fn despawn(&mut self, entity: &Entity) {
+        self.entities_mut().despawn(entity);
     }
 }
 
@@ -143,6 +152,10 @@ impl World {
 // query
 impl World {
     pub fn query<Q: WorldQuery>(&self) -> Option<Query<'_, Q>> {
+        Query::new(self, self.last_change_tick)
+    }
+
+    pub fn query_filter<Q: WorldQuery, F: QueryFilter>(&self) -> Option<Query<Q, F>> {
         Query::new(self, self.last_change_tick)
     }
 }

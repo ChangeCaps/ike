@@ -75,12 +75,13 @@ impl RenderGraph {
                     Edge::SlotEdge {
                         output_index,
                         output_node,
+                        input_index,
                         ..
                     } => {
                         let output_state = self.get_node_state(output_node)?;
 
                         inputs.push((
-                            output_index,
+                            input_index,
                             output_state.outputs[output_index].as_ref().unwrap(),
                         ));
                     }
