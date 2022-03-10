@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{borrow::Cow, marker::PhantomData};
 
 use ike_task::TaskPool;
 
@@ -122,13 +122,14 @@ pub type QueryItem<'a, Q> = <<Q as WorldQuery>::Fetch as Fetch<'a>>::Item;
 
 pub unsafe trait Fetch<'a>: Sized {
     type Item;
-    type IterState: FetchIterState<'a>;
 
     fn access(access: &mut SystemAccess);
 
     fn borrow(_world: &World) -> bool {
         true
     }
+
+    fn entities(world: &'a World) -> Cow<'a, EntitySet>;
 
     unsafe fn get(
         world: &'a World,
@@ -141,12 +142,6 @@ pub unsafe trait Fetch<'a>: Sized {
 
 pub unsafe trait ReadOnlyFetch<'a>: Fetch<'a> {}
 
-pub trait FetchIterState<'a> {
-    fn init(world: &'a World) -> Self;
-
-    fn next_entity(&self, entity: &Entity) -> Option<Entity>;
-}
-
 impl WorldQuery for Entity {
     type Fetch = EntityFetch;
     type ReadOnlyFetch = EntityFetch;
@@ -154,27 +149,14 @@ impl WorldQuery for Entity {
 
 pub struct EntityFetch;
 
-pub struct EntityFetchIterState<'a> {
-    entities: &'a EntitySet,
-}
-
-impl<'a> FetchIterState<'a> for EntityFetchIterState<'a> {
-    fn init(world: &'a World) -> Self {
-        Self {
-            entities: world.entities().entities(),
-        }
-    }
-
-    fn next_entity(&self, entity: &Entity) -> Option<Entity> {
-        self.entities.after(entity)
-    }
-}
-
 unsafe impl<'a> Fetch<'a> for EntityFetch {
     type Item = Entity;
-    type IterState = EntityFetchIterState<'a>;
 
     fn access(_access: &mut SystemAccess) {}
+
+    fn entities(world: &'a World) -> Cow<'a, EntitySet> {
+        Cow::Borrowed(world.entities().entities())
+    }
 
     unsafe fn get(
         _world: &'a World,
@@ -194,30 +176,19 @@ impl<'a, T: Component> WorldQuery for &'a T {
 
 pub struct FetchRead<T>(PhantomData<fn() -> T>);
 
-pub struct ComponentFetchIterState<'a, T> {
-    entities: Option<&'a EntitySet>,
-    marker: PhantomData<fn() -> T>,
-}
-
-impl<'a, T: Component> FetchIterState<'a> for ComponentFetchIterState<'a, T> {
-    fn init(world: &'a World) -> Self {
-        Self {
-            entities: world.entities().storage().get_entities::<T>(),
-            marker: PhantomData,
-        }
-    }
-
-    fn next_entity(&self, entity: &Entity) -> Option<Entity> {
-        self.entities?.after(entity)
-    }
-}
-
 unsafe impl<'a, T: Component> Fetch<'a> for FetchRead<T> {
     type Item = &'a T;
-    type IterState = ComponentFetchIterState<'a, T>;
 
     fn access(access: &mut SystemAccess) {
         access.borrow_component::<T>(Access::Read);
+    }
+
+    fn entities(world: &'a World) -> Cow<'a, EntitySet> {
+        if let Some(entities) = world.entities().storage().get_entities::<T>() {
+            Cow::Borrowed(entities)
+        } else {
+            Cow::Owned(EntitySet::new())
+        }
     }
 
     fn borrow(world: &World) -> bool {
@@ -247,10 +218,17 @@ pub struct FetchReadOnlyWrite<T>(PhantomData<fn() -> T>);
 
 unsafe impl<'a, T: Component> Fetch<'a> for FetchWrite<T> {
     type Item = Mut<'a, T>;
-    type IterState = ComponentFetchIterState<'a, T>;
 
     fn access(access: &mut SystemAccess) {
         access.borrow_component::<T>(Access::Write);
+    }
+
+    fn entities(world: &'a World) -> Cow<'a, EntitySet> {
+        if let Some(entities) = world.entities().storage().get_entities::<T>() {
+            Cow::Borrowed(entities)
+        } else {
+            Cow::Owned(EntitySet::new())
+        }
     }
 
     fn borrow(world: &World) -> bool {
@@ -279,10 +257,17 @@ unsafe impl<'a, T: Component> Fetch<'a> for FetchWrite<T> {
 
 unsafe impl<'a, T: Component> Fetch<'a> for FetchReadOnlyWrite<T> {
     type Item = &'a T;
-    type IterState = ComponentFetchIterState<'a, T>;
 
     fn access(access: &mut SystemAccess) {
         access.borrow_component::<T>(Access::Read);
+    }
+
+    fn entities(world: &'a World) -> Cow<'a, EntitySet> {
+        if let Some(entities) = world.entities().storage().get_entities::<T>() {
+            Cow::Borrowed(entities)
+        } else {
+            Cow::Owned(EntitySet::new())
+        }
     }
 
     fn borrow(world: &World) -> bool {
@@ -315,10 +300,13 @@ pub struct OptionFetch<T>(PhantomData<fn() -> T>);
 
 unsafe impl<'a, T: Fetch<'a>> Fetch<'a> for OptionFetch<T> {
     type Item = Option<T::Item>;
-    type IterState = T::IterState;
 
     fn access(access: &mut SystemAccess) {
         T::access(access);
+    }
+
+    fn entities(world: &'a World) -> Cow<'a, EntitySet> {
+        T::entities(world)
     }
 
     fn borrow(world: &World) -> bool {
@@ -346,41 +334,29 @@ macro_rules! tuple_world_query {
         tuple_world_query!(@ $first, $($name),*);
         tuple_world_query!($($name),*);
     };
+    (@entities $world:ident, $first:ident $(,$name:ident)+) => {
+        let mut entities = $first::entities($world).into_owned();
+        $(
+            entities.and(&$name::entities($world));
+        )*
+        return Cow::Owned(entities);
+
+    };
+    (@entities $world:ident, $first:ident) => {
+        return $first::entities($world);
+    };
     (@ $($name:ident),* $(,)?) => {
-        #[allow(non_snake_case)]
-        impl<'a, $($name: FetchIterState<'a>),*> FetchIterState<'a> for ($($name,)*) {
-            fn init(world: &'a World) -> Self {
-                ($($name::init(world),)*)
-            }
-
-            fn next_entity(&self, entity: &Entity) -> Option<Entity> {
-                let ($($name,)*) = self;
-
-                let mut min: Option<Entity> = None;
-
-                $(
-                    if let Some(entity) = $name.next_entity(entity) {
-                        if let Some(ref mut min) = min {
-                            if entity.index() < min.index() {
-                                *min = entity;
-                            }
-                        } else {
-                            min = Some(entity);
-                        }
-                    }
-                )*
-
-                min
-            }
-        }
-
         #[allow(non_snake_case)]
         unsafe impl<'a, $($name: Fetch<'a>),*> Fetch<'a> for ($($name,)*) {
             type Item = ($($name::Item,)*);
-            type IterState = ($($name::IterState,)*);
 
             fn access(access: &mut SystemAccess) {
                 $($name::access(access);)*
+
+            }
+
+            fn entities(world: &'a World) -> Cow<'a, EntitySet> {
+                tuple_world_query!(@entities world, $($name),*);
             }
 
             fn borrow(world: &World) -> bool {

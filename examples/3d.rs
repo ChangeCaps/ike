@@ -65,6 +65,7 @@ impl Player {
         let mut child_transform = child.component_mut::<Transform>();
         child_transform.rotation = Quat::from_rotation_x(self.camera_angle.y);
 
+        /*
         if mouse_input.held(&MouseButton::Right) {
             node.query_filter::<(&GlobalTransform, &mut RigidBody), With<Garbage>>()
                 .par_for_each_mut(&task_pool, |(transform, mut rigid_body)| {
@@ -78,6 +79,7 @@ impl Player {
                         diff * (1.0 / dist.powi(2)) * time.delta_seconds() * 100.0;
                 });
         }
+        */
     }
 }
 

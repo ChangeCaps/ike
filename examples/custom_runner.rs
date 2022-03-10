@@ -6,7 +6,9 @@ impl AppRunner for CustomRunner {
     fn run(self: Box<Self>, mut app: App) {
         println!("starting runner!");
 
-        app.update();
+        loop {
+            app.update();
+        }
     }
 }
 
@@ -36,18 +38,18 @@ fn setup(commands: Commands) {
 }
 
 fn list_foos(query: Query<&Foo>) {
-    println!("all foos:");
+    //println!("all foos:");
 
     for foo in query.iter() {
-        println!("foo({})", foo.0);
+        //println!("foo({})", foo.0);
     }
 }
 
-fn list_even_foos(query: Query<&Foo, Without<Odd>>) {
+fn list_even_foos(query: Query<Entity, Without<Odd>>) {
     println!("even foos:");
 
     for foo in query.iter() {
-        println!("foo({})", foo.0);
+        println!("foo({:?})", foo);
     }
 }
 
