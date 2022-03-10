@@ -53,7 +53,13 @@ impl PhysicsWorld {
             &event_handler,
         );
 
-        event_handler.contacts.into_iter().collect()
+        let mut events = Vec::new();
+
+        while let Some(event) = event_handler.contacts.pop() {
+            events.push(event);
+        }
+
+        events
     }
 }
 

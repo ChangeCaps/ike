@@ -11,6 +11,8 @@ pub struct QueryIter<'a, F: Fetch<'a>, QF: QueryFilter = ()> {
 }
 
 impl<'a, F: Fetch<'a>, QF: QueryFilter> QueryIter<'a, F, QF> {
+    /// # Safety
+    /// - must not be able to break borrow rules for any components.
     pub unsafe fn new(world: &'a World, last_change_tick: ChangeTick) -> Self {
         let state = F::IterState::init(world);
 

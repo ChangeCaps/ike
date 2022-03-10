@@ -16,6 +16,7 @@ impl Player {
         let key_input = node.resource::<Input<Key>>();
         let mouse_input = node.resource::<Input<MouseButton>>();
         let time = node.resource::<Time>();
+        let task_pool = node.resource::<TaskPool>();
         let mut transform = node.component_mut::<Transform>();
         let mut rigid_body = node.component_mut::<RigidBody>();
 
@@ -64,21 +65,18 @@ impl Player {
         let mut child_transform = child.component_mut::<Transform>();
         child_transform.rotation = Quat::from_rotation_x(self.camera_angle.y);
 
-        drop(rigid_body);
         if mouse_input.held(&MouseButton::Right) {
-            for (transform, mut rigid_body) in node
-                .query_filter::<(&GlobalTransform, &mut RigidBody), With<Garbage>>()
-                .iter_mut()
-            {
-                let target =
-                    child_global_transform.translation - child_global_transform.local_z() * 10.0;
+            node.query_filter::<(&GlobalTransform, &mut RigidBody), With<Garbage>>()
+                .par_for_each_mut(&task_pool, |(transform, mut rigid_body)| {
+                    let target = child_global_transform.translation
+                        - child_global_transform.local_z() * 10.0;
 
-                let diff = target - transform.translation;
-                let dist = diff.length().max(0.1);
+                    let diff = target - transform.translation;
+                    let dist = diff.length().max(0.1);
 
-                rigid_body.linear_velocity +=
-                    diff * (1.0 / dist.powi(2)) * time.delta_seconds() * 100.0;
-            }
+                    rigid_body.linear_velocity +=
+                        diff * (1.0 / dist.powi(2)) * time.delta_seconds() * 100.0;
+                });
         }
     }
 }
@@ -141,8 +139,6 @@ fn setup(
         .insert(BoxCollider::new(Vec3::ONE));
 
     spawn_player(&commands);
-
-    let car: Handle<GltfMesh> = asset_server.load("assets/car.mesh.glb");
 
     for x in -5..=5 {
         for y in -5..=5 {

@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use ike_task::TaskPool;
+
 use crate::{
     Access, ChangeTick, ChangeTicks, Component, Entity, EntitySet, Mut, QueryFilter, QueryIter,
     SystemAccess, World,
@@ -25,11 +27,59 @@ impl<'a, Q: WorldQuery, F: QueryFilter> Query<'a, Q, F> {
     }
 
     pub fn iter(&self) -> QueryIter<'a, Q::ReadOnlyFetch, F> {
+        // SAFETY:
+        // creating a Query requires ensuring component access is valid
         unsafe { QueryIter::new(self.world, self.change_ticks.last_change_tick()) }
     }
 
     pub fn iter_mut(&mut self) -> QueryIter<'a, Q::Fetch, F> {
+        // SAFETY:
+        // creating a Query requires ensuring component access is valid
         unsafe { QueryIter::new(self.world, self.change_ticks.last_change_tick()) }
+    }
+
+    pub fn for_each(&self, mut f: impl FnMut(<Q::ReadOnlyFetch as Fetch>::Item)) {
+        for item in self.iter() {
+            f(item);
+        }
+    }
+
+    pub fn for_each_mut(&mut self, mut f: impl FnMut(<Q::Fetch as Fetch>::Item)) {
+        for item in self.iter_mut() {
+            f(item);
+        }
+    }
+
+    pub fn par_for_each(
+        &self,
+        task_pool: &TaskPool,
+        f: impl Fn(<Q::ReadOnlyFetch as Fetch>::Item) + Send + Sync,
+    ) where
+        <Q::ReadOnlyFetch as Fetch<'a>>::Item: Send,
+    {
+        task_pool.scope(|scope| {
+            for item in self.iter() {
+                scope.spawn(async {
+                    f(item);
+                });
+            }
+        });
+    }
+
+    pub fn par_for_each_mut(
+        &mut self,
+        task_pool: &TaskPool,
+        f: impl Fn(<Q::Fetch as Fetch>::Item) + Send + Sync,
+    ) where
+        <Q::Fetch as Fetch<'a>>::Item: Send,
+    {
+        task_pool.scope(|scope| {
+            for item in self.iter_mut() {
+                scope.spawn(async {
+                    f(item);
+                });
+            }
+        });
     }
 
     pub fn contains(&self, entity: &Entity) -> bool {
@@ -38,6 +88,8 @@ impl<'a, Q: WorldQuery, F: QueryFilter> Query<'a, Q, F> {
 
     pub fn get(&self, entity: &Entity) -> Option<<Q::ReadOnlyFetch as Fetch<'a>>::Item> {
         if F::filter(self.world, entity, self.change_ticks.last_change_tick()) {
+            // SAFETY:
+            // creating a Query requires ensuring component access is valid
             unsafe { Q::ReadOnlyFetch::get(self.world, entity, &self.change_ticks) }
         } else {
             None
@@ -46,6 +98,8 @@ impl<'a, Q: WorldQuery, F: QueryFilter> Query<'a, Q, F> {
 
     pub fn get_mut(&mut self, entity: &Entity) -> Option<QueryItem<'a, Q>> {
         if F::filter(self.world, entity, self.change_ticks.last_change_tick()) {
+            // SAFETY:
+            // creating a Query requires ensuring component access is valid
             unsafe { Q::Fetch::get(self.world, entity, &self.change_ticks) }
         } else {
             None

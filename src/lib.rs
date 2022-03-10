@@ -8,7 +8,7 @@ pub use ike_gltf as gltf;
 pub use ike_input as input;
 pub use ike_light as light;
 use ike_log::LogPlugin;
-pub use ike_math as math;
+pub use ike_math as makth;
 pub use ike_node as node;
 #[cfg(feature = "pbr")]
 pub use ike_pbr as pbr;
@@ -16,6 +16,7 @@ pub use ike_pbr as pbr;
 pub use ike_physics as physics;
 #[cfg(feature = "render")]
 pub use ike_render as render;
+pub use ike_task as task;
 pub use ike_transform as transform;
 pub use ike_util as util;
 pub use ike_winit as winit;
@@ -47,6 +48,7 @@ pub mod prelude {
         Camera, Color, Mesh, RawCamera, RenderContext, RenderDevice, RenderGraph,
         RenderGraphContext, RenderGraphResult, RenderNode, RenderQueue, SlotInfo,
     };
+    pub use ike_task::{Task, TaskPool};
     pub use ike_transform::{GlobalTransform, Transform, TransformPlugin};
     pub use ike_winit::Window;
 }

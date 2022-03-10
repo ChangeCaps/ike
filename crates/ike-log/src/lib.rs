@@ -1,5 +1,6 @@
 use ike_app::{App, Plugin};
 use ike_util::tracing::subscriber;
+#[cfg(feature = "tracing-tracy")]
 use tracing_subscriber::prelude::*;
 
 #[derive(Default)]

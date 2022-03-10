@@ -1,6 +1,7 @@
 use ike_ecs::World;
 use ike_math::{Mat4, Vec3};
 use ike_transform::GlobalTransform;
+use ike_util::tracing::warn;
 
 use crate::{Camera, RawCamera, RenderGraph, SlotValue, Surface, SurfaceError};
 
@@ -37,7 +38,7 @@ pub fn render_system(world: &mut World) {
         Ok(surface_texture) => surface_texture,
         Err(SurfaceError::OutOfMemory) => panic!("ran out of vram"),
         Err(err) => {
-            eprintln!("{}", err);
+            warn!("{}", err);
 
             drop(surface);
             world.insert_resource(render_graph);
