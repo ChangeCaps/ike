@@ -82,7 +82,15 @@ impl App {
     }
 
     pub fn update(&mut self) {
+        #[cfg(feature = "trace")]
+        let frame_span = ike_util::tracing::info_span!("frame");
+        #[cfg(feature = "trace")]
+        let _frame_guard = frame_span.enter();
+
         self.schedule.execute(&mut self.world);
+
+        #[cfg(feature = "tracing-tracy")]
+        tracy_client::finish_continuous_frame!();
     }
 
     pub fn add_plugin(&mut self, plugin: impl Plugin) -> &mut Self {

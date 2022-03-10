@@ -9,8 +9,13 @@ edition = "2021"
 # ike
 ike-app = { version = "0.1.0", path = "../ike-app" }
 ike-ecs = { version = "0.1.0", path = "../ike-ecs" }
-ike-id = { version = "0.1.0", path = "../ike-id" } 
+ike-task = { version = "0.1.0", path = "../ike-task" }
+ike-util = { version = "0.1.0", path = "../ike-util" } 
 
 # other
 ahash = "0.7"
+async-fs = "1.5"
+futures-lite = "1.12"
 rand = "0.8"
+thiserror = "1.0"
+

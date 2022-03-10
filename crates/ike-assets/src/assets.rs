@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use crate::{AssetEvent, Handle, HandleId};
+use ike_ecs::{Res, ResMut};
+
+use crate::{AssetEvent, AssetServer, Handle, HandleId};
 
 pub trait Asset: Send + Sync + 'static {}
 
@@ -26,7 +28,7 @@ impl<T: Asset> Assets<T> {
             id = HandleId::random();
         }
 
-        self.assets.insert(id, asset);
+        self.insert(id, asset);
 
         Handle::new(id)
     }
@@ -71,6 +73,26 @@ impl<T: Asset> Assets<T> {
         });
 
         self.assets.get_mut(&handle)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&HandleId, &T)> {
+        self.assets.iter()
+    }
+
+    pub fn iter_assets(&self) -> impl Iterator<Item = &T> {
+        self.assets.values()
+    }
+
+    pub(crate) fn update_storage_system(asset_server: Res<AssetServer>, mut assets: ResMut<Self>) {
+        for (handle_id, asset) in asset_server
+            .inner
+            .channel
+            .write()
+            .unwrap()
+            .remove_assets::<T>()
+        {
+            assets.insert(handle_id, asset);
+        }
     }
 }
 

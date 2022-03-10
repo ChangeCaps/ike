@@ -1,23 +1,26 @@
 mod component;
 mod debug;
 mod event;
+mod physics_world;
 mod resource;
 mod system;
 
 pub use component::*;
 pub use debug::*;
 pub use event::*;
+pub use physics_world::*;
 pub use rapier3d::prelude::{ColliderSet, JointSet, PhysicsPipeline, RigidBodySet};
 pub use resource::*;
 pub use system::*;
 
 use ike_app::{App, CoreStage, Plugin};
-use ike_ecs::{ParallelSystemCoercion, StageLabel, SystemLabel};
+use ike_ecs::{IntoExclusiveSystem, ParallelSystemCoercion, StageLabel, SystemLabel};
 
 #[derive(StageLabel, Clone, Copy, Debug, Hash)]
 pub enum PhysicsStage {
     PrePhysics,
-    Physics,
+    Extract,
+    Insert,
     PostPhysics,
 }
 
@@ -35,8 +38,7 @@ pub struct PhysicsPlugin;
 
 impl Plugin for PhysicsPlugin {
     fn build(self, app: &mut App) {
-        app.init_resource::<PhysicsPipeline>();
-        app.init_resource::<PhysicsResource>();
+        app.insert_resource(PhysicsWorld::new());
         app.insert_resource(RigidBodySet::new());
         app.insert_resource(ColliderSet::new());
         app.insert_resource(JointSet::new());
@@ -47,8 +49,10 @@ impl Plugin for PhysicsPlugin {
         app.add_event::<Collision>();
 
         app.add_stage_after(PhysicsStage::PrePhysics, CoreStage::PostUpdate);
-        app.add_stage_after(PhysicsStage::Physics, PhysicsStage::PrePhysics);
-        app.add_stage_after(PhysicsStage::PostPhysics, PhysicsStage::Physics);
+        app.add_stage_after(PhysicsStage::Extract, PhysicsStage::PrePhysics);
+
+        app.add_stage_before(PhysicsStage::PostPhysics, CoreStage::End);
+        app.add_stage_before(PhysicsStage::Insert, PhysicsStage::PostPhysics);
 
         app.add_system_to_stage(
             add_rigid_bodies.label(PhysicsSystem::AddComponents),
@@ -73,7 +77,9 @@ impl Plugin for PhysicsPlugin {
             PhysicsStage::PrePhysics,
         );
 
-        app.add_system_to_stage(physics_update, PhysicsStage::Physics);
+        app.add_system_to_stage(physics_extract.exclusive_system(), PhysicsStage::Extract);
+
+        app.add_system_to_stage(physics_insert.exclusive_system(), PhysicsStage::Insert);
 
         app.add_system_to_stage(
             get_rigid_bodies.label(PhysicsSystem::GetComponents),

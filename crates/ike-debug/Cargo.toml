@@ -10,8 +10,12 @@ edition = "2021"
 ike-app = { version = "0.1.0", path = "../ike-app" }
 ike-ecs = { version = "0.1.0", path = "../ike-ecs" }
 ike-math = { version = "0.1.0", path = "../ike-math" }
-ike-render = { version = "0.1.0", path = "../ike-render" }
+ike-render = { version = "0.1.0", path = "../ike-render" } 
 
 # other
 bytemuck = { version = "1.8", features = ["derive"] }
 crossbeam = "0.8"
+
+[features]
+default = []
+render = []

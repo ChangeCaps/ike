@@ -101,6 +101,11 @@ impl RenderGraph {
                 output_slots: &state.output_slots,
             };
 
+            #[cfg(feature = "trace")]
+            let node_span = ike_util::tracing::info_span!("render_node", name = ?state.name);
+            #[cfg(feature = "trace")]
+            let _node_guard = node_span.enter();
+
             state
                 .node
                 .run(&mut graph_context, &mut render_context, world)?;
@@ -115,6 +120,11 @@ impl RenderGraph {
 
             processed.push(node);
         }
+
+        #[cfg(feature = "trace")]
+        let submit_span = ike_util::tracing::info_span!("submit commands buffer");
+        #[cfg(feature = "trace")]
+        let _submit_guard = submit_span.enter();
 
         render_context
             .queue

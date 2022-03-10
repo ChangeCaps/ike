@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crossbeam::queue::SegQueue;
 
-use crate::{Children, Component, Entity, SpawnEntity, World};
+use crate::{Children, Component, Entity, EntityCommands, World};
 
 pub trait Command: Send + Sync + 'static {
     fn run(self: Box<Self>, world: &mut World);
@@ -44,12 +44,16 @@ impl<'w, 's> Commands<'w, 's> {
         self.queue.push(command);
     }
 
-    pub fn spawn(&self) -> SpawnEntity<'_, '_> {
+    pub fn spawn(&self) -> EntityCommands {
         let entity = self.world.entities().reserve();
 
         self.push(Spawn(entity));
 
-        SpawnEntity::new(self, entity)
+        self.entity(&entity)
+    }
+
+    pub fn entity(&self, entity: &Entity) -> EntityCommands {
+        EntityCommands::new(self, *entity)
     }
 
     pub fn insert<T: Component>(&self, entity: &Entity, component: T) {

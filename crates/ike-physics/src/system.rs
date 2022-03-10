@@ -1,39 +1,39 @@
-use crossbeam::queue::SegQueue;
 use ike_core::Time;
-use ike_ecs::{Changed, Commands, Entity, EventWriter, Or, Query, Res, ResMut, With, Without};
+use ike_ecs::{Changed, Commands, Entity, Events, Or, Query, Res, ResMut, With, Without, World};
 use ike_math::{Quat, Vec3};
+use ike_task::{Task, TaskPool};
 use ike_transform::{GlobalTransform, Transform};
 use rapier3d::{
     math::{Isometry, Translation},
     na::{ArrayStorage, Quaternion, Unit, UnitQuaternion, Vector3},
     prelude::{
-        ActiveEvents, ColliderBuilder, ColliderSet, ContactEvent, ContactPair, IntersectionEvent,
-        JointSet, PhysicsPipeline, RigidBodyBuilder, RigidBodySet, SharedShape,
+        ActiveEvents, ColliderBuilder, ColliderSet, ContactEvent, JointSet, RigidBodyBuilder,
+        RigidBodySet, SharedShape,
     },
 };
 
 use crate::{
-    BoxCollider, ColliderHandle, Colliders, Collision, Gravity, PhysicsResource, RigidBodies,
+    BoxCollider, ColliderHandle, Colliders, Collision, Gravity, PhysicsWorld, RigidBodies,
     RigidBody, RigidBodyHandle,
 };
 
 #[inline]
-fn to_vec3(vec3: Vec3) -> Vector3<f32> {
+pub(crate) fn to_vec3(vec3: Vec3) -> Vector3<f32> {
     Vector3::from_data(ArrayStorage([[vec3.x, vec3.y, vec3.z]]))
 }
 
 #[inline]
-fn from_vec3(vec: Vector3<f32>) -> Vec3 {
+pub(crate) fn from_vec3(vec: Vector3<f32>) -> Vec3 {
     Vec3::new(vec.x, vec.y, vec.z)
 }
 
 #[inline]
-fn to_quat(quat: Quat) -> Quaternion<f32> {
+pub(crate) fn to_quat(quat: Quat) -> Quaternion<f32> {
     Quaternion::new(quat.w, quat.x, quat.y, quat.z)
 }
 
 #[inline]
-fn from_quat(quat: UnitQuaternion<f32>) -> Quat {
+pub(crate) fn from_quat(quat: UnitQuaternion<f32>) -> Quat {
     Quat::from_xyzw(quat.i, quat.j, quat.k, quat.w)
 }
 
@@ -146,60 +146,74 @@ pub fn set_box_colliders(
     }
 }
 
-#[derive(Default)]
-struct EventHandler {
-    intersections: SegQueue<IntersectionEvent>,
-    contacts: SegQueue<ContactEvent>,
+struct PhysicsUpdate {
+    world: PhysicsWorld,
+    bodies: RigidBodySet,
+    colliders: ColliderSet,
+    joints: JointSet,
+    events: Vec<ContactEvent>,
 }
 
-impl rapier3d::prelude::EventHandler for EventHandler {
-    fn handle_intersection_event(&self, event: IntersectionEvent) {
-        self.intersections.push(event);
-    }
+struct PhysicsTask(Task<PhysicsUpdate>);
 
-    fn handle_contact_event(&self, event: ContactEvent, _: &ContactPair) {
-        self.contacts.push(event);
-    }
+pub fn physics_extract(world: &mut World) {
+    let mut physics_world = world.remove_resource::<PhysicsWorld>().unwrap();
+    let mut bodies = world.remove_resource::<RigidBodySet>().unwrap();
+    let mut colliders = world.remove_resource::<ColliderSet>().unwrap();
+    let mut joints = world.remove_resource::<JointSet>().unwrap();
+
+    let gravity = world.resource::<Gravity>().0;
+    let delta_time = world.resource::<Time>().delta_seconds();
+
+    let task_pool = world.resource::<TaskPool>();
+
+    let task = task_pool.spawn(async move {
+        #[cfg(feature = "trace")]
+        let physics_span = ike_util::tracing::info_span!("physics update");
+        #[cfg(feature = "trace")]
+        let _physics_guard = physics_span.enter();
+
+        let events = physics_world.step(
+            gravity,
+            delta_time,
+            &mut bodies,
+            &mut colliders,
+            &mut joints,
+        );
+
+        PhysicsUpdate {
+            world: physics_world,
+            bodies,
+            colliders,
+            joints,
+            events,
+        }
+    });
+
+    drop(task_pool);
+    world.insert_resource(PhysicsTask(task));
 }
 
-pub fn physics_update(
-    mut physics_pipeline: ResMut<PhysicsPipeline>,
-    mut physics_resource: ResMut<PhysicsResource>,
-    mut rigid_body_set: ResMut<RigidBodySet>,
-    mut collider_set: ResMut<ColliderSet>,
-    mut joint_set: ResMut<JointSet>,
-    gravity: Res<Gravity>,
-    time: Res<Time>,
-    colliders: Res<Colliders>,
-    mut event_writer: EventWriter<Collision>,
-) {
-    let physics_resource = &mut *physics_resource;
+pub fn physics_insert(world: &mut World) {
+    let task = world.remove_resource::<PhysicsTask>().unwrap();
 
-    physics_resource.integration_parameters.dt = time.delta_seconds();
+    let update = task.0.block_on();
 
-    let event_handler = EventHandler::default();
+    world.insert_resource(update.world);
+    world.insert_resource(update.bodies);
+    world.insert_resource(update.colliders);
+    world.insert_resource(update.joints);
 
-    physics_pipeline.step(
-        &to_vec3(gravity.0),
-        &physics_resource.integration_parameters,
-        &mut physics_resource.island_manager,
-        &mut physics_resource.broad_phase,
-        &mut physics_resource.narrow_phase,
-        &mut rigid_body_set,
-        &mut collider_set,
-        &mut joint_set,
-        &mut physics_resource.ccd_solver,
-        &(),
-        &event_handler,
-    );
+    let colliders = world.resource::<Colliders>();
+    let mut events = world.resource_mut::<Events<Collision>>();
 
-    for event in event_handler.contacts.into_iter() {
+    for event in update.events {
         let event = match event {
             ContactEvent::Started(a, b) => Collision::Started(colliders.0[&a], colliders.0[&b]),
             ContactEvent::Stopped(a, b) => Collision::Stopped(colliders.0[&a], colliders.0[&b]),
         };
 
-        event_writer.send(event);
+        events.send(event);
     }
 }
 
@@ -242,7 +256,7 @@ pub fn get_rigid_bodies(
 }
 
 pub fn clean_physics(
-    mut physics_resource: ResMut<PhysicsResource>,
+    mut physics_resource: ResMut<PhysicsWorld>,
     mut rigid_body_set: ResMut<RigidBodySet>,
     mut collider_set: ResMut<ColliderSet>,
     mut joint_set: ResMut<JointSet>,

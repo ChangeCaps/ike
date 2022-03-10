@@ -1,7 +1,7 @@
 use std::{any::type_name, borrow::Cow};
 
 use ike_ecs::World;
-use ike_id::Id;
+use ike_util::Id;
 
 use crate::{
     CommandEncoder, Edges, RenderDevice, RenderGraphContext, RenderGraphResult, RenderQueue,

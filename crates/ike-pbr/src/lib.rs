@@ -6,7 +6,7 @@ pub use pbr_node::*;
 
 use ike_app::{App, Plugin};
 use ike_assets::AddAsset;
-use ike_render::{input, RenderGraph, TextureNode};
+use ike_render::{input, RenderGraph, RenderStage, TextureNode};
 
 pub mod node {
     pub const PBR_NODE: &str = "pbr_node";
@@ -18,6 +18,9 @@ impl Plugin for PbrPlugin {
     fn build(self, app: &mut App) {
         app.world.init_resource::<PbrResources>();
         app.add_asset::<PbrMaterial>();
+        app.add_asset::<MaterialBinding>();
+
+        app.add_system_to_stage(MaterialBinding::system, RenderStage::PreRender);
 
         let mut render_graph = app.world.resource_mut::<RenderGraph>();
 

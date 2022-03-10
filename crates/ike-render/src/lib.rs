@@ -2,6 +2,7 @@ mod camera;
 mod color;
 mod edge;
 mod image;
+mod image_loader;
 pub mod mesh;
 mod mesh_binding;
 mod mesh_tool;
@@ -15,10 +16,11 @@ mod shapes;
 mod slot;
 mod texture_node;
 
+pub use self::image::*;
 pub use camera::*;
 pub use color::*;
 pub use edge::*;
-pub use image::*;
+pub use image_loader::*;
 pub use mesh::{Mesh, MeshBuffers};
 pub use mesh_binding::*;
 pub use mesh_tool::*;
@@ -59,6 +61,22 @@ pub struct RenderPlugin;
 
 impl Plugin for RenderPlugin {
     fn build(self, app: &mut App) {
+        app.init_resource::<RenderSettings>();
+
+        app.add_asset::<Mesh>();
+        app.add_asset::<MeshBuffers>();
+        app.add_asset::<Image>();
+        app.add_asset::<ImageTexture>();
+
+        app.add_asset_loader(ImageLoader);
+
+        app.add_stage_after(RenderStage::PreRender, CoreStage::PostUpdate);
+        app.add_stage_after(RenderStage::Render, RenderStage::PreRender);
+        app.add_stage_after(RenderStage::PostRender, RenderStage::Render);
+
+        app.add_system_to_stage(image_texture_system, RenderStage::PreRender);
+        app.add_system_to_stage(render_system.exclusive_system(), RenderStage::Render);
+
         let mut render_graph = RenderGraph::default();
 
         let input_node = render_graph.set_input(vec![
@@ -150,18 +168,5 @@ impl Plugin for RenderPlugin {
             .unwrap();
 
         app.insert_resource(render_graph);
-        app.init_resource::<RenderSettings>();
-
-        app.add_asset::<Mesh>();
-        app.add_asset::<MeshBuffers>();
-        app.add_asset::<Image>();
-        app.add_asset::<ImageTexture>();
-
-        app.add_stage_after(RenderStage::PreRender, CoreStage::PostUpdate);
-        app.add_stage_after(RenderStage::Render, RenderStage::PreRender);
-        app.add_stage_after(RenderStage::PostRender, RenderStage::Render);
-
-        app.add_system_to_stage(image_texture_system, RenderStage::PreRender);
-        app.add_system_to_stage(render_system.exclusive_system(), RenderStage::Render);
     }
 }

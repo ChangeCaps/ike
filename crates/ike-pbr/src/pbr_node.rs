@@ -1,125 +1,21 @@
-use std::collections::HashMap;
-
-use bytemuck::bytes_of;
-use ike_assets::{Assets, Handle, HandleId};
+use ike_assets::{Assets, Handle};
 use ike_ecs::{FromWorld, World};
 use ike_light::LightBindings;
 use ike_math::Mat4;
 use ike_render::{
-    include_wgsl, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, Buffer,
-    BufferBindingType, BufferInitDescriptor, BufferUsages, ColorTargetState, ColorWrites,
-    CompareFunction, DepthStencilState, FragmentState, Image, ImageTexture, IndexFormat, LoadOp,
-    Mesh, MeshBindings, MeshBuffers, MultisampleState, Operations, PipelineLayout,
-    PipelineLayoutDescriptor, RawCamera, RawColor, RenderContext, RenderDevice, RenderGraphContext,
-    RenderNode, RenderPassColorAttachment, RenderPassDepthStencilAttachemnt, RenderPassDescriptor,
-    RenderPipeline, RenderPipelineDescriptor, RenderQueue, SamplerBindingType, ShaderStages,
-    SlotInfo, TextureFormat, TextureSampleType, TextureView, TextureViewDimension, VertexAttribute,
+    include_wgsl, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
+    BufferBindingType, ColorTargetState, ColorWrites, CompareFunction, DepthStencilState,
+    FragmentState, Image, ImageTexture, IndexFormat, LoadOp, Mesh, MeshBindings, MeshBuffers,
+    MultisampleState, Operations, PipelineLayout, PipelineLayoutDescriptor, RawCamera, RawColor,
+    RenderContext, RenderDevice, RenderGraphContext, RenderNode, RenderPassColorAttachment,
+    RenderPassDepthStencilAttachemnt, RenderPassDescriptor, RenderPipeline,
+    RenderPipelineDescriptor, RenderQueue, SamplerBindingType, ShaderStages, SlotInfo,
+    TextureFormat, TextureSampleType, TextureView, TextureViewDimension, VertexAttribute,
     VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
 };
 use ike_transform::GlobalTransform;
 
-use crate::PbrMaterial;
-
-struct MaterialBinding {
-    base_color: Option<Handle<Image>>,
-    metallic_roughness: Option<Handle<Image>>,
-    normal_map: Option<Handle<Image>>,
-    emission: Option<Handle<Image>>,
-    buffer: Buffer,
-    bind_group: BindGroup,
-}
-
-impl MaterialBinding {
-    fn get_texture<'a>(
-        image: &Option<Handle<Image>>,
-        default_image: &'a ImageTexture,
-        image_textures: &'a Assets<ImageTexture>,
-    ) -> &'a ImageTexture {
-        image
-            .as_ref()
-            .and_then(|image| image_textures.get(image))
-            .unwrap_or(default_image)
-    }
-
-    pub fn new(
-        material: &PbrMaterial,
-        device: &RenderDevice,
-        layout: &BindGroupLayout,
-        default_image: &ImageTexture,
-        image_textures: &Assets<ImageTexture>,
-    ) -> Self {
-        let raw_material = material.as_raw();
-
-        let buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("pbr_material_buffer"),
-            contents: bytes_of(&raw_material),
-            usage: BufferUsages::COPY_DST | BufferUsages::UNIFORM,
-        });
-
-        let base_color =
-            Self::get_texture(&material.base_color_texture, default_image, image_textures);
-        let metallic_roughness = Self::get_texture(
-            &material.metallic_roughness_texture,
-            default_image,
-            image_textures,
-        );
-        let emission = Self::get_texture(&material.emission_texture, default_image, image_textures);
-        let normal_map = Self::get_texture(&material.normal_map, default_image, image_textures);
-
-        let bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("pbr_material_bind_group"),
-            layout,
-            entries: &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: buffer.raw().as_entire_binding(),
-                },
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::TextureView(base_color.texture_view.raw()),
-                },
-                BindGroupEntry {
-                    binding: 2,
-                    resource: BindingResource::Sampler(&base_color.sampler),
-                },
-                BindGroupEntry {
-                    binding: 3,
-                    resource: BindingResource::TextureView(metallic_roughness.texture_view.raw()),
-                },
-                BindGroupEntry {
-                    binding: 4,
-                    resource: BindingResource::Sampler(&metallic_roughness.sampler),
-                },
-                BindGroupEntry {
-                    binding: 5,
-                    resource: BindingResource::TextureView(emission.texture_view.raw()),
-                },
-                BindGroupEntry {
-                    binding: 6,
-                    resource: BindingResource::Sampler(&emission.sampler),
-                },
-                BindGroupEntry {
-                    binding: 7,
-                    resource: BindingResource::TextureView(normal_map.texture_view.raw()),
-                },
-                BindGroupEntry {
-                    binding: 8,
-                    resource: BindingResource::Sampler(&normal_map.sampler),
-                },
-            ],
-        });
-
-        Self {
-            base_color: material.base_color_texture.clone(),
-            metallic_roughness: material.metallic_roughness_texture.clone(),
-            normal_map: material.normal_map.clone(),
-            emission: material.emission_texture.clone(),
-            buffer,
-            bind_group,
-        }
-    }
-}
+use crate::{MaterialBinding, PbrMaterial};
 
 pub struct PbrResources {
     pub object_bind_group_layout: BindGroupLayout,
@@ -318,7 +214,6 @@ impl FromWorld for PbrResources {
 #[derive(Default)]
 pub struct PbrNode {
     mesh_bindings: MeshBindings,
-    material_bindings: HashMap<HandleId, MaterialBinding>,
 }
 
 impl PbrNode {
@@ -369,8 +264,7 @@ impl RenderNode for PbrNode {
 
         let meshes = world.resource::<Assets<Mesh>>();
         let mesh_buffers = world.resource::<Assets<MeshBuffers>>();
-        let materials = world.resource::<Assets<PbrMaterial>>();
-        let image_textures = world.resource::<Assets<ImageTexture>>();
+        let material_bindings = world.resource::<Assets<MaterialBinding>>();
         let pbr_resources = world.resource::<PbrResources>();
         let light_bindings = world.resource::<LightBindings>();
 
@@ -382,27 +276,12 @@ impl RenderNode for PbrNode {
             )>()
             .unwrap();
 
-        for (i, (_, material_handle, global_transform)) in mesh_query.iter().enumerate() {
+        for (i, (_, _, global_transform)) in mesh_query.iter().enumerate() {
             self.mesh_bindings.require(i, &render_context.device);
 
             let transform = global_transform.map_or(Mat4::IDENTITY, |transform| transform.matrix());
 
             self.mesh_bindings[i].write(&render_context.queue, transform, camera);
-
-            if !self.material_bindings.contains_key(&material_handle.into()) {
-                let material = materials.get(material_handle).unwrap();
-
-                let material_binding = MaterialBinding::new(
-                    material,
-                    &render_context.device,
-                    &pbr_resources.material_bind_group_layout,
-                    &pbr_resources.default_image,
-                    &image_textures,
-                );
-
-                self.material_bindings
-                    .insert(material_handle.into(), material_binding);
-            }
         }
 
         let mut render_pass = render_context
@@ -431,7 +310,13 @@ impl RenderNode for PbrNode {
 
         for (i, (mesh_handle, material_handle, _)) in mesh_query.iter().enumerate() {
             let object_binding = &self.mesh_bindings[i];
-            let material_binding = &self.material_bindings[&material_handle.into()];
+            let material_binding =
+                if let Some(material_binding) = material_bindings.get(material_handle) {
+                    material_binding
+                } else {
+                    continue;
+                };
+
             let mesh = meshes.get(mesh_handle).unwrap();
             let mesh_buffers = mesh_buffers.get(mesh_handle.cast::<MeshBuffers>()).unwrap();
 

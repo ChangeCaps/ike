@@ -8,4 +8,11 @@ edition = "2021"
 [dependencies]
 # ike
 ike-ecs = { version = "0.1.0", path = "../ike-ecs" }
-ike-id = { version = "0.1.0", path = "../ike-id" }
+ike-util = { version = "0.1.0", path = "../ike-util" }
+
+# other
+tracy-client = { version = "0.12", optional = true }
+
+[features]
+trace = []
+tracing-tracy = ["tracy-client"]

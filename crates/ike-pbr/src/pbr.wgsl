@@ -141,6 +141,7 @@ struct DirectionalLight {
 };
 
 struct Lights {
+	ambient: vec4<f32>;
 	directional_light_count: u32;
 	directional_lights: array<DirectionalLight, MAX_DIRECTIONAL_LIGHTS>;
 };
@@ -352,7 +353,7 @@ fn d_pcss_filter(
 ) -> f32 {
 	let light = lights.directional_lights[index];
 
-	let search_radius = light.shadow_softness / light.size * 0.15;
+	let search_radius = light.shadow_softness / light.size * 0.5;
 	let blocker = find_blocker(
 		d_shadow_maps, 
 		index, 
@@ -370,9 +371,11 @@ fn d_pcss_filter(
 	}
 
 	let avg_blocker_depth_vs = z_clip_to_eye(blocker.x, light.near, light.far);
-	let penumbra = penumbra_radius_uv(z_vs, avg_blocker_depth_vs) * 0.005 * light.shadow_softness;
-	let penumbra = 1.0 - pow(1.0 - penumbra, light.shadow_falloff); 
-	let filter_radius = vec2<f32>((penumbra - 0.015 * light.shadow_softness)) / light.size;
+	var penumbra = penumbra_radius_uv(z_vs, avg_blocker_depth_vs) * 0.005 * light.shadow_softness;
+	penumbra = 1.0 - pow(1.0 - penumbra, light.shadow_falloff); 
+	var filter_radius = vec2<f32>(penumbra - 0.015 * light.shadow_softness) / light.size;
+	filter_radius = min(search_radius, filter_radius);
+
 
 	return pcf_filter(
 		d_shadow_maps, 
@@ -383,7 +386,7 @@ fn d_pcss_filter(
 		plane_bias,
 		filter_radius, 
 		trig, 
-		light.pcf_samples
+		light.pcf_samples,
 	);
 }
 
@@ -419,8 +422,8 @@ fn d_shadow(
 
 	let trig = vec2<f32>(cos(angle), sin(angle));
 
-	let bias_scale = 1.0;
-	let bias = (light.far - light.near) / 12500.0;
+	let bias_scale = 0.5;
+	let bias = (light.far - light.near) / 12500.0 * bias_scale;
 
 	return d_pcss_filter(index, shadow_uv, z, bias, plane_bias, z_vs, trig);
 }
@@ -431,8 +434,8 @@ fn directional_light(
 	v: vec3<f32>, 
 	f0: vec3<f32>, 
 	base_color: vec3<f32>,
+	roughness: f32,
 	metallic: f32, 
-	roughness: f32
 ) -> vec3<f32> {
 	let light = lights.directional_lights[index];
 
@@ -476,7 +479,7 @@ fn frag(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 		n = -n;
 	}
 
-	var light = vec3<f32>(0.0);
+	var light = lights.ambient.rgb;
 
 	for (var i = 0; i < i32(lights.directional_light_count); i = i + 1) {	
 		let shadow = d_shadow(i, in.w_position, n);

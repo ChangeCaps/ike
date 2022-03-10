@@ -28,6 +28,11 @@ impl RigidBody {
             ..Default::default()
         }
     }
+
+    pub fn with_continuous(mut self, continuous: bool) -> Self {
+        self.continuous = continuous;
+        self
+    }
 }
 
 #[derive(Component, Clone, Copy, Debug)]

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use ike_id::RawLabel;
+use ike_util::RawLabel;
 
 use crate::{IntoSystemDescriptor, ScheduleStage, StageLabel, World};
 
@@ -92,6 +92,11 @@ impl Schedule {
 
     pub fn execute(&mut self, world: &mut World) {
         for stage in &mut self.stages {
+            #[cfg(feature = "trace")]
+            let stage_span = ike_util::tracing::info_span!("stage", name = %stage.label());
+            #[cfg(feature = "trace")]
+            let _stage_guard = stage_span.enter();
+
             stage.execute(world);
         }
     }
@@ -103,9 +108,9 @@ impl Schedule {
 
 #[derive(thiserror::Error, Debug)]
 pub enum ScheduleError {
-    #[error("stage '{0:?}' does not exist")]
+    #[error("stage '{0}' does not exist")]
     InvalidStage(RawLabel),
-    #[error("already contains stage '{0:?}'")]
+    #[error("already contains stage '{0}'")]
     AlreadyContainsStage(RawLabel),
     #[error("found dependency cycle in {0:?}")]
     GraphCycles(Vec<(usize, HashSet<RawLabel>)>),

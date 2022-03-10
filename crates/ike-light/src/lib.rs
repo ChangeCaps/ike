@@ -1,9 +1,11 @@
+mod ambient_light;
 mod directional_light;
 mod light_bindings;
 mod light_node;
 mod point_light;
 mod spot_light;
 
+pub use ambient_light::*;
 pub use directional_light::*;
 use ike_render::RenderGraph;
 pub use light_bindings::*;
@@ -27,6 +29,7 @@ impl Plugin for LightPlugin {
     fn build(self, app: &mut App) {
         app.init_resource::<LightBindings>();
         app.init_resource::<LightPipeline>();
+        app.init_resource::<AmbientLight>();
 
         let mut render_graph = app.world.resource_mut::<RenderGraph>();
 

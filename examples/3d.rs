@@ -1,9 +1,13 @@
 use ike::prelude::*;
+use ike_assets::AssetServer;
 
 #[derive(Component, Default)]
 pub struct Player {
     pub camera_angle: Vec2,
 }
+
+#[derive(Component)]
+pub struct Garbage;
 
 #[node]
 impl Player {
@@ -11,6 +15,7 @@ impl Player {
         let mut window = node.resource_mut::<Window>();
         let key_input = node.resource::<Input<Key>>();
         let mouse_input = node.resource::<Input<MouseButton>>();
+        let time = node.resource::<Time>();
         let mut transform = node.component_mut::<Transform>();
         let mut rigid_body = node.component_mut::<RigidBody>();
 
@@ -31,6 +36,7 @@ impl Player {
 
         transform.rotation = Quat::from_rotation_y(self.camera_angle.x);
 
+        let vel_y = rigid_body.linear_velocity.y;
         rigid_body.linear_velocity = Vec3::ZERO;
 
         if key_input.held(&Key::W) {
@@ -50,11 +56,30 @@ impl Player {
         }
 
         rigid_body.linear_velocity = rigid_body.linear_velocity.normalize_or_zero() * 5.0;
+        rigid_body.linear_velocity.y = vel_y;
 
         let child = node.child(0);
 
+        let child_global_transform = child.component::<GlobalTransform>();
         let mut child_transform = child.component_mut::<Transform>();
         child_transform.rotation = Quat::from_rotation_x(self.camera_angle.y);
+
+        drop(rigid_body);
+        if mouse_input.held(&MouseButton::Right) {
+            for (transform, mut rigid_body) in node
+                .query_filter::<(&GlobalTransform, &mut RigidBody), With<Garbage>>()
+                .iter_mut()
+            {
+                let target =
+                    child_global_transform.translation - child_global_transform.local_z() * 10.0;
+
+                let diff = target - transform.translation;
+                let dist = diff.length().max(0.1);
+
+                rigid_body.linear_velocity +=
+                    diff * (1.0 / dist.powi(2)) * time.delta_seconds() * 100.0;
+            }
+        }
     }
 }
 
@@ -69,6 +94,7 @@ fn spawn_player(commands: &Commands) {
             parent
                 .spawn()
                 .insert(Transform::from_xyz(0.0, 1.0, 0.0))
+                .insert(GlobalTransform::default())
                 .insert(Camera::default());
         });
 }
@@ -83,6 +109,7 @@ fn main() {
 
 fn setup(
     commands: Commands,
+    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<PbrMaterial>>,
 ) {
@@ -97,14 +124,17 @@ fn setup(
         })
         .insert(Transform::default());
 
+    let image = asset_server.load_from_bytes(include_bytes!("../assets/rock.jpg") as &[u8], "jpg");
+
     let mesh = meshes.add(Mesh::cube(Vec3::ONE));
     let material = materials.add(PbrMaterial {
+        base_color_texture: Some(image),
         ..Default::default()
     });
 
     commands
         .spawn()
-        .insert(Transform::from_xyz(0.0, -1.0, 0.0).with_scale(Vec3::new(100.0, 0.2, 100.0)))
+        .insert(Transform::from_xyz(0.0, -1.0, 0.0).with_scale(Vec3::new(100.0, 1.0, 100.0)))
         .insert(mesh.clone())
         .insert(material.clone())
         .insert(RigidBody::kinematic())
@@ -112,13 +142,23 @@ fn setup(
 
     spawn_player(&commands);
 
-    for y in 5..20 {
-        commands
-            .spawn()
-            .insert(Transform::from_xyz(0.0, y as f32 * 1.5, 0.0))
-            .insert(mesh.clone())
-            .insert(material.clone())
-            .insert(RigidBody::dynamic())
-            .insert(BoxCollider::new(Vec3::ONE));
+    let car: Handle<GltfMesh> = asset_server.load("assets/car.mesh.glb");
+
+    for x in -5..=5 {
+        for y in -5..=5 {
+            for z in -5..=5 {
+                commands
+                    .spawn()
+                    .insert(
+                        Transform::from_xyz(x as f32 * 0.5, y as f32 * 0.5 + 10.0, z as f32 * 0.5)
+                            .with_scale(Vec3::ONE / 2.2),
+                    )
+                    .insert(mesh.clone())
+                    .insert(material.clone())
+                    .insert(RigidBody::dynamic())
+                    .insert(BoxCollider::new(Vec3::ONE))
+                    .insert(Garbage);
+            }
+        }
     }
 }

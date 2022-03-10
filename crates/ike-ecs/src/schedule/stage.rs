@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use ike_id::RawLabel;
+use ike_util::RawLabel;
 #[cfg(feature = "rayon")]
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
@@ -28,6 +28,10 @@ impl ParallelSystem {
             system: Box::new(system),
         }
     }
+
+    pub fn name(&self) -> &str {
+        self.system.name()
+    }
 }
 
 pub struct ExclusiveSystemDescriptor {
@@ -45,6 +49,10 @@ impl ExclusiveSystemDescriptor {
             after: Vec::new(),
             system: Box::new(system),
         }
+    }
+
+    pub fn name(&self) -> &str {
+        self.system.name()
     }
 }
 
@@ -89,6 +97,18 @@ impl ScheduleStage {
         }
 
         self.update_execution_order()
+    }
+
+    pub fn get_parallel(&self, index: usize) -> Option<&ParallelSystem> {
+        self.parallel_systems.get(index)
+    }
+
+    pub fn iter_parallel_steps(&self) -> impl Iterator<Item = &Vec<usize>> {
+        self.parallel_order.iter()
+    }
+
+    pub fn iter_parallel(&self) -> impl Iterator<Item = &ParallelSystem> {
+        self.parallel_systems.iter()
     }
 
     pub fn update_execution_order(&mut self) -> Result<(), ScheduleError> {
@@ -153,7 +173,15 @@ impl ScheduleStage {
     #[inline]
     pub fn execute(&mut self, world: &mut World) {
         for &index in &self.exclusive_order {
-            self.exclusive_systems[index].system.run(world);
+            let system = &mut self.exclusive_systems[index];
+
+            #[cfg(feature = "trace")]
+            let system_span =
+                ike_util::tracing::info_span!("exclusive_system", name = %system.name());
+            #[cfg(feature = "trace")]
+            let _system_guard = system_span.enter();
+
+            system.system.run(world);
         }
 
         struct Ptr(*mut ParallelSystem);
@@ -178,12 +206,24 @@ impl ScheduleStage {
             #[cfg(feature = "rayon")]
             step.par_iter().for_each(|index| {
                 let system = unsafe { parallel_systems.get_mut(*index) };
+
+                #[cfg(feature = "trace")]
+                let system_span = ike_util::tracing::info_span!("system", name = %system.name());
+                #[cfg(feature = "trace")]
+                let _system_guard = system_span.enter();
+
                 system.system.run(world);
             });
 
             #[cfg(not(feature = "rayon"))]
             for &index in step {
                 let system = unsafe { parallel_systems.get_mut(index) };
+
+                #[cfg(feature = "trace")]
+                let system_span = ike_util::tracing::info_span!("system", name = %system.name());
+                #[cfg(feature = "trace")]
+                let _system_guard = system_span.enter();
+
                 system.system.run(world);
             }
 

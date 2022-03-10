@@ -49,7 +49,6 @@ impl Plugin for NodePlugin {
         #[cfg(feature = "physics")]
         {
             app.add_node_stage("pre_physics", ike_physics::PhysicsStage::PrePhysics);
-            app.add_node_stage("physics", ike_physics::PhysicsStage::Physics);
             app.add_node_stage("post_physics", ike_physics::PhysicsStage::PostPhysics);
         }
 

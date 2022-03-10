@@ -3,7 +3,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use futures_lite::Future;
+use futures_lite::{future, Future};
 
 #[derive(Debug)]
 pub struct Task<T>(async_executor::Task<T>);
@@ -19,6 +19,10 @@ impl<T> Task<T> {
 
     pub async fn cancel(self) -> Option<T> {
         self.0.cancel().await
+    }
+
+    pub fn block_on(self) -> T {
+        future::block_on(self)
     }
 }
 

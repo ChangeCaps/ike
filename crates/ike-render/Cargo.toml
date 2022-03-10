@@ -10,12 +10,19 @@ edition = "2021"
 ike-app = { version = "0.1.0", path = "../ike-app" }
 ike-assets = { version = "0.1.0", path = "../ike-assets" }
 ike-ecs = { version = "0.1.0", path = "../ike-ecs" }
-ike-id = { version = "0.1.0", path = "../ike-id" }
 ike-math = { version = "0.1.0", path = "../ike-math", features = ["bytemuck"] }
 ike-transform = { version = "0.1.0", path = "../ike-transform" }
+ike-util = { version = "0.1.0", path = "../ike-util" }
 
 # other
 bytemuck = { version = "1.8", features = ["extern_crate_alloc", "derive"] }
 crossbeam = "0.8"
+image = { version = "0.24", default_features = false }
 thiserror = "1.0"
 wgpu = "0.12"
+
+[features]
+default = ["png", "jpg"]
+trace = []
+png = ["image/png"]
+jpg = ["image/jpeg"]

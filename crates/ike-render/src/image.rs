@@ -44,6 +44,22 @@ impl Default for Image {
 }
 
 impl Image {
+    pub fn new_2d(data: impl Into<Vec<u8>>, width: u32, height: u32) -> Self {
+        Self {
+            data: data.into(),
+            format: TextureFormat::Rgba8UnormSrgb,
+            size: Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            dimension: TextureDimension::D2,
+            mip_level_count: 1,
+            sample_count: 1,
+            usage: TextureUsages::TEXTURE_BINDING,
+        }
+    }
+
     pub fn create_texture(&self, device: &RenderDevice, queue: &RenderQueue) -> ImageTexture {
         let texture = device.create_texture_with_data(
             queue,

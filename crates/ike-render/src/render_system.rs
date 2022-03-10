@@ -56,6 +56,11 @@ pub fn render_system(world: &mut World) {
         .run(world, vec![SlotValue::new(view), SlotValue::new(camera)])
         .unwrap();
 
+    #[cfg(feature = "trace")]
+    let present_span = ike_util::tracing::info_span!("present");
+    #[cfg(feature = "trace")]
+    let _present_guard = present_span.enter();
+
     surface_texture.present();
 
     world.insert_resource(render_graph);

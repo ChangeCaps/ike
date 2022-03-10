@@ -3,7 +3,7 @@ use std::sync::{
     Arc,
 };
 
-use ike_id::Id;
+use ike_util::Id;
 use wgpu::util::DeviceExt;
 
 pub use wgpu::include_wgsl;

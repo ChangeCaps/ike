@@ -15,6 +15,7 @@ use crate::{RawDirectionalLight, DIRECTIONAL_LIGHT_SHADOW_MAP_SIZE, MAX_DIRECTIO
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct RawLights {
+    pub ambient: [f32; 4],
     pub directional_light_count: u32,
     pub _padding: [u8; 12],
     pub directional_lights: [RawDirectionalLight; MAX_DIRECTIONAL_LIGHTS as usize],

@@ -3,7 +3,7 @@ use std::{
     collections::{HashMap, HashSet},
 };
 
-use ike_id::RawLabel;
+use ike_util::{tracing::warn, RawLabel};
 
 use crate::{ExclusiveSystemDescriptor, ParallelSystem, ScheduleError};
 
@@ -76,11 +76,10 @@ pub fn build_dependency_graph<T: GraphNode>(
                     }
                 }
                 None => {
-                    eprintln!(
-                        "system '{}' wants so be after unknown label: '{:?}({})'",
+                    warn!(
+                        "system '{}' wants so be after unknown label: '{}'",
                         node.name(),
-                        label.type_name(),
-                        label.id(),
+                        label
                     );
                 }
             }
@@ -99,11 +98,10 @@ pub fn build_dependency_graph<T: GraphNode>(
                     }
                 }
                 None => {
-                    eprintln!(
-                        "system '{}' wants so be before unknown label: '{:?}({})'",
+                    warn!(
+                        "system '{}' wants so be before unknown label: '{}'",
                         node.name(),
-                        label.type_name(),
-                        label.id(),
+                        label
                     );
                 }
             }

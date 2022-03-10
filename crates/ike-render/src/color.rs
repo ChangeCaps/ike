@@ -40,6 +40,18 @@ impl Into<[f32; 3]> for Color {
     }
 }
 
+impl From<[f32; 4]> for Color {
+    fn from([r, g, b, a]: [f32; 4]) -> Self {
+        Self::rgba(r, g, b, a)
+    }
+}
+
+impl From<[f32; 3]> for Color {
+    fn from([r, g, b]: [f32; 3]) -> Self {
+        Self::rgb(r, g, b)
+    }
+}
+
 impl Mul<f32> for Color {
     type Output = Self;
 

@@ -151,6 +151,13 @@ impl HandleUntyped {
         }
     }
 
+    pub fn typed<T: Asset>(self) -> Handle<T> {
+        Handle {
+            inner: self,
+            marker: PhantomData,
+        }
+    }
+
     pub fn as_weak(&self) -> Self {
         Self {
             id: self.id,
@@ -232,6 +239,10 @@ impl<T: Asset> Handle<T> {
             inner: self.inner.as_weak(),
             marker: PhantomData,
         }
+    }
+
+    pub fn as_untyped(&self) -> HandleUntyped {
+        self.inner.clone()
     }
 
     pub fn cast<U: Asset>(&self) -> Handle<U> {

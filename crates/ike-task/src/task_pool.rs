@@ -1,9 +1,11 @@
 use std::{
+    mem,
+    pin::Pin,
     sync::Arc,
     thread::{self, JoinHandle},
 };
 
-use futures_lite::{future, Future};
+use futures_lite::{future, pin, Future};
 
 use crate::Task;
 
@@ -58,6 +60,12 @@ impl Drop for TaskPoolInner {
 pub struct TaskPool {
     executor: Arc<async_executor::Executor<'static>>,
     inner: Arc<TaskPoolInner>,
+}
+
+impl Default for TaskPool {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TaskPool {
@@ -120,11 +128,84 @@ impl TaskPool {
         self.inner.threads.len()
     }
 
+    pub fn scope<'scope, F, T>(&self, f: F) -> Vec<T>
+    where
+        F: FnOnce(&mut Scope<'scope, T>) + Send + 'scope,
+        T: Send + 'static,
+    {
+        TaskPool::LOCAL_EXECUTOR.with(|local_executor| {
+            // SAFETY:
+            // this function block until all futures have returned,
+            // meaning self lives for at least 'scope.
+            // but rust doesn't know, so we need to transmute lifetimes
+            let executor: &async_executor::Executor = &*self.executor;
+            let executor: &'scope async_executor::Executor = unsafe { mem::transmute(executor) };
+            let local_executor: &'scope async_executor::LocalExecutor =
+                unsafe { mem::transmute(local_executor) };
+
+            let mut scope = Scope {
+                executor,
+                local_executor,
+                spawned: Vec::new(),
+            };
+
+            f(&mut scope);
+
+            if scope.spawned.is_empty() {
+                Vec::new()
+            } else if scope.spawned.len() == 1 {
+                vec![future::block_on(&mut scope.spawned[0])]
+            } else {
+                let fut = async move {
+                    let mut results = Vec::with_capacity(scope.spawned.len());
+                    for task in scope.spawned {
+                        results.push(task.await);
+                    }
+
+                    results
+                };
+
+                // Pin the futures on the stack.
+                pin!(fut);
+
+                // SAFETY: This function blocks until all futures complete, so we do not read/write
+                // the data from futures outside of the 'scope lifetime. However,
+                // rust has no way of knowing this so we must convert to 'static
+                // here to appease the compiler as it is unable to validate safety.
+                let fut: Pin<&mut (dyn Future<Output = Vec<T>>)> = fut;
+                let fut: Pin<&'static mut (dyn Future<Output = Vec<T>> + 'static)> =
+                    unsafe { mem::transmute(fut) };
+
+                // The thread that calls scope() will participate in driving tasks in the pool
+                // forward until the tasks that are spawned by this scope() call
+                // complete. (If the caller of scope() happens to be a thread in
+                // this thread pool, and we only have one thread in the pool, then
+                // simply calling future::block_on(spawned) would deadlock.)
+                let mut spawned = local_executor.spawn(fut);
+                loop {
+                    if let Some(result) = future::block_on(future::poll_once(&mut spawned)) {
+                        break result;
+                    };
+
+                    self.executor.try_tick();
+                    local_executor.try_tick();
+                }
+            }
+        })
+    }
+
     pub fn spawn<T>(&self, future: impl Future<Output = T> + Send + 'static) -> Task<T>
     where
         T: Send + 'static,
     {
         Task::new(self.executor.spawn(future))
+    }
+
+    pub fn spawn_local<T>(&self, future: impl Future<Output = T> + Send + 'static) -> Task<T>
+    where
+        T: Send + 'static,
+    {
+        Task::new(TaskPool::LOCAL_EXECUTOR.with(|executor| executor.spawn(future)))
     }
 }
 
@@ -135,4 +216,18 @@ pub struct Scope<'scope, T> {
     spawned: Vec<async_executor::Task<T>>,
 }
 
-impl<'scope, T: Send + 'scope> Scope<'scope, T> {}
+impl<'scope, T: Send + 'scope> Scope<'scope, T> {
+    pub fn spawn(&mut self, future: impl Future<Output = T> + Send + 'scope)
+    where
+        T: Send + 'scope,
+    {
+        self.spawned.push(self.executor.spawn(future));
+    }
+
+    pub fn spawn_local(&mut self, future: impl Future<Output = T> + Send + 'scope)
+    where
+        T: Send + 'scope,
+    {
+        self.spawned.push(self.local_executor.spawn(future));
+    }
+}

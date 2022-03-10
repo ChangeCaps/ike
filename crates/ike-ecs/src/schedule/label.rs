@@ -1,4 +1,4 @@
-use ike_id::define_label;
+use ike_util::define_label;
 pub use ike_macro::{StageLabel, SystemLabel};
 
 define_label!(StageLabel);

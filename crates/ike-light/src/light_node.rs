@@ -13,7 +13,7 @@ use ike_render::{
 };
 use ike_transform::{GlobalTransform, Transform};
 
-use crate::{DirectionalLight, LightBindings, RawLights, MAX_DIRECTIONAL_LIGHTS};
+use crate::{AmbientLight, DirectionalLight, LightBindings, RawLights, MAX_DIRECTIONAL_LIGHTS};
 
 pub struct LightPipeline {
     pub render_pipeline: RenderPipeline,
@@ -75,12 +75,14 @@ impl RenderNode for LightNode {
     fn update(&mut self, world: &mut World) {
         let queue = world.resource::<RenderQueue>();
         let light_bindings = world.resource::<LightBindings>();
+        let ambient_light = world.resource::<AmbientLight>();
 
         let directional_light_query = world
             .query::<(&DirectionalLight, Option<&GlobalTransform>)>()
             .unwrap();
 
         let mut raw_lights = RawLights::new();
+        raw_lights.ambient = (ambient_light.color * ambient_light.intensity).into();
 
         for (light, transform) in directional_light_query.iter() {
             let transform = transform.map_or(Mat4::IDENTITY, GlobalTransform::matrix);
