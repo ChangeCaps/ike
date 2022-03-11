@@ -22,6 +22,7 @@ pub type TextureDimension = wgpu::TextureDimension;
 pub type Extent3d = wgpu::Extent3d;
 pub type Sampler = wgpu::Sampler;
 pub type SamplerDescriptor<'a> = wgpu::SamplerDescriptor<'a>;
+pub type FilterMode = wgpu::FilterMode;
 pub type CompareFunction = wgpu::CompareFunction;
 pub type CommandEncoder = wgpu::CommandEncoder;
 pub type CommandBuffer = wgpu::CommandBuffer;

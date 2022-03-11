@@ -2,6 +2,7 @@ mod component;
 mod debug;
 mod event;
 mod physics_world;
+mod ray;
 mod resource;
 mod system;
 
@@ -9,7 +10,9 @@ pub use component::*;
 pub use debug::*;
 pub use event::*;
 pub use physics_world::*;
+use rapier3d::prelude::QueryPipeline;
 pub use rapier3d::prelude::{ColliderSet, JointSet, PhysicsPipeline, RigidBodySet};
+pub use ray::*;
 pub use resource::*;
 pub use system::*;
 
@@ -39,6 +42,7 @@ pub struct PhysicsPlugin;
 impl Plugin for PhysicsPlugin {
     fn build(self, app: &mut App) {
         app.insert_resource(PhysicsWorld::new());
+        app.insert_resource(QueryPipeline::new());
         app.insert_resource(RigidBodySet::new());
         app.insert_resource(ColliderSet::new());
         app.insert_resource(JointSet::new());
@@ -85,6 +89,8 @@ impl Plugin for PhysicsPlugin {
             get_rigid_bodies.label(PhysicsSystem::GetComponents),
             PhysicsStage::PostPhysics,
         );
+
+        app.add_system_to_stage(query_update_system, PhysicsStage::PostPhysics);
 
         app.add_system_to_stage(
             debug_box_collider_system

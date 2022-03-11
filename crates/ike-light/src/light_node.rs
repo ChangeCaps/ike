@@ -1,15 +1,15 @@
-use std::num::NonZeroU32;
+use std::{collections::HashMap, num::NonZeroU32};
 
-use ike_assets::{Assets, Handle};
+use ike_assets::{Assets, Handle, HandleId};
 use ike_ecs::{FromWorld, World};
 use ike_math::Mat4;
 use ike_render::{
     include_wgsl, CompareFunction, DepthStencilState, IndexFormat, LoadOp, Mesh, MeshBinding,
-    MeshBindings, MeshBuffers, Operations, PipelineLayoutDescriptor, RawCamera, RenderContext,
-    RenderDevice, RenderGraphContext, RenderGraphResult, RenderNode,
-    RenderPassDepthStencilAttachemnt, RenderPassDescriptor, RenderPipeline,
-    RenderPipelineDescriptor, RenderQueue, TextureFormat, TextureViewDescriptor, VertexAttribute,
-    VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
+    MeshBuffers, Operations, PipelineLayoutDescriptor, RawCamera, RenderContext, RenderDevice,
+    RenderGraphContext, RenderGraphResult, RenderNode, RenderPassDepthStencilAttachemnt,
+    RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RenderQueue, TextureFormat,
+    TextureViewDescriptor, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
+    VertexStepMode,
 };
 use ike_transform::{GlobalTransform, Transform};
 
@@ -39,15 +39,43 @@ impl FromWorld for LightPipeline {
             vertex: VertexState {
                 module,
                 entry_point: "vert",
-                buffers: &[VertexBufferLayout {
-                    array_stride: 12,
-                    step_mode: VertexStepMode::Vertex,
-                    attributes: &[VertexAttribute {
-                        format: VertexFormat::Float32x3,
-                        shader_location: 0,
-                        offset: 0,
-                    }],
-                }],
+                buffers: &[
+                    VertexBufferLayout {
+                        array_stride: 12,
+                        step_mode: VertexStepMode::Vertex,
+                        attributes: &[VertexAttribute {
+                            format: VertexFormat::Float32x3,
+                            shader_location: 0,
+                            offset: 0,
+                        }],
+                    },
+                    VertexBufferLayout {
+                        array_stride: 64,
+                        step_mode: VertexStepMode::Instance,
+                        attributes: &[
+                            VertexAttribute {
+                                format: VertexFormat::Float32x4,
+                                shader_location: 1,
+                                offset: 0,
+                            },
+                            VertexAttribute {
+                                format: VertexFormat::Float32x4,
+                                shader_location: 2,
+                                offset: 16,
+                            },
+                            VertexAttribute {
+                                format: VertexFormat::Float32x4,
+                                shader_location: 3,
+                                offset: 32,
+                            },
+                            VertexAttribute {
+                                format: VertexFormat::Float32x4,
+                                shader_location: 4,
+                                offset: 48,
+                            },
+                        ],
+                    },
+                ],
             },
             fragment: None,
             depth_stencil: Some(DepthStencilState {
@@ -68,7 +96,7 @@ impl FromWorld for LightPipeline {
 
 #[derive(Default)]
 pub struct LightNode {
-    directional_light_mesh_bindings: Vec<MeshBindings>,
+    directional_light_mesh_bindings: HashMap<HandleId, MeshBinding>,
 }
 
 impl RenderNode for LightNode {
@@ -124,24 +152,24 @@ impl RenderNode for LightNode {
             .query::<(&Handle<Mesh>, Option<&GlobalTransform>)>()
             .unwrap();
 
-        self.directional_light_mesh_bindings.resize_with(
-            directional_lights
-                .len()
-                .max(self.directional_light_mesh_bindings.len()),
-            Default::default,
-        );
+        for binding in self.directional_light_mesh_bindings.values_mut() {
+            binding.clear();
+        }
 
-        for (i, camera) in directional_lights.iter().enumerate() {
-            for (j, (_, transform)) in mesh_query.iter().enumerate() {
-                self.directional_light_mesh_bindings[i].require(j, &render_context.device);
+        for camera in directional_lights.iter() {
+            for (mesh_handle, transform) in mesh_query.iter() {
+                let binding = self
+                    .directional_light_mesh_bindings
+                    .entry(mesh_handle.into())
+                    .or_insert_with(|| MeshBinding::new(&render_context.device));
 
                 let transform = transform.map_or(Mat4::IDENTITY, |transform| transform.matrix());
 
-                self.directional_light_mesh_bindings[i][j].write(
-                    &render_context.queue,
-                    transform,
-                    camera,
-                );
+                binding.push_instance(transform);
+            }
+
+            for binding in self.directional_light_mesh_bindings.values_mut() {
+                binding.write(&render_context.device, &render_context.queue, camera);
             }
         }
 
@@ -172,10 +200,10 @@ impl RenderNode for LightNode {
 
             render_pass.set_pipeline(&pipeline.render_pipeline);
 
-            for (j, (mesh_handle, _)) in mesh_query.iter().enumerate() {
-                let mesh = meshes.get(mesh_handle).unwrap();
+            for (handle_id, mesh_binding) in self.directional_light_mesh_bindings.iter() {
+                let mesh = meshes.get(*handle_id).unwrap();
 
-                let mesh_buffers = if let Some(mesh_buffers) = mesh_buffers.get(mesh_handle) {
+                let mesh_buffers = if let Some(mesh_buffers) = mesh_buffers.get(*handle_id) {
                     mesh_buffers
                 } else {
                     continue;
@@ -192,11 +220,15 @@ impl RenderNode for LightNode {
                     IndexFormat::Uint32,
                 );
 
-                let mesh_binding = &self.directional_light_mesh_bindings[i][j];
+                render_pass.set_vertex_buffer(1, mesh_binding.instance_buffer.raw().slice(..));
 
                 render_pass.set_bind_group(0, &mesh_binding.bind_group, &[]);
 
-                render_pass.draw_indexed(0..mesh.get_indices().len() as u32, 0, 0..1);
+                render_pass.draw_indexed(
+                    0..mesh.get_indices().len() as u32,
+                    0,
+                    0..mesh_binding.instances(),
+                );
             }
         }
 

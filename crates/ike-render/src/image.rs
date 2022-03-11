@@ -2,8 +2,8 @@ use ike_assets::{AssetEvent, Assets};
 use ike_ecs::{EventReader, Res, ResMut};
 
 use crate::{
-    Extent3d, RenderDevice, RenderQueue, Sampler, SamplerDescriptor, Texture, TextureDescriptor,
-    TextureDimension, TextureFormat, TextureUsages, TextureView,
+    Extent3d, FilterMode, RenderDevice, RenderQueue, Sampler, SamplerDescriptor, Texture,
+    TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView,
 };
 
 fn pixel_size(format: TextureFormat) -> usize {
@@ -20,6 +20,8 @@ pub struct Image {
     pub mip_level_count: u32,
     pub sample_count: u32,
     pub usage: TextureUsages,
+    pub min_filter: FilterMode,
+    pub mag_filter: FilterMode,
 }
 
 impl Default for Image {
@@ -39,15 +41,26 @@ impl Default for Image {
             mip_level_count: 1,
             sample_count: 1,
             usage: TextureUsages::COPY_DST | TextureUsages::TEXTURE_BINDING,
+            min_filter: FilterMode::Linear,
+            mag_filter: FilterMode::Linear,
         }
     }
 }
 
 impl Image {
     pub fn new_2d(data: impl Into<Vec<u8>>, width: u32, height: u32) -> Self {
+        Self::new_2d_with_format(data, width, height, TextureFormat::Rgba8UnormSrgb)
+    }
+
+    pub fn new_2d_with_format(
+        data: impl Into<Vec<u8>>,
+        width: u32,
+        height: u32,
+        format: TextureFormat,
+    ) -> Self {
         Self {
             data: data.into(),
-            format: TextureFormat::Rgba8UnormSrgb,
+            format,
             size: Extent3d {
                 width,
                 height,
@@ -57,6 +70,8 @@ impl Image {
             mip_level_count: 1,
             sample_count: 1,
             usage: TextureUsages::TEXTURE_BINDING,
+            min_filter: FilterMode::Linear,
+            mag_filter: FilterMode::Linear,
         }
     }
 
@@ -79,6 +94,8 @@ impl Image {
 
         let sampler = device.create_sampler(&SamplerDescriptor {
             label: Some("ike_image_sampler"),
+            min_filter: self.min_filter,
+            mag_filter: self.mag_filter,
             ..Default::default()
         });
 

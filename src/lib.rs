@@ -24,7 +24,7 @@ pub use ike_winit as winit;
 pub mod prelude {
     pub use crate::DefaultPlugins;
     pub use ike_app::{App, AppRunner, Plugin};
-    pub use ike_assets::{AddAsset, Assets, Handle};
+    pub use ike_assets::{AddAsset, AssetServer, Assets, Handle};
     pub use ike_core::Time;
     pub use ike_debug::DebugLine;
     pub use ike_ecs::{
@@ -42,7 +42,7 @@ pub mod prelude {
     #[cfg(feature = "pbr")]
     pub use ike_pbr::PbrMaterial;
     #[cfg(feature = "physics")]
-    pub use ike_physics::{BoxCollider, Collision, DebugCollider, RigidBody};
+    pub use ike_physics::{BoxCollider, Collision, DebugCollider, Gravity, RigidBody};
     #[cfg(feature = "render")]
     pub use ike_render::{
         Camera, Color, Mesh, RawCamera, RenderContext, RenderDevice, RenderGraph,

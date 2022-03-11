@@ -7,8 +7,8 @@ use rapier3d::{
     math::{Isometry, Translation},
     na::{ArrayStorage, Quaternion, Unit, UnitQuaternion, Vector3},
     prelude::{
-        ActiveEvents, ColliderBuilder, ColliderSet, ContactEvent, JointSet, RigidBodyBuilder,
-        RigidBodySet, SharedShape,
+        ActiveEvents, ColliderBuilder, ColliderSet, ContactEvent, JointSet, QueryPipeline,
+        RigidBodyBuilder, RigidBodySet, SharedShape,
     },
 };
 
@@ -253,6 +253,19 @@ pub fn get_rigid_bodies(
         rigid_body.linear_velocity = from_vec3(*rb.linvel());
         rigid_body.angular_velocity = from_vec3(*rb.angvel());
     }
+}
+
+pub fn query_update_system(
+    mut query_pipeline: ResMut<QueryPipeline>,
+    physics_world: Res<PhysicsWorld>,
+    rigid_body_set: Res<RigidBodySet>,
+    collider_set: Res<ColliderSet>,
+) {
+    query_pipeline.update(
+        &physics_world.island_manager,
+        &*rigid_body_set,
+        &*collider_set,
+    );
 }
 
 pub fn clean_physics(

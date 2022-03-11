@@ -57,6 +57,8 @@ impl Mesh {
             mesh_tool.push_index(i * 4 + 2);
         }
 
-        mesh_tool.finish()
+        let mut mesh = mesh_tool.finish();
+        mesh.calculate_tangents();
+        mesh
     }
 }

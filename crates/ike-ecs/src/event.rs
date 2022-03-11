@@ -1,9 +1,6 @@
 use std::{any::type_name, marker::PhantomData};
 
-use crate::{
-    Access, ChangeTick, Local, Res, ResMut, Resource, SystemAccess, SystemParam, SystemParamFetch,
-    World,
-};
+use crate::{Local, Res, ResMut, Resource, SystemParam};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EventId<T> {
@@ -77,6 +74,13 @@ impl<T: Resource> Events<T> {
         self.event_count += 1;
     }
 
+    pub fn read_from<'a>(&'a self, last_event_count: &'a mut usize) -> ManualEventReader<'a, T> {
+        ManualEventReader {
+            last_event_count,
+            events: self,
+        }
+    }
+
     pub fn update(&mut self) {
         match self.state {
             State::A => {
@@ -97,6 +101,7 @@ impl<T: Resource> Events<T> {
     }
 }
 
+#[derive(SystemParam)]
 pub struct EventWriter<'w, T: Resource> {
     events: ResMut<'w, Events<T>>,
 }
@@ -107,37 +112,25 @@ impl<'w, T: Resource> EventWriter<'w, T> {
     }
 }
 
-impl<'w, T: Resource> SystemParam for EventWriter<'w, T> {
-    type Fetch = EventWriterFetch<'w, T>;
+pub struct ManualEventReader<'w, T: Resource> {
+    last_event_count: &'w mut usize,
+    events: &'w Events<T>,
 }
 
-pub struct EventWriterFetch<'w, T: Resource> {
-    events: <ResMut<'w, Events<T>> as SystemParam>::Fetch,
-}
-
-impl<'w0, 'w, 's, T: Resource> SystemParamFetch<'w, 's> for EventWriterFetch<'w0, T> {
-    type Item = EventWriter<'w, T>;
-
-    fn init(world: &mut World) -> Self {
-        Self {
-            events: SystemParamFetch::init(world),
-        }
+impl<'w, T: Resource> ManualEventReader<'w, T> {
+    pub fn iter(&mut self) -> impl DoubleEndedIterator<Item = &T> {
+        self.iter_with_ids().map(|(event, _)| event)
     }
 
-    fn access(access: &mut SystemAccess) {
-        access.borrow_resource::<Events<T>>(Access::Write);
-    }
-
-    fn get(&'s mut self, world: &'w World, last_change_tick: ChangeTick) -> Self::Item {
-        EventWriter {
-            events: SystemParamFetch::get(&mut self.events, world, last_change_tick),
-        }
+    pub fn iter_with_ids(&mut self) -> impl DoubleEndedIterator<Item = (&T, EventId<T>)> {
+        internal_event_reader(&mut self.last_event_count, &self.events)
     }
 }
 
+#[derive(SystemParam)]
 pub struct EventReader<'w, 's, T: Resource> {
     last_event_count: Local<'s, usize>,
-    event: Res<'w, Events<T>>,
+    events: Res<'w, Events<T>>,
 }
 
 fn internal_event_reader<'a, T>(
@@ -169,41 +162,6 @@ impl<'w, 's, T: Resource> EventReader<'w, 's, T> {
     }
 
     pub fn iter_with_ids(&mut self) -> impl DoubleEndedIterator<Item = (&T, EventId<T>)> {
-        internal_event_reader(&mut self.last_event_count, &self.event)
-    }
-}
-
-impl<'w, 's, T: Resource> SystemParam for EventReader<'w, 's, T> {
-    type Fetch = EventReaderFetch<'w, 's, T>;
-}
-
-pub struct EventReaderFetch<'w, 's, T: Resource> {
-    last_event_count: <Local<'s, usize> as SystemParam>::Fetch,
-    event: <Res<'w, Events<T>> as SystemParam>::Fetch,
-}
-
-impl<'w0, 's0, 'w, 's, T: Resource> SystemParamFetch<'w, 's> for EventReaderFetch<'w0, 's0, T> {
-    type Item = EventReader<'w, 's, T>;
-
-    fn init(world: &mut World) -> Self {
-        Self {
-            last_event_count: SystemParamFetch::init(world),
-            event: SystemParamFetch::init(world),
-        }
-    }
-
-    fn access(access: &mut SystemAccess) {
-        access.borrow_resource::<Events<T>>(Access::Read);
-    }
-
-    fn get(&'s mut self, world: &'w World, last_change_tick: ChangeTick) -> Self::Item {
-        EventReader {
-            last_event_count: SystemParamFetch::get(
-                &mut self.last_event_count,
-                world,
-                last_change_tick,
-            ),
-            event: SystemParamFetch::get(&mut self.event, world, last_change_tick),
-        }
+        internal_event_reader(&mut self.last_event_count, &self.events)
     }
 }

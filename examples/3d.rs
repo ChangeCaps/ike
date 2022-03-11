@@ -4,6 +4,15 @@ use ike_assets::AssetServer;
 #[derive(Component, Default)]
 pub struct Player {
     pub camera_angle: Vec2,
+    pub selected: Option<Entity>,
+}
+
+#[derive(Component)]
+pub struct GravityPoint(f32);
+
+pub struct Materials {
+    pub selected: Handle<PbrMaterial>,
+    pub rock: Handle<PbrMaterial>,
 }
 
 #[derive(Component)]
@@ -15,14 +24,16 @@ impl Player {
         let mut window = node.resource_mut::<Window>();
         let key_input = node.resource::<Input<Key>>();
         let mouse_input = node.resource::<Input<MouseButton>>();
-        let time = node.resource::<Time>();
-        let task_pool = node.resource::<TaskPool>();
+
         let mut transform = node.component_mut::<Transform>();
         let mut rigid_body = node.component_mut::<RigidBody>();
 
         if window.cursor_locked() {
             self.camera_angle -= window.cursor_delta() * 0.002;
             self.camera_angle.y = self.camera_angle.y.clamp(-1.3, 1.3);
+
+            let size = window.size();
+            window.set_cursor_position(size / 2.0);
         }
 
         if key_input.pressed(&Key::Escape) {
@@ -65,21 +76,30 @@ impl Player {
         let mut child_transform = child.component_mut::<Transform>();
         child_transform.rotation = Quat::from_rotation_x(self.camera_angle.y);
 
-        /*
-        if mouse_input.held(&MouseButton::Right) {
-            node.query_filter::<(&GlobalTransform, &mut RigidBody), With<Garbage>>()
-                .par_for_each_mut(&task_pool, |(transform, mut rigid_body)| {
-                    let target = child_global_transform.translation
-                        - child_global_transform.local_z() * 10.0;
+        if let Some(hit) = node.cast_ray(
+            child_global_transform.translation,
+            -child_global_transform.local_z(),
+            None,
+        ) {
+            let materials = node.resource::<Materials>();
 
-                    let diff = target - transform.translation;
-                    let dist = diff.length().max(0.1);
+            if let Some(selected) = self.selected {
+                let selected_node = node.get_node(&selected);
+                selected_node.insert(materials.rock.clone());
+            }
 
-                    rigid_body.linear_velocity +=
-                        diff * (1.0 / dist.powi(2)) * time.delta_seconds() * 100.0;
-                });
+            let hit_node = node.get_node(&hit.entity);
+            hit_node.insert(materials.selected.clone());
+
+            self.selected = Some(hit.entity);
+        } else {
+            let materials = node.resource::<Materials>();
+
+            if let Some(selected) = self.selected.take() {
+                let selected_node = node.get_node(&selected);
+                selected_node.insert(materials.rock.clone());
+            }
         }
-        */
     }
 }
 
@@ -104,6 +124,7 @@ fn main() {
         .add_plugin(DefaultPlugins)
         .register_node::<Player>()
         .add_startup_system(setup)
+        .add_system(gravity_point_system)
         .run();
 }
 
@@ -132,6 +153,16 @@ fn setup(
         ..Default::default()
     });
 
+    let selected = materials.add(PbrMaterial {
+        base_color: Color::BLUE,
+        ..Default::default()
+    });
+
+    commands.insert_resource(Materials {
+        selected,
+        rock: material.clone(),
+    });
+
     commands
         .spawn()
         .insert(Transform::from_xyz(0.0, -1.0, 0.0).with_scale(Vec3::new(100.0, 1.0, 100.0)))
@@ -142,14 +173,18 @@ fn setup(
 
     spawn_player(&commands);
 
-    for x in -5..=5 {
-        for y in -5..=5 {
-            for z in -5..=5 {
+    for x in -3..=3 {
+        for y in -3..=3 {
+            for z in -3..=3 {
                 commands
                     .spawn()
                     .insert(
-                        Transform::from_xyz(x as f32 * 0.5, y as f32 * 0.5 + 10.0, z as f32 * 0.5)
-                            .with_scale(Vec3::ONE / 2.2),
+                        Transform::from_xyz(
+                            x as f32 * 1.0 + 5.0,
+                            y as f32 * 1.0 + 20.0,
+                            z as f32 * 1.0,
+                        )
+                        .with_scale(Vec3::ONE / 2.2),
                     )
                     .insert(mesh.clone())
                     .insert(material.clone())
@@ -157,6 +192,26 @@ fn setup(
                     .insert(BoxCollider::new(Vec3::ONE))
                     .insert(Garbage);
             }
+        }
+    }
+}
+
+fn gravity_point_system(
+    mut garbage_query: Query<(Entity, &GlobalTransform, &mut RigidBody), With<Garbage>>,
+    gravity_point_query: Query<(Entity, &GlobalTransform, &GravityPoint)>,
+    time: Res<Time>,
+) {
+    for (entity, transform, gravity) in gravity_point_query.iter() {
+        for (garbage_entity, garbage_transform, mut garbage_rigid_body) in garbage_query.iter_mut()
+        {
+            if entity == garbage_entity {
+                continue;
+            }
+
+            let diff = transform.translation - garbage_transform.translation;
+            let dist = diff.length().max(0.5);
+            let force = diff.normalize() * (1.0 / dist.powi(2)) * gravity.0 * time.delta_seconds();
+            garbage_rigid_body.linear_velocity += force;
         }
     }
 }

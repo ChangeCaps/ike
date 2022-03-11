@@ -4,6 +4,7 @@ mod derive_component;
 mod get_ike;
 mod label;
 mod node;
+mod system_param;
 
 #[proc_macro_derive(Component)]
 pub fn derive_component(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -16,6 +17,11 @@ pub fn node(
     input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
     node::node(input)
+}
+
+#[proc_macro_derive(SystemParam)]
+pub fn derive_system_param(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    system_param::derive_system_param(input)
 }
 
 macro_rules! derive_label {

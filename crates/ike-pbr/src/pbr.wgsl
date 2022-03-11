@@ -71,7 +71,17 @@ struct VertexInput {
 	[[location(1)]]
 	normal: vec3<f32>;
 	[[location(2)]]
+	tangent: vec4<f32>;
+	[[location(3)]]
 	uv: vec2<f32>;
+	[[location(4)]]
+	transform_0: vec4<f32>;
+	[[location(5)]]
+	transform_1: vec4<f32>;
+	[[location(6)]]
+	transform_2: vec4<f32>;
+	[[location(7)]]
+	transform_3: vec4<f32>;
 };
 
 struct VertexOutput {
@@ -82,11 +92,14 @@ struct VertexOutput {
 	[[location(1)]]
 	w_normal: vec3<f32>;
 	[[location(2)]]
+	w_tangent: vec3<f32>;
+	[[location(3)]]
+	w_bitangent: vec3<f32>;
+	[[location(4)]]
 	uv: vec2<f32>;
 };
 
 struct Mesh {
-	transform: mat4x4<f32>;
 	view_proj: mat4x4<f32>;	
 	camera_position: vec3<f32>;
 };
@@ -110,19 +123,19 @@ var base_color_texture: texture_2d<f32>;
 [[group(1), binding(2)]]
 var base_color_sampler: sampler;
 
-[[group(1), binding(1)]]
+[[group(1), binding(3)]]
 var metallic_roughness_texture: texture_2d<f32>;
-[[group(1), binding(2)]]
+[[group(1), binding(4)]]
 var metallic_roughness_sampler: sampler;
 
-[[group(1), binding(1)]]
+[[group(1), binding(5)]]
 var emission_texture: texture_2d<f32>;
-[[group(1), binding(2)]]
+[[group(1), binding(6)]]
 var emission_sampler: sampler;
 
-[[group(1), binding(1)]]
+[[group(1), binding(7)]]
 var normal_map_texture: texture_2d<f32>;
-[[group(1), binding(2)]]
+[[group(1), binding(8)]]
 var normal_map_sampler: sampler;
 
 let MAX_DIRECTIONAL_LIGHTS = 8;
@@ -159,12 +172,24 @@ var shadow_map_sampler: sampler;
 fn vert(in: VertexInput) -> VertexOutput {
 	var out: VertexOutput;	
 
-	let position = mesh.transform * vec4<f32>(in.position, 1.0);
+	let transform = mat4x4<f32>(
+		in.transform_0,
+		in.transform_1,
+		in.transform_2,
+		in.transform_3,
+	);
+
+	let position = transform * vec4<f32>(in.position, 1.0);
 	out.position = mesh.view_proj * position;
 	out.w_position = position.xyz;
 
-	let normal = mesh.transform * vec4<f32>(in.normal, 0.0);
+	let normal = transform * vec4<f32>(in.normal, 0.0);
 	out.w_normal = normal.xyz;
+
+	let tangent = transform * vec4<f32>(in.tangent.xyz, 0.0);
+	out.w_tangent = tangent.xyz;
+
+	out.w_bitangent = cross(normal.xyz, tangent.xyz) * tangent.w;
 
 	out.uv = in.uv;
 
@@ -189,6 +214,10 @@ struct FragmentInput {
 	[[location(1)]]
 	w_normal: vec3<f32>;
 	[[location(2)]]
+	w_tangent: vec3<f32>;
+	[[location(3)]]
+	w_bitangent: vec3<f32>;
+	[[location(4)]]
 	uv: vec2<f32>;
 };
 
@@ -466,18 +495,29 @@ fn frag(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 	let base_color = textureSample(base_color_texture, base_color_sampler, in.uv);
 	var color = material.base_color.rgb * base_color.rgb;
 
-	var roughness = material.roughness;
-	var metallic = material.metallic;
+	var mr = textureSample(metallic_roughness_texture, metallic_roughness_sampler, in.uv).rg;
+	var roughness = material.roughness * mr.r;
+	var metallic = material.metallic * mr.g;	
 
 	var f0 = vec3<f32>(0.04);
 	f0 = mix(f0, color, metallic);
 
-	var n = in.w_normal;
+	var t = in.w_tangent;
+	var b = in.w_bitangent;
+	var n = in.w_normal;	
+
 	let v = normalize(mesh.camera_position - in.w_position);
 
 	if (!in.front_facing) {
 		n = -n;
+		t = -t;
+		b = -b;
 	}
+
+	let normal_map = textureSample(normal_map_texture, normal_map_sampler, in.uv);
+	let tbn = mat3x3<f32>(t, b, n);
+
+	n = tbn * (normal_map.xyz * 2.0 - 1.0);
 
 	var light = lights.ambient.rgb;
 

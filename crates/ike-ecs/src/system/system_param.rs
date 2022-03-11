@@ -8,6 +8,8 @@ use crate::{
     Resource, SystemAccess, World, WorldQuery,
 };
 
+pub use ike_macro::SystemParam;
+
 pub trait SystemParam: Sized {
     type Fetch: for<'w, 's> SystemParamFetch<'w, 's>;
 }

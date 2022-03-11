@@ -1,15 +1,15 @@
-use std::{borrow::Cow, marker::PhantomData};
+use std::marker::PhantomData;
 
 use crate::{ChangeTick, ChangeTicks, Component, Entity, EntitySet, World};
 
 pub trait QueryFilter {
-    fn entities(world: &World) -> Option<Cow<EntitySet>>;
+    fn entities(world: &World) -> Option<&EntitySet>;
 
     fn filter(world: &World, entity: &Entity, last_change_tick: ChangeTick) -> bool;
 }
 
 impl QueryFilter for () {
-    fn entities(_world: &World) -> Option<Cow<EntitySet>> {
+    fn entities(_world: &World) -> Option<&EntitySet> {
         None
     }
 
@@ -21,10 +21,8 @@ impl QueryFilter for () {
 pub struct Changed<T>(PhantomData<fn() -> T>);
 
 impl<T: Component> QueryFilter for Changed<T> {
-    fn entities(world: &World) -> Option<Cow<EntitySet>> {
-        Some(Cow::Borrowed(
-            world.entities().storage().get_entities::<T>()?,
-        ))
+    fn entities(world: &World) -> Option<&EntitySet> {
+        world.entities().storage().get_entities::<T>()
     }
 
     fn filter(world: &World, entity: &Entity, last_change_tick: ChangeTick) -> bool {
@@ -39,10 +37,8 @@ impl<T: Component> QueryFilter for Changed<T> {
 pub struct Added<T>(PhantomData<fn() -> T>);
 
 impl<T: Component> QueryFilter for Added<T> {
-    fn entities(world: &World) -> Option<Cow<EntitySet>> {
-        Some(Cow::Borrowed(
-            world.entities().storage().get_entities::<T>()?,
-        ))
+    fn entities(world: &World) -> Option<&EntitySet> {
+        world.entities().storage().get_entities::<T>()
     }
 
     fn filter(world: &World, entity: &Entity, last_change_tick: ChangeTick) -> bool {
@@ -57,10 +53,8 @@ impl<T: Component> QueryFilter for Added<T> {
 pub struct With<T>(PhantomData<fn() -> T>);
 
 impl<T: Component> QueryFilter for With<T> {
-    fn entities(world: &World) -> Option<Cow<EntitySet>> {
-        Some(Cow::Borrowed(
-            world.entities().storage().get_entities::<T>()?,
-        ))
+    fn entities(world: &World) -> Option<&EntitySet> {
+        world.entities().storage().get_entities::<T>()
     }
 
     fn filter(world: &World, entity: &Entity, _last_change_tick: ChangeTick) -> bool {
@@ -71,12 +65,8 @@ impl<T: Component> QueryFilter for With<T> {
 pub struct Without<T>(PhantomData<fn() -> T>);
 
 impl<T: Component> QueryFilter for Without<T> {
-    fn entities(world: &World) -> Option<Cow<EntitySet>> {
-        let with = world.entities().storage().get_entities::<T>()?;
-        let mut entities = world.entities().entities().clone();
-        entities.nand(with);
-
-        Some(Cow::Owned(entities))
+    fn entities(world: &World) -> Option<&EntitySet> {
+        Some(world.entities().entities())
     }
 
     fn filter(world: &World, entity: &Entity, _last_change_tick: ChangeTick) -> bool {
@@ -87,11 +77,20 @@ impl<T: Component> QueryFilter for Without<T> {
 pub struct Or<T, U>(PhantomData<fn() -> (T, U)>);
 
 impl<T: QueryFilter, U: QueryFilter> QueryFilter for Or<T, U> {
-    fn entities(world: &World) -> Option<Cow<EntitySet>> {
-        let mut left = T::entities(world)?.into_owned();
-        let right = U::entities(world)?;
-        left.or(&right);
-        Some(Cow::Owned(left))
+    fn entities(world: &World) -> Option<&EntitySet> {
+        if let Some(set) = T::entities(world) {
+            if let Some(other) = U::entities(world) {
+                if set.len() < other.len() {
+                    Some(set)
+                } else {
+                    Some(other)
+                }
+            } else {
+                Some(set)
+            }
+        } else {
+            U::entities(world)
+        }
     }
 
     fn filter(world: &World, entity: &Entity, last_change_tick: ChangeTick) -> bool {
@@ -105,29 +104,11 @@ macro_rules! impl_query_filter {
         impl_query_filter!($($name),*);
         impl_query_filter!(@ $first $(,$name)*);
     };
-    (@entities $first:ident $(,$name:ident)+) => {
-        let mut entities = $first.into_owned();
-
-        $(
-            entities.and(&$name);
-        )
-        *
-
-        return Some(Cow::Owned(entities));
-    };
-    (@entities $first:ident) => {
-        return Some($first);
-    };
     (@ $($name:ident),*) => {
         impl<$($name: QueryFilter),*> QueryFilter for ($($name,)*) {
             #[allow(non_snake_case)]
-            fn entities(world: &World) -> Option<Cow<EntitySet>> {
-                $(
-                    let $name = $name::entities(world)?;
-                )
-                *
-
-                impl_query_filter!(@entities $($name),*);
+            fn entities(world: &World) -> Option<&EntitySet> {
+                [$($name::entities(world)?),*].into_iter().min_by(|a, b| a.len().cmp(&b.len()))
             }
 
 

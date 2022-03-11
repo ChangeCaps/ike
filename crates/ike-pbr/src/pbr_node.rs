@@ -1,11 +1,13 @@
-use ike_assets::{Assets, Handle};
+use std::collections::HashMap;
+
+use ike_assets::{Assets, Handle, HandleId};
 use ike_ecs::{FromWorld, World};
 use ike_light::LightBindings;
 use ike_math::Mat4;
 use ike_render::{
     include_wgsl, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
     BufferBindingType, ColorTargetState, ColorWrites, CompareFunction, DepthStencilState,
-    FragmentState, Image, ImageTexture, IndexFormat, LoadOp, Mesh, MeshBindings, MeshBuffers,
+    FragmentState, Image, ImageTexture, IndexFormat, LoadOp, Mesh, MeshBinding, MeshBuffers,
     MultisampleState, Operations, PipelineLayout, PipelineLayoutDescriptor, RawCamera, RawColor,
     RenderContext, RenderDevice, RenderGraphContext, RenderNode, RenderPassColorAttachment,
     RenderPassDepthStencilAttachemnt, RenderPassDescriptor, RenderPipeline,
@@ -22,6 +24,7 @@ pub struct PbrResources {
     pub material_bind_group_layout: BindGroupLayout,
     pub pipeline_layout: PipelineLayout,
     pub render_pipeline: RenderPipeline,
+    pub default_normal_map: ImageTexture,
     pub default_image: ImageTexture,
 }
 
@@ -111,7 +114,7 @@ impl FromWorld for PbrResources {
                     BindGroupLayoutEntry {
                         binding: 7,
                         ty: BindingType::Texture {
-                            sample_type: TextureSampleType::Float { filterable: false },
+                            sample_type: TextureSampleType::Float { filterable: true },
                             view_dimension: TextureViewDimension::D2,
                             multisampled: false,
                         },
@@ -120,7 +123,7 @@ impl FromWorld for PbrResources {
                     },
                     BindGroupLayoutEntry {
                         binding: 8,
-                        ty: BindingType::Sampler(SamplerBindingType::NonFiltering),
+                        ty: BindingType::Sampler(SamplerBindingType::Filtering),
                         visibility: ShaderStages::VERTEX_FRAGMENT,
                         count: None,
                     },
@@ -166,12 +169,47 @@ impl FromWorld for PbrResources {
                     },
                     VertexBufferLayout {
                         step_mode: VertexStepMode::Vertex,
-                        array_stride: 8,
+                        array_stride: 12,
                         attributes: &[VertexAttribute {
-                            format: VertexFormat::Float32x2,
+                            format: VertexFormat::Float32x3,
                             shader_location: 2,
                             offset: 0,
                         }],
+                    },
+                    VertexBufferLayout {
+                        step_mode: VertexStepMode::Vertex,
+                        array_stride: 8,
+                        attributes: &[VertexAttribute {
+                            format: VertexFormat::Float32x2,
+                            shader_location: 3,
+                            offset: 0,
+                        }],
+                    },
+                    VertexBufferLayout {
+                        step_mode: VertexStepMode::Instance,
+                        array_stride: 64,
+                        attributes: &[
+                            VertexAttribute {
+                                format: VertexFormat::Float32x4,
+                                shader_location: 4,
+                                offset: 0,
+                            },
+                            VertexAttribute {
+                                format: VertexFormat::Float32x4,
+                                shader_location: 5,
+                                offset: 16,
+                            },
+                            VertexAttribute {
+                                format: VertexFormat::Float32x4,
+                                shader_location: 6,
+                                offset: 32,
+                            },
+                            VertexAttribute {
+                                format: VertexFormat::Float32x4,
+                                shader_location: 7,
+                                offset: 48,
+                            },
+                        ],
                     },
                 ],
             },
@@ -200,12 +238,16 @@ impl FromWorld for PbrResources {
         });
 
         let default_image = Image::default().create_texture(&device, &queue);
+        let default_normal_map =
+            Image::new_2d_with_format(vec![127, 127, 255, 0], 1, 1, TextureFormat::Rgba8Unorm)
+                .create_texture(&device, &queue);
 
         Self {
             object_bind_group_layout,
             material_bind_group_layout,
             pipeline_layout,
             render_pipeline,
+            default_normal_map,
             default_image,
         }
     }
@@ -213,7 +255,7 @@ impl FromWorld for PbrResources {
 
 #[derive(Default)]
 pub struct PbrNode {
-    mesh_bindings: MeshBindings,
+    mesh_bindings: HashMap<(HandleId, HandleId), MeshBinding>,
 }
 
 impl PbrNode {
@@ -276,12 +318,23 @@ impl RenderNode for PbrNode {
             )>()
             .unwrap();
 
-        for (i, (_, _, global_transform)) in mesh_query.iter().enumerate() {
-            self.mesh_bindings.require(i, &render_context.device);
+        for mesh_binding in self.mesh_bindings.values_mut() {
+            mesh_binding.clear();
+        }
+
+        for (mesh_handle, material_handle, global_transform) in mesh_query.iter() {
+            let mesh_binding = self
+                .mesh_bindings
+                .entry((mesh_handle.into(), material_handle.into()))
+                .or_insert_with(|| MeshBinding::new(&render_context.device));
 
             let transform = global_transform.map_or(Mat4::IDENTITY, |transform| transform.matrix());
 
-            self.mesh_bindings[i].write(&render_context.queue, transform, camera);
+            mesh_binding.push_instance(transform);
+        }
+
+        for mesh_binding in self.mesh_bindings.values_mut() {
+            mesh_binding.write(&render_context.device, &render_context.queue, camera);
         }
 
         let mut render_pass = render_context
@@ -308,17 +361,16 @@ impl RenderNode for PbrNode {
 
         render_pass.set_pipeline(&pbr_resources.render_pipeline);
 
-        for (i, (mesh_handle, material_handle, _)) in mesh_query.iter().enumerate() {
-            let object_binding = &self.mesh_bindings[i];
+        for ((mesh_handle, material_handle), mesh_binding) in self.mesh_bindings.iter() {
             let material_binding =
-                if let Some(material_binding) = material_bindings.get(material_handle) {
+                if let Some(material_binding) = material_bindings.get(*material_handle) {
                     material_binding
                 } else {
                     continue;
                 };
 
-            let mesh = meshes.get(mesh_handle).unwrap();
-            let mesh_buffers = mesh_buffers.get(mesh_handle.cast::<MeshBuffers>()).unwrap();
+            let mesh = meshes.get(*mesh_handle).unwrap();
+            let mesh_buffers = mesh_buffers.get(*mesh_handle).unwrap();
 
             if let Some(position) = mesh_buffers.get_attribute(Mesh::POSITION) {
                 render_pass.set_vertex_buffer(0, position.raw().slice(..));
@@ -332,8 +384,14 @@ impl RenderNode for PbrNode {
                 continue;
             }
 
+            if let Some(tangent) = mesh_buffers.get_attribute(Mesh::TANGENT) {
+                render_pass.set_vertex_buffer(2, tangent.raw().slice(..));
+            } else {
+                continue;
+            }
+
             if let Some(uv_0) = mesh_buffers.get_attribute(Mesh::UV_0) {
-                render_pass.set_vertex_buffer(2, uv_0.raw().slice(..));
+                render_pass.set_vertex_buffer(3, uv_0.raw().slice(..));
             } else {
                 continue;
             }
@@ -343,11 +401,17 @@ impl RenderNode for PbrNode {
                 IndexFormat::Uint32,
             );
 
-            render_pass.set_bind_group(0, &object_binding.bind_group, &[]);
+            render_pass.set_vertex_buffer(4, mesh_binding.instance_buffer.raw().slice(..));
+
+            render_pass.set_bind_group(0, &mesh_binding.bind_group, &[]);
             render_pass.set_bind_group(1, &material_binding.bind_group, &[]);
             render_pass.set_bind_group(2, &light_bindings.bind_group, &[]);
 
-            render_pass.draw_indexed(0..mesh.get_indices().len() as u32, 0, 0..1);
+            render_pass.draw_indexed(
+                0..mesh.get_indices().len() as u32,
+                0,
+                0..mesh_binding.instances(),
+            );
         }
 
         Ok(())

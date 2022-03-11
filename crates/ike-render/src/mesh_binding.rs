@@ -1,6 +1,7 @@
-use bytemuck::{bytes_of, Pod, Zeroable};
+use bytemuck::{bytes_of, cast_slice, Pod, Zeroable};
 use ike_math::Mat4;
-use std::{mem, ops::Index};
+
+use std::mem;
 
 use crate::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
@@ -11,16 +12,14 @@ use crate::{
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct RawMeshBinding {
-    transform: [[f32; 4]; 4],
     view_proj: [[f32; 4]; 4],
     camera_position: [f32; 3],
     _padding: [u8; 4],
 }
 
 impl RawMeshBinding {
-    pub fn new(transform: Mat4, camera: &RawCamera) -> Self {
+    pub fn new(camera: &RawCamera) -> Self {
         Self {
-            transform: transform.to_cols_array_2d(),
             view_proj: camera.view_proj().to_cols_array_2d(),
             camera_position: camera.position.into(),
             _padding: [0u8; 4],
@@ -29,12 +28,24 @@ impl RawMeshBinding {
 }
 
 pub struct MeshBinding {
+    pub buffer_size: u64,
+    pub instances: Vec<[[f32; 4]; 4]>,
+    pub instance_buffer: Buffer,
     pub buffer: Buffer,
     pub bind_group: BindGroup,
 }
 
 impl MeshBinding {
     pub fn new(device: &RenderDevice) -> Self {
+        let buffer_size = 64 * 4;
+
+        let instance_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("ike_mesh_binding_buffer"),
+            size: buffer_size,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let buffer = device.create_buffer(&BufferDescriptor {
             label: Some("ike_mesh_binding_buffer"),
             size: mem::size_of::<RawMeshBinding>() as u64,
@@ -53,7 +64,21 @@ impl MeshBinding {
             }],
         });
 
-        Self { buffer, bind_group }
+        Self {
+            buffer_size,
+            instances: Vec::new(),
+            instance_buffer,
+            buffer,
+            bind_group,
+        }
+    }
+
+    pub fn instances(&self) -> u32 {
+        self.instances.len() as u32
+    }
+
+    pub fn clear(&mut self) {
+        self.instances.clear();
     }
 
     pub fn bind_group_layout(device: &RenderDevice) -> BindGroupLayout {
@@ -72,36 +97,27 @@ impl MeshBinding {
         })
     }
 
-    pub fn write(&self, queue: &RenderQueue, transform: Mat4, camera: &RawCamera) {
-        let raw = RawMeshBinding::new(transform, camera);
+    pub fn push_instance(&mut self, transform: Mat4) {
+        self.instances.push(transform.to_cols_array_2d());
+    }
+
+    pub fn write(&mut self, device: &RenderDevice, queue: &RenderQueue, camera: &RawCamera) {
+        let raw = RawMeshBinding::new(camera);
         queue.write_buffer(&self.buffer, 0, bytes_of(&raw));
-    }
-}
 
-#[derive(Default)]
-pub struct MeshBindings {
-    bindings: Vec<MeshBinding>,
-}
+        if self.buffer_size < self.instances.len() as u64 * 64 {
+            self.buffer_size = self.instances.len() as u64 * 64;
 
-impl MeshBindings {
-    pub fn len(&self) -> usize {
-        self.bindings.len()
-    }
+            let instance_buffer = device.create_buffer(&BufferDescriptor {
+                label: Some("ike_mesh_binding_buffer"),
+                size: self.buffer_size,
+                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
 
-    pub fn require(&mut self, len: usize, device: &RenderDevice) {
-        self.bindings
-            .resize_with(usize::max(len + 1, self.len()), || MeshBinding::new(device));
-    }
+            self.instance_buffer = instance_buffer;
+        }
 
-    pub fn iter(&self) -> impl Iterator<Item = &MeshBinding> {
-        self.bindings.iter()
-    }
-}
-
-impl Index<usize> for MeshBindings {
-    type Output = MeshBinding;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.bindings[index]
+        queue.write_buffer(&self.instance_buffer, 0, cast_slice(&self.instances));
     }
 }

@@ -51,8 +51,8 @@ pub fn node(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
 
             impl #impl_generics #ike_node::NodeComponent for #name #ty_generics #where_clause {
-                fn stages() -> &'static [#ike_node::NodeFn<Self>] {
-                    &[#(#add_node_functions),*]
+                fn stages(stages: &mut #ike_node::NodeStages) {
+                    #(#add_node_functions)*
                 }
             }
         };
@@ -66,6 +66,7 @@ struct NodeFunction {
     node_ident: Ident,
     node_trait_function: TraitItemMethod,
     node_function: ImplItemMethod,
+    is_event: bool,
     span: Span,
 }
 
@@ -99,6 +100,7 @@ impl NodeFunction {
             node_ident,
             node_trait_function,
             node_function,
+            is_event: sig.inputs.len() == 3,
             span: item.span(),
         }
     }
@@ -113,18 +115,23 @@ fn node_functions(items: &[ImplItem]) -> impl Iterator<Item = NodeFunction> + '_
 
 fn add_node_functions(functions: &[NodeFunction]) -> impl Iterator<Item = TokenStream> + '_ {
     let ike_ecs = get_ike("ecs");
-    let ike_node = get_ike("node");
 
     functions.iter().map(move |function| {
         let name = &function.name;
         let node_ident = &function.node_ident;
 
-        quote_spanned! {function.span=>
-            #ike_node::NodeFn {
-                name: #name,
-                func: |component, node| {
-                    <#ike_ecs::CompMut<Self> as __NodeTrait>::#node_ident(component, node);
-                },
+        if function.is_event {
+            let func =
+                quote!(|c, n, e| <#ike_ecs::CompMut<Self> as __NodeTrait>::#node_ident(c, n, e));
+
+            quote_spanned! {function.span=>
+                stages.add_event_fn(#name, #func);
+            }
+        } else {
+            let func = quote!(|c, n| <#ike_ecs::CompMut<Self> as __NodeTrait>::#node_ident(c, n));
+
+            quote_spanned! {function.span=>
+                stages.add_stage_fn(#name, #func);
             }
         }
     })

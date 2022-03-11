@@ -1,37 +1,9 @@
-use std::{borrow::Cow, marker::PhantomData};
+use std::marker::PhantomData;
 
-use crate::{
-    ChangeTick, ChangeTicks, Entity, EntitySet, EntitySetIntoIter, EntitySetIter, Fetch,
-    QueryFilter, World,
-};
-
-enum EntitiesIter<'a> {
-    Borrowed(EntitySetIter<'a>),
-    Owned(EntitySetIntoIter),
-}
-
-impl<'a> Iterator for EntitiesIter<'a> {
-    type Item = Entity;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            Self::Borrowed(iter) => iter.next(),
-            Self::Owned(iter) => iter.next(),
-        }
-    }
-}
-
-impl<'a> From<Cow<'a, EntitySet>> for EntitiesIter<'a> {
-    fn from(entity_set: Cow<'a, EntitySet>) -> Self {
-        match entity_set {
-            Cow::Borrowed(set) => Self::Borrowed(set.iter()),
-            Cow::Owned(set) => Self::Owned(set.into_iter()),
-        }
-    }
-}
+use crate::{ChangeTick, ChangeTicks, EntitySet, EntitySetIter, Fetch, QueryFilter, World};
 
 pub struct QueryIter<'a, F: Fetch<'a>, QF: QueryFilter = ()> {
-    entities: EntitiesIter<'a>,
+    entities: Option<EntitySetIter<'a>>,
     world: &'a World,
     change_ticks: ChangeTicks,
     marker: PhantomData<fn() -> (F, QF)>,
@@ -41,21 +13,37 @@ impl<'a, F: Fetch<'a>, QF: QueryFilter> QueryIter<'a, F, QF> {
     /// # Safety
     /// - must not be able to break borrow rules for any components.
     pub unsafe fn new(world: &'a World, last_change_tick: ChangeTick) -> Self {
+        #[cfg(feature = "trace")]
+        let fetch_entities_span = ike_util::tracing::info_span!("query entities fetch");
+        #[cfg(feature = "trace")]
+        let fetch_entities_guard = fetch_entities_span.enter();
+
         let mut entities = F::entities(&world);
+
+        #[cfg(feature = "trace")]
+        drop(fetch_entities_guard);
+
+        #[cfg(feature = "trace")]
+        let filter_entities_span = ike_util::tracing::info_span!("query filter fetch");
+        #[cfg(feature = "trace")]
+        let filter_entities_guard = filter_entities_span.enter();
 
         match QF::entities(world) {
             Some(filter) => {
-                let mut owned = entities.into_owned();
-
-                owned.and(&filter);
-
-                entities = Cow::Owned(owned);
+                if let Some(ref mut set) = entities {
+                    if filter.len() < set.len() {
+                        *set = filter;
+                    }
+                }
             }
             None => {}
         }
 
+        #[cfg(feature = "trace")]
+        drop(filter_entities_guard);
+
         Self {
-            entities: entities.into(),
+            entities: entities.map(EntitySet::iter),
             world,
             change_ticks: ChangeTicks::new(last_change_tick, world.change_tick()),
             marker: PhantomData,
@@ -68,7 +56,7 @@ impl<'a, F: Fetch<'a>, QF: QueryFilter> Iterator for QueryIter<'a, F, QF> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let entity = self.entities.next()?;
+            let entity = self.entities.as_mut()?.next()?;
 
             if QF::filter(self.world, &entity, self.change_ticks.last_change_tick()) {
                 let item = unsafe { F::get(self.world, &entity, &self.change_ticks) };

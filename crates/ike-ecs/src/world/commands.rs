@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crossbeam::queue::SegQueue;
 
-use crate::{Children, Component, Entity, EntityCommands, World};
+use crate::{Children, Component, Entity, EntityCommands, Resource, World};
 
 pub trait Command: Send + Sync + 'static {
     fn run(self: Box<Self>, world: &mut World);
@@ -64,6 +64,14 @@ impl<'w, 's> Commands<'w, 's> {
         self.push(Remove::<T>(*entity, PhantomData));
     }
 
+    pub fn insert_resource<T: Resource>(&self, resource: T) {
+        self.push(InsertResource(resource));
+    }
+
+    pub fn remove_resource<T: Resource>(&self) {
+        self.push(RemoveResource::<T>(PhantomData));
+    }
+
     pub fn despawn(&self, entity: &Entity) {
         self.push(Despawn(*entity));
     }
@@ -95,6 +103,22 @@ struct Remove<T>(Entity, PhantomData<fn() -> T>);
 impl<T: Component> Command for Remove<T> {
     fn run(self: Box<Self>, world: &mut World) {
         world.entities_mut().remove::<T>(&self.0);
+    }
+}
+
+struct InsertResource<T>(T);
+
+impl<T: Resource> Command for InsertResource<T> {
+    fn run(self: Box<Self>, world: &mut World) {
+        world.insert_resource(self.0);
+    }
+}
+
+struct RemoveResource<T>(PhantomData<fn() -> T>);
+
+impl<T: Resource> Command for RemoveResource<T> {
+    fn run(self: Box<Self>, world: &mut World) {
+        world.remove_resource::<T>();
     }
 }
 

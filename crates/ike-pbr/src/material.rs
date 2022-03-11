@@ -109,6 +109,7 @@ impl MaterialBinding {
                             &device,
                             &pbr_resources.material_bind_group_layout,
                             &pbr_resources.default_image,
+                            &pbr_resources.default_normal_map,
                             &image_textures,
                         ),
                     );
@@ -130,6 +131,7 @@ impl MaterialBinding {
                                     &device,
                                     &pbr_resources.material_bind_group_layout,
                                     &pbr_resources.default_image,
+                                    &pbr_resources.default_normal_map,
                                     &image_textures,
                                 ),
                             );
@@ -146,6 +148,7 @@ impl MaterialBinding {
         device: &RenderDevice,
         layout: &BindGroupLayout,
         default_image: &ImageTexture,
+        default_normal_map: &ImageTexture,
         image_textures: &Assets<ImageTexture>,
     ) -> Self {
         let raw_material = material.as_raw();
@@ -165,7 +168,11 @@ impl MaterialBinding {
             image_textures,
         );
         let emission = Self::get_texture(&material.emission_texture, default_image, image_textures);
-        let normal_map = Self::get_texture(&material.normal_map, default_image, image_textures);
+        let normal_map = material
+            .normal_map
+            .as_ref()
+            .and_then(|image| image_textures.get(image))
+            .unwrap_or(default_normal_map);
 
         let bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: Some("pbr_material_bind_group"),

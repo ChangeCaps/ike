@@ -1,4 +1,4 @@
-use std::{borrow::Cow, marker::PhantomData};
+use std::marker::PhantomData;
 
 use ike_task::TaskPool;
 
@@ -129,7 +129,7 @@ pub unsafe trait Fetch<'a>: Sized {
         true
     }
 
-    fn entities(world: &'a World) -> Cow<'a, EntitySet>;
+    fn entities(world: &'a World) -> Option<&'a EntitySet>;
 
     unsafe fn get(
         world: &'a World,
@@ -154,8 +154,8 @@ unsafe impl<'a> Fetch<'a> for EntityFetch {
 
     fn access(_access: &mut SystemAccess) {}
 
-    fn entities(world: &'a World) -> Cow<'a, EntitySet> {
-        Cow::Borrowed(world.entities().entities())
+    fn entities(world: &'a World) -> Option<&'a EntitySet> {
+        Some(world.entities().entities())
     }
 
     unsafe fn get(
@@ -183,12 +183,8 @@ unsafe impl<'a, T: Component> Fetch<'a> for FetchRead<T> {
         access.borrow_component::<T>(Access::Read);
     }
 
-    fn entities(world: &'a World) -> Cow<'a, EntitySet> {
-        if let Some(entities) = world.entities().storage().get_entities::<T>() {
-            Cow::Borrowed(entities)
-        } else {
-            Cow::Owned(EntitySet::new())
-        }
+    fn entities(world: &'a World) -> Option<&EntitySet> {
+        world.entities().storage().get_entities::<T>()
     }
 
     fn borrow(world: &World) -> bool {
@@ -223,12 +219,8 @@ unsafe impl<'a, T: Component> Fetch<'a> for FetchWrite<T> {
         access.borrow_component::<T>(Access::Write);
     }
 
-    fn entities(world: &'a World) -> Cow<'a, EntitySet> {
-        if let Some(entities) = world.entities().storage().get_entities::<T>() {
-            Cow::Borrowed(entities)
-        } else {
-            Cow::Owned(EntitySet::new())
-        }
+    fn entities(world: &'a World) -> Option<&'a EntitySet> {
+        world.entities().storage().get_entities::<T>()
     }
 
     fn borrow(world: &World) -> bool {
@@ -262,12 +254,8 @@ unsafe impl<'a, T: Component> Fetch<'a> for FetchReadOnlyWrite<T> {
         access.borrow_component::<T>(Access::Read);
     }
 
-    fn entities(world: &'a World) -> Cow<'a, EntitySet> {
-        if let Some(entities) = world.entities().storage().get_entities::<T>() {
-            Cow::Borrowed(entities)
-        } else {
-            Cow::Owned(EntitySet::new())
-        }
+    fn entities(world: &'a World) -> Option<&'a EntitySet> {
+        world.entities().storage().get_entities::<T>()
     }
 
     fn borrow(world: &World) -> bool {
@@ -305,8 +293,8 @@ unsafe impl<'a, T: Fetch<'a>> Fetch<'a> for OptionFetch<T> {
         T::access(access);
     }
 
-    fn entities(world: &'a World) -> Cow<'a, EntitySet> {
-        T::entities(world)
+    fn entities(world: &'a World) -> Option<&'a EntitySet> {
+        Some(world.entities().entities())
     }
 
     fn borrow(world: &World) -> bool {
@@ -334,17 +322,6 @@ macro_rules! tuple_world_query {
         tuple_world_query!(@ $first, $($name),*);
         tuple_world_query!($($name),*);
     };
-    (@entities $world:ident, $first:ident $(,$name:ident)+) => {
-        let mut entities = $first::entities($world).into_owned();
-        $(
-            entities.and(&$name::entities($world));
-        )*
-        return Cow::Owned(entities);
-
-    };
-    (@entities $world:ident, $first:ident) => {
-        return $first::entities($world);
-    };
     (@ $($name:ident),* $(,)?) => {
         #[allow(non_snake_case)]
         unsafe impl<'a, $($name: Fetch<'a>),*> Fetch<'a> for ($($name,)*) {
@@ -355,8 +332,8 @@ macro_rules! tuple_world_query {
 
             }
 
-            fn entities(world: &'a World) -> Cow<'a, EntitySet> {
-                tuple_world_query!(@entities world, $($name),*);
+            fn entities(world: &'a World) -> Option<&'a EntitySet> {
+                [$($name::entities(world)?),*].into_iter().min_by(|a, b| a.len().cmp(&b.len()))
             }
 
             fn borrow(world: &World) -> bool {

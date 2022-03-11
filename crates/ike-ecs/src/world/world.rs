@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-    ChangeTick, CommandQueue, Commands, Comp, Component, CompMut, Entities, Entity, Mut,
-    Query, QueryFilter, Res, ResMut, Resource, Resources, WorldQuery,
+    ChangeTick, CommandQueue, Commands, Comp, CompMut, Component, Entities, Entity, Mut, Query,
+    QueryFilter, Res, ResMut, Resource, Resources, WorldQuery,
 };
 
 #[derive(Default)]

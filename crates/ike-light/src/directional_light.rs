@@ -30,7 +30,7 @@ impl Default for DirectionalLight {
                 far: 25.0,
             },
             shadow_softness: 2.0,
-            shadow_falloff: 4.0,
+            shadow_falloff: 2.0,
             blocker_samples: 16,
             pcf_samples: 48,
         }

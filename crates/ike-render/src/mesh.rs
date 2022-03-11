@@ -7,9 +7,9 @@ use crate::{Buffer, BufferInitDescriptor, BufferUsages, Color, RenderDevice};
 #[derive(Clone, Debug)]
 pub enum VertexAttribute {
     Float32(Vec<f32>),
-    Float32x2(Vec<[f32; 2]>),
-    Float32x3(Vec<[f32; 3]>),
-    Float32x4(Vec<[f32; 4]>),
+    Float32x2(Vec<Vec2>),
+    Float32x3(Vec<Vec3>),
+    Float32x4(Vec<Vec4>),
 }
 
 impl VertexAttribute {
@@ -95,12 +95,10 @@ impl Mesh {
         }
     }
 
-    fn get_index(&self, name: impl Into<Cow<'static, str>>) -> Option<usize> {
-        let name = name.into();
-
+    fn get_index(&self, name: impl AsRef<str>) -> Option<usize> {
         self.attributes
             .iter()
-            .position(|(attr_name, _)| *attr_name == name)
+            .position(|(attr_name, _)| attr_name == name.as_ref())
     }
 
     pub fn insert_attribute<T: AsVertexAttribute>(
@@ -119,7 +117,7 @@ impl Mesh {
 
     pub fn remove_attribute<T: AsVertexAttribute>(
         &mut self,
-        name: impl Into<Cow<'static, str>>,
+        name: impl AsRef<str>,
     ) -> Option<Vec<T>> {
         let index = self.get_index(name)?;
         let attribute = self.attributes.remove(index).1;
@@ -127,10 +125,14 @@ impl Mesh {
         T::from(attribute)
     }
 
-    pub fn get_attribute<T: AsVertexAttribute>(
-        &self,
-        name: impl Into<Cow<'static, str>>,
-    ) -> Option<&[T]> {
+    pub fn contains_attribute(&self, name: impl AsRef<str>) -> bool {
+        self.attributes
+            .iter()
+            .find(|(attr_name, _)| attr_name == name.as_ref())
+            .is_some()
+    }
+
+    pub fn get_attribute<T: AsVertexAttribute>(&self, name: impl AsRef<str>) -> Option<&[T]> {
         let index = self.get_index(name)?;
         let attribute = &self.attributes[index].1;
 
@@ -139,7 +141,7 @@ impl Mesh {
 
     pub fn get_attribute_mut<T: AsVertexAttribute>(
         &mut self,
-        name: impl Into<Cow<'static, str>>,
+        name: impl AsRef<str>,
     ) -> Option<&mut [T]> {
         let index = self.get_index(name)?;
         let attribute = &mut self.attributes[index].1;
@@ -153,6 +155,40 @@ impl Mesh {
 
     pub fn get_indices_mut(&mut self) -> &mut Vec<u32> {
         &mut self.indices
+    }
+
+    pub fn calculate_tangents(&mut self) {
+        let positions = self.get_attribute(Mesh::POSITION).unwrap();
+        let uvs = self.get_attribute(Mesh::UV_0).unwrap();
+
+        let mut tangents = Vec::with_capacity(positions.len());
+
+        for i in 0..self.indices.len() / 3 {
+            let i0 = self.indices[i * 3 + 0] as usize;
+            let i1 = self.indices[i * 3 + 1] as usize;
+            let i2 = self.indices[i * 3 + 2] as usize;
+
+            let p0: Vec3 = positions[i0];
+            let p1: Vec3 = positions[i1];
+            let p2: Vec3 = positions[i2];
+
+            let uv0: Vec2 = uvs[i0];
+            let uv1: Vec2 = uvs[i1];
+            let uv2: Vec2 = uvs[i2];
+
+            let dp1 = p1 - p0;
+            let dp2 = p2 - p0;
+
+            let du1 = uv1 - uv0;
+            let du2 = uv2 - uv0;
+
+            let r = 1.0 / (du1.x * du2.y - du1.y * du2.x);
+            let tangent = (dp1 * du2.y - dp2 * du1.y) * r;
+
+            tangents.push(tangent.normalize().extend(1.0));
+        }
+
+        self.insert_attribute(Mesh::TANGENT, tangents);
     }
 }
 

@@ -1,12 +1,7 @@
-use ike_ecs::{CompMut, Component};
+use ike_ecs::Component;
 
-use crate::Node;
+use crate::NodeStages;
 
 pub trait NodeComponent: Component {
-    fn stages() -> &'static [NodeFn<Self>];
-}
-
-pub struct NodeFn<T> {
-    pub name: &'static str,
-    pub func: fn(CompMut<T>, Node),
+    fn stages(stages: &mut NodeStages);
 }
