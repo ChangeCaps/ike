@@ -31,7 +31,6 @@ pub use resources::*;
 pub use settings::*;
 pub use slot::*;
 pub use texture_node::*;
-pub use wgpu;
 
 use ike_app::{App, CoreStage, Plugin};
 use ike_assets::AddAsset;
@@ -54,6 +53,7 @@ pub mod node {
     pub const DEPTH: &str = "depth";
     pub const MSAA_DEPTH: &str = "msaa_depth";
     pub const MSAA: &str = "msaa";
+    pub const HDR: &str = "hdr";
 }
 
 #[derive(Default)]
@@ -135,8 +135,27 @@ impl Plugin for RenderPlugin {
                 dimension: TextureDimension::D2,
                 mip_level_count: 1,
                 sample_count: 4,
-                format: TextureFormat::Bgra8UnormSrgb,
+                format: TextureFormat::Rgba32Float,
                 usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+            }),
+        );
+
+        render_graph.add_node(
+            node::HDR,
+            TextureNode::new(TextureDescriptor {
+                label: Some("ike_hdr_texture"),
+                size: Extent3d {
+                    width: 1,
+                    height: 1,
+                    depth_or_array_layers: 1,
+                },
+                dimension: TextureDimension::D2,
+                mip_level_count: 1,
+                sample_count: 1,
+                format: TextureFormat::Rgba32Float,
+                usage: TextureUsages::RENDER_ATTACHMENT
+                    | TextureUsages::TEXTURE_BINDING
+                    | TextureUsages::STORAGE_BINDING,
             }),
         );
 
@@ -163,6 +182,15 @@ impl Plugin for RenderPlugin {
                 input_node,
                 input::SURFACE_TEXTURE,
                 node::MSAA,
+                TextureNode::TEXTURE,
+            )
+            .unwrap();
+
+        render_graph
+            .add_slot_edge(
+                input_node,
+                input::SURFACE_TEXTURE,
+                node::HDR,
                 TextureNode::TEXTURE,
             )
             .unwrap();

@@ -184,12 +184,12 @@ fn vert(in: VertexInput) -> VertexOutput {
 	out.w_position = position.xyz;
 
 	let normal = transform * vec4<f32>(in.normal, 0.0);
-	out.w_normal = normal.xyz;
+	out.w_normal = normalize(normal.xyz);
 
 	let tangent = transform * vec4<f32>(in.tangent.xyz, 0.0);
-	out.w_tangent = tangent.xyz;
+	out.w_tangent = normalize(tangent.xyz);
 
-	out.w_bitangent = cross(normal.xyz, tangent.xyz) * tangent.w;
+	out.w_bitangent = normalize(cross(normal.xyz, tangent.xyz));
 
 	out.uv = in.uv;
 
@@ -423,6 +423,7 @@ fn d_shadow(
 	index: i32,
 	position: vec3<f32>,
 	normal: vec3<f32>,
+	noise: f32,
 ) -> f32 {
 	let light = lights.directional_lights[index];
 
@@ -446,8 +447,7 @@ fn d_shadow(
 	let z = light_space.z;
 	let z_vs = z_clip_to_eye(z, light.near, light.far);
 
-	let n = noise(position);
-	let angle = n * 2.0 * PI;
+	let angle = noise * 2.0 * PI;
 
 	let trig = vec2<f32>(cos(angle), sin(angle));
 
@@ -519,17 +519,20 @@ fn frag(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 
 	n = tbn * (normal_map.xyz * 2.0 - 1.0);
 
+	let noise = noise(in.position.xyz);
+
 	var light = lights.ambient.rgb;
 
 	for (var i = 0; i < i32(lights.directional_light_count); i = i + 1) {	
-		let shadow = d_shadow(i, in.w_position, n);
+		let shadow = d_shadow(i, in.w_position, n, noise);
 
 		light = light + directional_light(i, n, v, f0, color, roughness, metallic) * shadow;
 	}
 
-	var lit_color = color * light;
-	lit_color = lit_color / (lit_color + 1.0);
-	lit_color = pow(lit_color, vec3<f32>(1.0 / 2.2));
+	light = light + material.emission.rgb;
+	let emission = textureSample(emission_texture, emission_sampler, in.uv);
+	light = light + emission.rgb;
 
+	var lit_color = color * light;
 	return vec4<f32>(lit_color, 1.0); 
 }

@@ -6,7 +6,7 @@ use ike_math::Mat4;
 use ike_render::{
     include_wgsl, CompareFunction, DepthStencilState, IndexFormat, LoadOp, Mesh, MeshBinding,
     MeshBuffers, Operations, PipelineLayoutDescriptor, RawCamera, RenderContext, RenderDevice,
-    RenderGraphContext, RenderGraphResult, RenderNode, RenderPassDepthStencilAttachemnt,
+    RenderGraphContext, RenderGraphResult, RenderNode, RenderPassDepthStencilAttachment,
     RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RenderQueue, TextureFormat,
     TextureViewDescriptor, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
     VertexStepMode,
@@ -188,7 +188,7 @@ impl RenderNode for LightNode {
                 .begin_render_pass(&RenderPassDescriptor {
                     label: Some("ike_light_pass"),
                     color_attachments: &[],
-                    depth_stencil_attachment: Some(RenderPassDepthStencilAttachemnt {
+                    depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
                         view: view.raw(),
                         depth_ops: Some(Operations {
                             load: LoadOp::Clear(1.0),

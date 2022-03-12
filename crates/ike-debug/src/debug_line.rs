@@ -6,7 +6,7 @@ use ike_render::{
     include_wgsl, Buffer, BufferDescriptor, BufferUsages, Color, ColorTargetState, ColorWrites,
     CompareFunction, DepthStencilState, FragmentState, LoadOp, Operations, PrimitiveState,
     PrimitiveTopology, RawCamera, RenderContext, RenderDevice, RenderGraphContext,
-    RenderGraphResult, RenderNode, RenderPassColorAttachment, RenderPassDepthStencilAttachemnt,
+    RenderGraphResult, RenderNode, RenderPassColorAttachment, RenderPassDepthStencilAttachment,
     RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, SlotInfo, Surface,
     TextureFormat, TextureView, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
     VertexStepMode,
@@ -218,7 +218,7 @@ impl RenderNode for DebugLineNode {
                         store: true,
                     },
                 }],
-                depth_stencil_attachment: Some(RenderPassDepthStencilAttachemnt {
+                depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
                     view: depth.raw(),
                     stencil_ops: None,
                     depth_ops: Some(Operations {

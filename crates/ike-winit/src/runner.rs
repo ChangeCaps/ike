@@ -3,7 +3,7 @@ use ike_app::{App, AppRunner};
 use ike_ecs::Events;
 use ike_input::{KeyboardInput, MouseButtonInput};
 use ike_math::Vec2;
-use ike_render::{wgpu, RenderDevice, RenderQueue, Surface};
+use ike_render::{RenderDevice, RenderQueue, Surface};
 use winit::{
     event::{DeviceEvent, Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},

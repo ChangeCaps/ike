@@ -6,6 +6,7 @@ mod event;
 mod query;
 mod schedule;
 mod system;
+mod type_registry;
 mod world;
 
 pub use borrow::*;
@@ -14,4 +15,5 @@ pub use event::*;
 pub use query::*;
 pub use schedule::*;
 pub use system::*;
+pub use type_registry::*;
 pub use world::*;

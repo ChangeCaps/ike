@@ -4,7 +4,7 @@ use std::{
     mem, ptr,
 };
 
-use crate::{AtomicBorrow, ChangeTick, ComponentTicks};
+use crate::{AtomicBorrow, ChangeTick, ComponentTicks, TypeRegistry};
 pub use ike_macro::Component;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -14,6 +14,8 @@ pub enum ComponentStorageKind {
 
 pub trait Component: Sized + Send + Sync + 'static {
     type Storage: ComponentStorage;
+
+    fn register(_type_registry: &mut TypeRegistry) {}
 }
 
 pub trait ComponentStorage {

@@ -32,13 +32,17 @@ impl Plugin for PbrPlugin {
             .unwrap();
 
         render_graph
+            .add_node_edge(node::PBR_NODE, ike_post_processing::node::DEPENDENCIES)
+            .unwrap();
+
+        render_graph
             .add_node_edge(node::PBR_NODE, ike_debug::node::DEBUG_LINE)
             .unwrap();
 
         render_graph
             .add_slot_edge(
-                input_node,
-                input::SURFACE_TEXTURE,
+                ike_render::node::HDR,
+                TextureNode::TEXTURE,
                 node::PBR_NODE,
                 PbrNode::RENDER_TARGET,
             )

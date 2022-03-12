@@ -10,7 +10,7 @@ use ike_render::{
     FragmentState, Image, ImageTexture, IndexFormat, LoadOp, Mesh, MeshBinding, MeshBuffers,
     MultisampleState, Operations, PipelineLayout, PipelineLayoutDescriptor, RawCamera, RawColor,
     RenderContext, RenderDevice, RenderGraphContext, RenderNode, RenderPassColorAttachment,
-    RenderPassDepthStencilAttachemnt, RenderPassDescriptor, RenderPipeline,
+    RenderPassDepthStencilAttachment, RenderPassDescriptor, RenderPipeline,
     RenderPipelineDescriptor, RenderQueue, SamplerBindingType, ShaderStages, SlotInfo,
     TextureFormat, TextureSampleType, TextureView, TextureViewDimension, VertexAttribute,
     VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
@@ -25,6 +25,7 @@ pub struct PbrResources {
     pub pipeline_layout: PipelineLayout,
     pub render_pipeline: RenderPipeline,
     pub default_normal_map: ImageTexture,
+    pub default_emission_image: ImageTexture,
     pub default_image: ImageTexture,
 }
 
@@ -217,7 +218,7 @@ impl FromWorld for PbrResources {
                 module,
                 entry_point: "frag",
                 targets: &[ColorTargetState {
-                    format: TextureFormat::Bgra8UnormSrgb,
+                    format: TextureFormat::Rgba32Float,
                     blend: None,
                     write_mask: ColorWrites::ALL,
                 }],
@@ -238,6 +239,9 @@ impl FromWorld for PbrResources {
         });
 
         let default_image = Image::default().create_texture(&device, &queue);
+        let default_emission_image =
+            Image::new_2d_with_format(vec![0; 4], 1, 1, TextureFormat::Rgba8Unorm)
+                .create_texture(&device, &queue);
         let default_normal_map =
             Image::new_2d_with_format(vec![127, 127, 255, 0], 1, 1, TextureFormat::Rgba8Unorm)
                 .create_texture(&device, &queue);
@@ -248,6 +252,7 @@ impl FromWorld for PbrResources {
             pipeline_layout,
             render_pipeline,
             default_normal_map,
+            default_emission_image,
             default_image,
         }
     }
@@ -345,11 +350,16 @@ impl RenderNode for PbrNode {
                     view: msaa_texture.raw(),
                     resolve_target: Some(target.raw()),
                     ops: Operations {
-                        load: LoadOp::Clear(RawColor::BLACK),
+                        load: LoadOp::Clear(RawColor {
+                            r: 0.2,
+                            g: 0.3,
+                            b: 0.7,
+                            a: 1.0,
+                        }),
                         store: true,
                     },
                 }],
-                depth_stencil_attachment: Some(RenderPassDepthStencilAttachemnt {
+                depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
                     view: depth.raw(),
                     depth_ops: Some(Operations {
                         load: LoadOp::Clear(1.0),

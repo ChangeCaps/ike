@@ -149,12 +149,13 @@ fn setup(
 
     let mesh = meshes.add(Mesh::cube(Vec3::ONE));
     let material = materials.add(PbrMaterial {
-        base_color_texture: Some(image),
+        base_color_texture: Some(image.clone()),
         ..Default::default()
     });
 
     let selected = materials.add(PbrMaterial {
-        base_color: Color::BLUE,
+        base_color_texture: Some(image),
+        emission: Color::rgb(0.7, 0.1, 0.0) * 10.0,
         ..Default::default()
     });
 

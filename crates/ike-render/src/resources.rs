@@ -27,10 +27,13 @@ pub type CompareFunction = wgpu::CompareFunction;
 pub type CommandEncoder = wgpu::CommandEncoder;
 pub type CommandBuffer = wgpu::CommandBuffer;
 pub type CommandEncoderDescriptor<'a> = wgpu::CommandEncoderDescriptor<'a>;
+pub type ImageCopyTexture<'a> = wgpu::ImageCopyTexture<'a>;
+pub type ImageCopyBuffer<'a> = wgpu::ImageCopyBuffer<'a>;
+pub type Origin3d = wgpu::Origin3d;
 pub type RenderPass<'a> = wgpu::RenderPass<'a>;
 pub type RenderPassDescriptor<'a, 'b> = wgpu::RenderPassDescriptor<'a, 'b>;
 pub type RenderPassColorAttachment<'a> = wgpu::RenderPassColorAttachment<'a>;
-pub type RenderPassDepthStencilAttachemnt<'a> = wgpu::RenderPassDepthStencilAttachment<'a>;
+pub type RenderPassDepthStencilAttachment<'a> = wgpu::RenderPassDepthStencilAttachment<'a>;
 pub type IndexFormat = wgpu::IndexFormat;
 pub type Operations<T> = wgpu::Operations<T>;
 pub type LoadOp<T> = wgpu::LoadOp<T>;
@@ -46,12 +49,16 @@ pub type BufferBindingType = wgpu::BufferBindingType;
 pub type BindingResource<'a> = wgpu::BindingResource<'a>;
 pub type SamplerBindingType = wgpu::SamplerBindingType;
 pub type ShaderStages = wgpu::ShaderStages;
+pub type StorageTextureAccess = wgpu::StorageTextureAccess;
 pub type TextureSampleType = wgpu::TextureSampleType;
 pub type TextureViewDimension = wgpu::TextureViewDimension;
 pub type PipelineLayout = wgpu::PipelineLayout;
 pub type PipelineLayoutDescriptor<'a> = wgpu::PipelineLayoutDescriptor<'a>;
 pub type RenderPipeline = wgpu::RenderPipeline;
 pub type RenderPipelineDescriptor<'a> = wgpu::RenderPipelineDescriptor<'a>;
+pub type BlendComponent = wgpu::BlendComponent;
+pub type BlendFactor = wgpu::BlendFactor;
+pub type BlendOperation = wgpu::BlendOperation;
 pub type DepthStencilState = wgpu::DepthStencilState;
 pub type StencilState = wgpu::StencilState;
 pub type DepthBiasState = wgpu::DepthBiasState;
@@ -72,6 +79,10 @@ pub type PolygonMode = wgpu::PolygonMode;
 pub type FrontFace = wgpu::FrontFace;
 pub type ShaderModule = wgpu::ShaderModule;
 pub type ShaderModuleDescriptor<'a> = wgpu::ShaderModuleDescriptor<'a>;
+pub type ComputePipeline = wgpu::ComputePipeline;
+pub type ComputePipelineDescriptor<'a> = wgpu::ComputePipelineDescriptor<'a>;
+pub type ComputePassDescriptor<'a> = wgpu::ComputePassDescriptor<'a>;
+pub type ComputePass<'a> = wgpu::ComputePass<'a>;
 
 pub type RawTexture = wgpu::Texture;
 pub type RawTextureView = wgpu::TextureView;
@@ -160,6 +171,10 @@ impl RenderDevice {
 
     pub fn create_render_pipeline(&self, desc: &RenderPipelineDescriptor<'_>) -> RenderPipeline {
         self.raw.create_render_pipeline(desc)
+    }
+
+    pub fn create_compute_pipeline(&self, desc: &ComputePipelineDescriptor<'_>) -> ComputePipeline {
+        self.raw.create_compute_pipeline(desc)
     }
 }
 

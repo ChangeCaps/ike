@@ -27,6 +27,7 @@ ike-math = { version = "0.1.0", path = "crates/ike-math" }
 ike-node = { version = "0.1.0", path = "crates/ike-node" }
 ike-pbr = { version = "0.1.0", path = "crates/ike-pbr", optional = true }
 ike-physics = { version = "0.1.0", path = "crates/ike-physics", optional = true }
+ike-post-processing = { version = "0.1.0", path = "crates/ike-post-processing", optional = true }
 ike-render = { version = "0.1.0", path = "crates/ike-render", optional = true }
 ike-task = { version = "0.1.0", path = "crates/ike-task" }
 ike-transform = { version = "0.1.0", path = "crates/ike-transform" }
@@ -40,6 +41,7 @@ trace = ["ike-app/trace", "ike-ecs/trace", "ike-render/trace", "ike-physics/trac
 tracy = ["trace", "ike-app/tracing-tracy", "ike-log/tracing-tracy"]
 gltf = ["ike-gltf"]
 physics = ["ike-physics", "ike-node/physics"]
+post-processing = ["ike-post-processing"]
 render = ["ike-render", "ike-node/render", "ike-debug/render"]
 light = ["ike-light", "render"]
-pbr = ["ike-pbr", "light", "render"]
+pbr = ["ike-pbr", "light", "render", "post-processing"]

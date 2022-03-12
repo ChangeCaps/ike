@@ -14,6 +14,8 @@ pub use ike_node as node;
 pub use ike_pbr as pbr;
 #[cfg(feature = "physics")]
 pub use ike_physics as physics;
+#[cfg(feature = "post-processing")]
+pub use ike_post_processing as post_processing;
 #[cfg(feature = "render")]
 pub use ike_render as render;
 pub use ike_task as task;
@@ -65,6 +67,8 @@ use node::NodePlugin;
 use pbr::PbrPlugin;
 #[cfg(feature = "physics")]
 use physics::PhysicsPlugin;
+#[cfg(feature = "post-processing")]
+use post_processing::PostProcessingPlugin;
 #[cfg(feature = "render")]
 use render::RenderPlugin;
 use transform::TransformPlugin;
@@ -82,6 +86,8 @@ impl Plugin for DefaultPlugins {
         app.add_plugin(WinitPlugin);
         #[cfg(feature = "render")]
         app.add_plugin(RenderPlugin);
+        #[cfg(feature = "post-processing")]
+        app.add_plugin(PostProcessingPlugin);
         app.add_plugin(DebugPlugin);
         #[cfg(feature = "physics")]
         app.add_plugin(PhysicsPlugin);
