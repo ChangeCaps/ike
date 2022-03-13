@@ -4,7 +4,7 @@ mod system;
 pub use component::*;
 
 use ike_app::{App, CoreStage, Plugin, StartupStage};
-use ike_ecs::{ParallelSystemCoercion, SystemLabel};
+use ike_ecs::{ParallelSystemCoercion, SystemLabel, UpdateParentSystem};
 use system::{add_global_transform_system, transform_propagate_system};
 
 #[derive(SystemLabel, Clone, Debug, Hash)]
@@ -24,7 +24,9 @@ impl Plugin for TransformPlugin {
         );
 
         app.add_system_to_stage(
-            add_global_transform_system.label(TransformSystem::AddComponents),
+            add_global_transform_system
+                .label(TransformSystem::AddComponents)
+                .after(UpdateParentSystem),
             CoreStage::PostUpdate,
         );
 
