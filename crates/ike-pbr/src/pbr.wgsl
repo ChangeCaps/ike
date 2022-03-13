@@ -481,7 +481,8 @@ fn directional_light(
 
 	let numerator = ndf * g * f;
 	let denominator = 4.0 * n_dot_v * n_dot_l + 0.0001;
-	let specular = numerator / denominator;
+	var specular = numerator / denominator;
+	specular = min(specular, vec3<f32>(8.0));
 
 	let kd = (vec3<f32>(1.0) - f) * (1.0 - metallic);
 
