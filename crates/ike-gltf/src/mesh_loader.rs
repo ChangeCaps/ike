@@ -172,6 +172,10 @@ impl<'a, 'b> GltfLoadContext<'a, 'b> {
                     *mesh.get_indices_mut() = indices.into_u32().collect();
                 }
 
+                if !mesh.contains_attribute(Mesh::TANGENT) {
+                    mesh.calculate_tangents();
+                }
+
                 let handle = self.load_context.add_asset(LoadedAsset::new(mesh));
 
                 primitives.push(GltfPrimitive {
