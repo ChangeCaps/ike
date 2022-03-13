@@ -26,6 +26,12 @@ impl<'w, 's> Node<'w, 's> {
         self.commands
     }
 
+    pub fn has_component<T: Component>(&self) -> bool {
+        self.world()
+            .entities()
+            .contains_component::<T>(&self.entity)
+    }
+
     #[track_caller]
     pub fn component<T: Component>(&self) -> Comp<'w, T> {
         self.world().component(&self.entity).unwrap()
@@ -74,12 +80,20 @@ impl<'w, 's> Node<'w, 's> {
     }
 
     #[track_caller]
-    pub fn get_node(&self, entity: &Entity) -> Node<'w, 's> {
+    pub fn node(&self, entity: &Entity) -> Node<'w, 's> {
         if !self.world.entities().entities().contains(entity) {
             panic!("invalid entity: {}", entity)
         }
 
         Node::new(*entity, self.world, self.commands)
+    }
+
+    pub fn get_node(&self, entity: &Entity) -> Option<Node<'w, 's>> {
+        if self.world.entities().entities().contains(entity) {
+            Some(Node::new(*entity, self.world, self.commands))
+        } else {
+            None
+        }
     }
 
     pub fn entity(&self) -> &Entity {
@@ -97,13 +111,25 @@ impl<'w, 's> Node<'w, 's> {
 
 #[cfg(feature = "physics")]
 impl<'w, 's> Node<'w, 's> {
+    /// Casts a [`Ray`](ike_physics::Ray) from `position` to `direction` excluding intersections with `self`.
     pub fn cast_ray(
         &self,
         position: ike_math::Vec3,
         direction: ike_math::Vec3,
-        length: Option<f32>,
     ) -> Option<ike_physics::RayHit> {
-        let ray_cast = ike_physics::RayCast::new(self.world());
-        ray_cast.cast_ray(position, direction, length)
+        let ray_cast = ike_physics::RayCaster::new(self.world());
+        ray_cast.cast_ray_exclude(position, direction, self.entity())
+    }
+
+    /// Casts a [`Ray`](ike_physics::Ray) from `position` to `direction` with a
+    /// max `length` excluding intersections with `self`.
+    pub fn cast_ray_length(
+        &self,
+        position: ike_math::Vec3,
+        direction: ike_math::Vec3,
+        length: f32,
+    ) -> Option<ike_physics::RayHit> {
+        let ray_cast = ike_physics::RayCaster::new(self.world());
+        ray_cast.cast_ray_length_exclude(position, direction, length, self.entity())
     }
 }

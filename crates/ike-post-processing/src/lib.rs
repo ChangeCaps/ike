@@ -52,10 +52,19 @@ impl Plugin for PostProcessingPlugin {
 
         render_graph
             .add_slot_edge(
+                ike_render::node::MSAA,
+                TextureNode::TEXTURE,
+                node::TONE_MAPPING,
+                ToneMappingNode::MSAA,
+            )
+            .unwrap();
+
+        render_graph
+            .add_slot_edge(
                 node::BLOOM,
                 BloomNode::OUTPUT,
                 node::TONE_MAPPING,
-                ToneMappingNode::HDR_TARGET,
+                ToneMappingNode::INPUT,
             )
             .unwrap();
 

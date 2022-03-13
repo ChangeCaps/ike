@@ -72,6 +72,14 @@ impl Player {
 
         let child = node.child(0);
 
+        let is_grounded = node
+            .cast_ray_length(transform.translation, -Vec3::Y, 0.6)
+            .is_some();
+
+        if key_input.pressed(&Key::Space) && is_grounded {
+            rigid_body.linear_velocity.y += 5.0;
+        }
+
         let child_global_transform = child.component::<GlobalTransform>();
         let mut child_transform = child.component_mut::<Transform>();
         child_transform.rotation = Quat::from_rotation_x(self.camera_angle.y);
@@ -79,16 +87,16 @@ impl Player {
         if let Some(hit) = node.cast_ray(
             child_global_transform.translation,
             -child_global_transform.local_z(),
-            None,
         ) {
             let materials = node.resource::<Materials>();
 
             if let Some(selected) = self.selected {
-                let selected_node = node.get_node(&selected);
-                selected_node.insert(materials.rock.clone());
+                if let Some(selected_node) = node.get_node(&selected) {
+                    selected_node.insert(materials.rock.clone());
+                }
             }
 
-            let hit_node = node.get_node(&hit.entity);
+            let hit_node = node.node(&hit.entity);
             hit_node.insert(materials.selected.clone());
 
             self.selected = Some(hit.entity);
@@ -96,8 +104,9 @@ impl Player {
             let materials = node.resource::<Materials>();
 
             if let Some(selected) = self.selected.take() {
-                let selected_node = node.get_node(&selected);
-                selected_node.insert(materials.rock.clone());
+                if let Some(selected_node) = node.get_node(&selected) {
+                    selected_node.insert(materials.rock.clone());
+                }
             }
         }
     }
@@ -107,13 +116,13 @@ fn spawn_player(commands: &Commands) {
     commands
         .spawn()
         .insert(Transform::from_xyz(0.0, 1.0, 0.0))
-        .insert(RigidBody::dynamic())
-        .insert(BoxCollider::new(Vec3::ONE))
+        .insert(RigidBody::dynamic().with_rotation_lock(true))
+        .insert(Collider::capsule(Vec3::ZERO, Vec3::Y * 2.0, 0.3))
         .insert(Player::default())
         .with_children(|parent| {
             parent
                 .spawn()
-                .insert(Transform::from_xyz(0.0, 1.0, 0.0))
+                .insert(Transform::from_xyz(0.0, 2.0, 0.0))
                 .insert(GlobalTransform::default())
                 .insert(Camera::default());
         });
@@ -155,7 +164,7 @@ fn setup(
 
     let selected = materials.add(PbrMaterial {
         base_color_texture: Some(image),
-        emission: Color::rgb(0.7, 0.1, 0.0) * 10.0,
+        emission: Color::rgb(0.7, 0.1, 0.0) * 20.0,
         ..Default::default()
     });
 
@@ -170,13 +179,13 @@ fn setup(
         .insert(mesh.clone())
         .insert(material.clone())
         .insert(RigidBody::kinematic())
-        .insert(BoxCollider::new(Vec3::ONE));
+        .insert(Collider::cube(Vec3::new(100.0, 1.0, 100.0)));
 
     spawn_player(&commands);
 
-    for x in -3..=3 {
-        for y in -3..=3 {
-            for z in -3..=3 {
+    for x in -5..=5 {
+        for y in -5..=5 {
+            for z in -5..=5 {
                 commands
                     .spawn()
                     .insert(
@@ -190,7 +199,7 @@ fn setup(
                     .insert(mesh.clone())
                     .insert(material.clone())
                     .insert(RigidBody::dynamic())
-                    .insert(BoxCollider::new(Vec3::ONE))
+                    .insert(Collider::cube(Vec3::ONE / 2.2))
                     .insert(Garbage);
             }
         }

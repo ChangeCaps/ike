@@ -6,8 +6,8 @@ use ike_render::{
     include_wgsl, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, Buffer,
     BufferBindingType, BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites,
-    FragmentState, LoadOp, Operations, PipelineLayoutDescriptor, RenderContext, RenderDevice,
-    RenderGraphContext, RenderGraphResult, RenderNode, RenderPassColorAttachment,
+    FragmentState, LoadOp, MultisampleState, Operations, PipelineLayoutDescriptor, RenderContext,
+    RenderDevice, RenderGraphContext, RenderGraphResult, RenderNode, RenderPassColorAttachment,
     RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, Sampler, SamplerBindingType,
     ShaderStages, SlotInfo, TextureFormat, TextureSampleType, TextureView, TextureViewDimension,
     TextureViewId, VertexState,
@@ -85,7 +85,10 @@ impl FromWorld for ToneMappingPipeline {
             }),
             depth_stencil: None,
             primitive: Default::default(),
-            multisample: Default::default(),
+            multisample: MultisampleState {
+                count: 4,
+                ..Default::default()
+            },
             multiview: None,
         });
 
@@ -155,14 +158,16 @@ pub struct ToneMappingNode {
 }
 
 impl ToneMappingNode {
-    pub const HDR_TARGET: &'static str = "hdr_target";
+    pub const MSAA: &'static str = "msaa";
+    pub const INPUT: &'static str = "input";
     pub const TARGET: &'static str = "target";
 }
 
 impl RenderNode for ToneMappingNode {
     fn input() -> Vec<SlotInfo> {
         vec![
-            SlotInfo::new::<TextureView>(Self::HDR_TARGET),
+            SlotInfo::new::<TextureView>(Self::MSAA),
+            SlotInfo::new::<TextureView>(Self::INPUT),
             SlotInfo::new::<TextureView>(Self::TARGET),
         ]
     }
@@ -173,18 +178,19 @@ impl RenderNode for ToneMappingNode {
         render_context: &mut RenderContext,
         world: &World,
     ) -> RenderGraphResult<()> {
-        let hdr_target = graph_context.get_input::<TextureView>(Self::HDR_TARGET)?;
+        let msaa = graph_context.get_input::<TextureView>(Self::MSAA)?;
+        let input = graph_context.get_input::<TextureView>(Self::INPUT)?;
         let target = graph_context.get_input::<TextureView>(Self::TARGET)?;
         let pipeline = world.resource::<ToneMappingPipeline>();
 
         let recreate_binding = self
             .binding
             .as_ref()
-            .map_or(true, |binding| binding.id != hdr_target.id());
+            .map_or(true, |binding| binding.id != input.id());
 
         if recreate_binding {
             self.binding = Some(HdrTargetBinding::new(
-                hdr_target,
+                input,
                 &pipeline,
                 &render_context.device,
             ));
@@ -197,8 +203,8 @@ impl RenderNode for ToneMappingNode {
             .begin_render_pass(&RenderPassDescriptor {
                 label: Some("ike_tone_mapping_pass"),
                 color_attachments: &[RenderPassColorAttachment {
-                    view: target.raw(),
-                    resolve_target: None,
+                    view: msaa.raw(),
+                    resolve_target: Some(target.raw()),
                     ops: Operations {
                         load: LoadOp::Load,
                         store: true,

@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     Access, ChangeTick, CommandQueue, Commands, Fetch, FromWorld, Query, QueryFilter, Res, ResMut,
-    Resource, SystemAccess, World, WorldQuery,
+    Resource, SystemAccess, TypeRegistry, World, WorldQuery,
 };
 
 pub use ike_macro::SystemParam;
@@ -24,6 +24,8 @@ pub trait SystemParamFetch<'w, 's>: Sized + Send + Sync {
     fn get(&'s mut self, world: &'w World, last_change_tick: ChangeTick) -> Self::Item;
 
     fn apply(self, _world: &mut World) {}
+
+    fn register_types(_type_registry: &mut TypeRegistry);
 }
 
 pub struct Local<'a, T>(&'a mut T);
@@ -60,6 +62,8 @@ impl<'w, 's, T: Resource + FromWorld> SystemParamFetch<'w, 's> for LocalState<T>
     fn get(&'s mut self, _: &'w World, _: ChangeTick) -> Self::Item {
         Local(&mut self.0)
     }
+
+    fn register_types(_type_registry: &mut TypeRegistry) {}
 }
 
 impl<'w, 's> SystemParam for Commands<'w, 's> {
@@ -84,6 +88,8 @@ impl<'w, 's> SystemParamFetch<'w, 's> for CommandsFetch {
     fn apply(self, world: &mut World) {
         self.0.apply(world);
     }
+
+    fn register_types(_type_registry: &mut TypeRegistry) {}
 }
 
 impl<'w, Q: WorldQuery, F: QueryFilter> SystemParam for Query<'w, Q, F> {
@@ -107,6 +113,11 @@ impl<'w, 's, Q: WorldQuery, F: QueryFilter> SystemParamFetch<'w, 's> for QueryFe
         Query::new(world, last_change_tick)
             .expect("failed to borrow components for query, internal error")
     }
+
+    fn register_types(type_registry: &mut TypeRegistry) {
+        Q::Fetch::register_types(type_registry);
+        Q::ReadOnlyFetch::register_types(type_registry);
+    }
 }
 
 impl<'w, T: Resource> SystemParam for Res<'w, T> {
@@ -129,6 +140,8 @@ impl<'w, 's, T: Resource> SystemParamFetch<'w, 's> for ResFetch<T> {
     fn get(&'s mut self, world: &'w World, _last_change_tick: ChangeTick) -> Self::Item {
         world.resource()
     }
+
+    fn register_types(_type_registry: &mut TypeRegistry) {}
 }
 
 impl<'w, T: Resource> SystemParam for ResMut<'w, T> {
@@ -151,6 +164,8 @@ impl<'w, 's, T: Resource> SystemParamFetch<'w, 's> for ResMutFetch<T> {
     fn get(&'s mut self, world: &'w World, _last_change_tick: ChangeTick) -> Self::Item {
         world.resource_mut()
     }
+
+    fn register_types(_type_registry: &mut TypeRegistry) {}
 }
 
 macro_rules! impl_system_param {
@@ -184,6 +199,10 @@ macro_rules! impl_system_param {
                 let ($($name,)*) = self;
 
                 $($name.apply(world);)*
+            }
+
+            fn register_types(type_registry: &mut TypeRegistry) {
+                $($name::register_types(type_registry);)*
             }
         }
 

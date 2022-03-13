@@ -1,6 +1,6 @@
 use crate::{
     ExclusiveSystem, ExclusiveSystemDescriptor, ExclusiveSystemFn, IntoSystem, ParallelSystem,
-    SystemLabel, SystemParam, World,
+    SystemLabel, SystemParam, SystemParamFetch, TypeRegistry, World,
 };
 
 pub enum SystemDescriptor {
@@ -10,14 +10,21 @@ pub enum SystemDescriptor {
 
 pub trait IntoSystemDescriptor<Params> {
     fn into_descriptor(self) -> SystemDescriptor;
+
+    fn register_types(&self, type_registry: &mut TypeRegistry);
 }
 
 impl<Params, F> IntoSystemDescriptor<Params> for F
 where
     F: IntoSystem<Params>,
+    Params: SystemParam,
 {
     fn into_descriptor(self) -> SystemDescriptor {
         SystemDescriptor::Parallel(ParallelSystem::new(self.system()))
+    }
+
+    fn register_types(&self, type_registry: &mut TypeRegistry) {
+        <Params::Fetch as SystemParamFetch>::register_types(type_registry);
     }
 }
 
@@ -28,17 +35,30 @@ where
     fn into_descriptor(self) -> SystemDescriptor {
         SystemDescriptor::Exclusive(ExclusiveSystemDescriptor::new(self))
     }
+
+    fn register_types(&self, _type_registry: &mut TypeRegistry) {}
 }
 
 impl IntoSystemDescriptor<()> for SystemDescriptor {
     fn into_descriptor(self) -> SystemDescriptor {
         self
     }
+
+    fn register_types(&self, type_registry: &mut TypeRegistry) {
+        match self {
+            Self::Parallel(parallel) => parallel.system.register_types(type_registry),
+            Self::Exclusive(_) => {}
+        }
+    }
 }
 
 impl IntoSystemDescriptor<()> for ParallelSystem {
     fn into_descriptor(self) -> SystemDescriptor {
         SystemDescriptor::Parallel(self)
+    }
+
+    fn register_types(&self, type_registry: &mut TypeRegistry) {
+        self.system.register_types(type_registry);
     }
 }
 

@@ -1,6 +1,6 @@
 use std::{any::type_name, borrow::Cow};
 
-use crate::{ChangeTick, System, SystemAccess, SystemParam, SystemParamFetch, World};
+use crate::{ChangeTick, System, SystemAccess, SystemParam, SystemParamFetch, TypeRegistry, World};
 
 pub trait SystemParamFn<Params: SystemParam>: Send + Sync + 'static {
     fn access() -> SystemAccess;
@@ -84,6 +84,10 @@ where
     fn apply(&mut self, world: &mut World) {
         let state = self.state.take().expect("init not run for FnSystem");
         state.apply(world);
+    }
+
+    fn register_types(&self, type_registry: &mut TypeRegistry) {
+        Params::Fetch::register_types(type_registry);
     }
 }
 

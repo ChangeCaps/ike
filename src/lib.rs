@@ -44,7 +44,7 @@ pub mod prelude {
     #[cfg(feature = "pbr")]
     pub use ike_pbr::PbrMaterial;
     #[cfg(feature = "physics")]
-    pub use ike_physics::{BoxCollider, Collision, DebugCollider, Gravity, RigidBody};
+    pub use ike_physics::{Collider, Collision, Gravity, RigidBody};
     #[cfg(feature = "render")]
     pub use ike_render::{
         Camera, Color, Mesh, RawCamera, RenderContext, RenderDevice, RenderGraph,

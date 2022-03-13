@@ -1,5 +1,5 @@
 use bytemuck::{cast_slice, cast_slice_mut, cast_vec};
-use ike_math::{Vec2, Vec3, Vec4};
+use ike_math::{Vec2, Vec3, Vec4, Vec4Swizzles};
 use std::borrow::Cow;
 
 use crate::{Buffer, BufferInitDescriptor, BufferUsages, Color, RenderDevice};
@@ -161,7 +161,7 @@ impl Mesh {
         let positions = self.get_attribute(Mesh::POSITION).unwrap();
         let uvs = self.get_attribute(Mesh::UV_0).unwrap();
 
-        let mut tangents = Vec::with_capacity(positions.len());
+        let mut tangents = vec![Vec4::ZERO; positions.len()];
 
         for i in 0..self.indices.len() / 3 {
             let i0 = self.indices[i * 3 + 0] as usize;
@@ -184,8 +184,15 @@ impl Mesh {
 
             let r = 1.0 / (du1.x * du2.y - du1.y * du2.x);
             let tangent = (dp1 * du2.y - dp2 * du1.y) * r;
+            let tangent = tangent.extend(1.0);
 
-            tangents.push(tangent.normalize().extend(1.0));
+            tangents[i0] += tangent;
+            tangents[i1] += tangent;
+            tangents[i2] += tangent;
+        }
+
+        for tangent in tangents.iter_mut() {
+            *tangent = tangent.xyz().normalize_or_zero().extend(1.0);
         }
 
         self.insert_attribute(Mesh::TANGENT, tangents);

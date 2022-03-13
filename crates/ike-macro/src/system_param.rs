@@ -17,6 +17,7 @@ pub fn derive_system_param(input: proc_macro::TokenStream) -> proc_macro::TokenS
     let fetch_init = fetch_init(&input.data);
     let fetch_access = fetch_access(&input.data);
     let fetch_get = fetch_get(&input.data);
+    let register_types = register_types(&input.data);
 
     let generics = input.generics.clone();
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
@@ -63,6 +64,12 @@ pub fn derive_system_param(input: proc_macro::TokenStream) -> proc_macro::TokenS
                 #ident {
                     #fetch_get
                 }
+            }
+
+            fn apply(self, world: &mut #ike_ecs::World) {}
+
+            fn register_types(type_registry: &mut #ike_ecs::TypeRegistry) {
+                #register_types
             }
         }
 
@@ -160,6 +167,30 @@ fn fetch_get(data: &Data) -> TokenStream {
 
                     quote! {
                         #ident: <#ty as #ike_ecs::SystemParam>::Fetch::get(&mut self.#ident, world, last_change_tick),
+                    }
+                });
+
+                quote! {
+                    #(#fields)*
+                }
+            }
+            _ => unimplemented!(),
+        },
+        _ => unimplemented!(),
+    }
+}
+
+fn register_types(data: &Data) -> TokenStream {
+    let ike_ecs = get_ike("ecs");
+
+    match data {
+        Data::Struct(data) => match data.fields {
+            Fields::Named(ref named) => {
+                let fields = named.named.iter().map(|field| {
+                    let ty = &field.ty;
+
+                    quote! {
+                        <#ty as #ike_ecs::SystemParam>::Fetch::register_types(type_registry);
                     }
                 });
 

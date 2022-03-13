@@ -8,13 +8,13 @@ use rapier3d::{
     na::{ArrayStorage, Quaternion, Unit, UnitQuaternion, Vector3},
     prelude::{
         ActiveEvents, ColliderBuilder, ColliderSet, ContactEvent, JointSet, QueryPipeline,
-        RigidBodyBuilder, RigidBodySet, SharedShape,
+        RigidBodyBuilder, RigidBodySet,
     },
 };
 
 use crate::{
-    BoxCollider, ColliderHandle, Colliders, Collision, Gravity, PhysicsWorld, RigidBodies,
-    RigidBody, RigidBodyHandle,
+    Collider, ColliderHandle, Colliders, Collision, Gravity, PhysicsWorld, RigidBodies, RigidBody,
+    RigidBodyHandle,
 };
 
 #[inline]
@@ -67,24 +67,17 @@ pub fn add_rigid_bodies(
     }
 }
 
-pub fn add_box_colliders(
+pub fn add_colliders(
     commands: Commands,
     mut collider_set: ResMut<ColliderSet>,
     mut rigid_body_set: ResMut<RigidBodySet>,
     mut colliders: ResMut<Colliders>,
-    query: Query<
-        (Entity, &BoxCollider, &GlobalTransform, &RigidBodyHandle),
-        Without<ColliderHandle>,
-    >,
+    query: Query<(Entity, &Collider, &RigidBodyHandle), Without<ColliderHandle>>,
 ) {
-    for (entity, box_collider, transform, rigid_body_handle) in query.iter() {
-        let collider = ColliderBuilder::cuboid(
-            box_collider.size.x / 2.0 * transform.scale.x,
-            box_collider.size.y / 2.0 * transform.scale.y,
-            box_collider.size.z / 2.0 * transform.scale.z,
-        )
-        .active_events(ActiveEvents::CONTACT_EVENTS)
-        .build();
+    for (entity, collider, rigid_body_handle) in query.iter() {
+        let collider = ColliderBuilder::new(collider.to_shape())
+            .active_events(ActiveEvents::CONTACT_EVENTS)
+            .build();
 
         let handle =
             collider_set.insert_with_parent(collider, rigid_body_handle.0, &mut rigid_body_set);
@@ -125,24 +118,25 @@ pub fn set_rigid_bodies(
         rb.set_linear_damping(rigid_body.linear_dampening);
         rb.set_angular_damping(rigid_body.angular_dampening);
         rb.enable_ccd(rigid_body.continuous);
+        rb.lock_translations(rigid_body.lock_translation, true);
+        rb.restrict_rotations(
+            rigid_body.lock_rotation.x,
+            rigid_body.lock_rotation.y,
+            rigid_body.lock_rotation.z,
+            true,
+        );
     }
 }
 
-pub fn set_box_colliders(
+pub fn set_colliders(
     mut collider_set: ResMut<ColliderSet>,
-    query: Query<
-        (&GlobalTransform, &BoxCollider, &ColliderHandle),
-        Or<Changed<GlobalTransform>, Changed<BoxCollider>>,
-    >,
+    query: Query<(&Collider, &ColliderHandle), Changed<Collider>>,
 ) {
-    for (transform, box_collider, collider_handle) in query.iter() {
-        let collider = collider_set.get_mut(collider_handle.0).unwrap();
+    for (collider, collider_handle) in query.iter() {
+        let shape = collider.to_shape();
 
-        collider.set_shape(SharedShape::cuboid(
-            box_collider.size.x / 2.0 * transform.scale.x,
-            box_collider.size.y / 2.0 * transform.scale.y,
-            box_collider.size.z / 2.0 * transform.scale.z,
-        ));
+        let collider = collider_set.get_mut(collider_handle.0).unwrap();
+        collider.set_shape(shape);
     }
 }
 

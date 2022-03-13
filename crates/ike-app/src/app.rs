@@ -2,7 +2,7 @@ use std::mem;
 
 use ike_ecs::{
     update_parent_system, Events, FromWorld, IntoSystemDescriptor, Resource, Schedule, StageLabel,
-    World,
+    TypeRegistry, World,
 };
 
 use crate::{AppRunner, Plugin, RunOnce};
@@ -44,6 +44,8 @@ impl App {
     /// [`stage::POST_UPDATE`] and [`startup_stage::POST_STARTUP`].
     pub fn new() -> Self {
         let mut app = Self::empty();
+
+        app.init_resource::<TypeRegistry>();
 
         app.add_default_stages();
 
@@ -124,6 +126,11 @@ impl App {
         self
     }
 
+    pub fn register_system<Params>(&self, system: &impl IntoSystemDescriptor<Params>) {
+        let mut type_registry = self.world.resource_mut::<TypeRegistry>();
+        system.register_types(&mut type_registry);
+    }
+
     /// Adds a new stage before `before`.
     ///
     /// # Panics
@@ -149,7 +156,7 @@ impl App {
         self
     }
 
-    /// Adds a [`System`] to `stage`.
+    /// Adds a [`ike_ecs::System`] to `stage`.
     ///
     /// # Panics
     /// - Panics if `stage` doesn't exist.
@@ -159,16 +166,18 @@ impl App {
         system: impl IntoSystemDescriptor<Params>,
         stage: impl StageLabel,
     ) -> &mut Self {
+        self.register_system(&system);
         self.schedule.add_system_to_stage(system, stage).unwrap();
 
         self
     }
 
-    /// Adds a [`System`] to [`CoreStage::Update`].
+    /// Adds a [`ike_ecs::System`] to [`CoreStage::Update`].
     ///
     /// # Panics
     /// - Panics if [`CoreStage::Update`] doesn't exist.
     pub fn add_system<Params>(&mut self, system: impl IntoSystemDescriptor<Params>) -> &mut Self {
+        self.register_system(&system);
         self.add_system_to_stage(system, CoreStage::Update);
 
         self
@@ -179,22 +188,24 @@ impl App {
         system: impl IntoSystemDescriptor<Params>,
         stage: impl StageLabel,
     ) -> &mut Self {
+        self.register_system(&system);
         self.startup.add_system_to_stage(system, stage).unwrap();
 
         self
     }
 
-    /// Adds a startup [`System`].
+    /// Adds a startup [`ike_ecs::System`].
     pub fn add_startup_system<Params>(
         &mut self,
         system: impl IntoSystemDescriptor<Params>,
     ) -> &mut Self {
+        self.register_system(&system);
         self.add_startup_system_to_stage(system, StartupStage::Startup);
 
         self
     }
 
-    /// Executes startup [`System`]s and runs `self.runner` if present.
+    /// Executes startup [`ike_ecs::System`]s and runs `self.runner` if present.
     pub fn run(&mut self) {
         self.startup.execute(&mut self.world);
 

@@ -1,11 +1,13 @@
 use std::marker::PhantomData;
 
-use crate::{ChangeTick, ChangeTicks, Component, Entity, EntitySet, World};
+use crate::{ChangeTick, ChangeTicks, Component, Entity, EntitySet, TypeRegistry, World};
 
 pub trait QueryFilter {
     fn entities(world: &World) -> Option<&EntitySet>;
 
     fn filter(world: &World, entity: &Entity, last_change_tick: ChangeTick) -> bool;
+
+    fn register_types(type_registry: &mut TypeRegistry);
 }
 
 impl QueryFilter for () {
@@ -16,6 +18,8 @@ impl QueryFilter for () {
     fn filter(_world: &World, _entity: &Entity, _last_change_tick: ChangeTick) -> bool {
         true
     }
+
+    fn register_types(_type_registry: &mut TypeRegistry) {}
 }
 
 pub struct Changed<T>(PhantomData<fn() -> T>);
@@ -31,6 +35,10 @@ impl<T: Component> QueryFilter for Changed<T> {
         } else {
             false
         }
+    }
+
+    fn register_types(type_registry: &mut TypeRegistry) {
+        type_registry.insert_registration::<T>(T::type_registration());
     }
 }
 
@@ -48,6 +56,10 @@ impl<T: Component> QueryFilter for Added<T> {
             false
         }
     }
+
+    fn register_types(type_registry: &mut TypeRegistry) {
+        type_registry.insert_registration::<T>(T::type_registration());
+    }
 }
 
 pub struct With<T>(PhantomData<fn() -> T>);
@@ -60,6 +72,10 @@ impl<T: Component> QueryFilter for With<T> {
     fn filter(world: &World, entity: &Entity, _last_change_tick: ChangeTick) -> bool {
         world.entities().contains_component::<T>(entity)
     }
+
+    fn register_types(type_registry: &mut TypeRegistry) {
+        type_registry.insert_registration::<T>(T::type_registration());
+    }
 }
 
 pub struct Without<T>(PhantomData<fn() -> T>);
@@ -71,6 +87,10 @@ impl<T: Component> QueryFilter for Without<T> {
 
     fn filter(world: &World, entity: &Entity, _last_change_tick: ChangeTick) -> bool {
         !world.entities().contains_component::<T>(entity)
+    }
+
+    fn register_types(type_registry: &mut TypeRegistry) {
+        type_registry.insert_registration::<T>(T::type_registration());
     }
 }
 
@@ -96,6 +116,11 @@ impl<T: QueryFilter, U: QueryFilter> QueryFilter for Or<T, U> {
     fn filter(world: &World, entity: &Entity, last_change_tick: ChangeTick) -> bool {
         T::filter(world, entity, last_change_tick) || U::filter(world, entity, last_change_tick)
     }
+
+    fn register_types(type_registry: &mut TypeRegistry) {
+        T::register_types(type_registry);
+        U::register_types(type_registry);
+    }
 }
 
 macro_rules! impl_query_filter {
@@ -114,6 +139,10 @@ macro_rules! impl_query_filter {
 
             fn filter(world: &World, entity: &Entity, last_change_tick: ChangeTick) -> bool {
                 $($name::filter(world, entity, last_change_tick))&&*
+            }
+
+            fn register_types(type_registry: &mut TypeRegistry) {
+                $($name::register_types(type_registry);)*
             }
         }
     };

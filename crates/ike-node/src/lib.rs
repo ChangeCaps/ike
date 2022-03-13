@@ -130,6 +130,7 @@ fn collision_node_event_system() -> impl FnMut(&mut World) {
         {
             let mut node_stages = world.resource_mut::<NodeStages>();
             let events = world.resource::<Events<Collision>>();
+            let entities = world.query::<Entity>().unwrap();
 
             for event in events.read_from(&mut last_event_count).iter() {
                 match event {
@@ -137,8 +138,10 @@ fn collision_node_event_system() -> impl FnMut(&mut World) {
                         if let Some(stage) =
                             node_stages.get_event_stage_mut::<Entity>("collision_started")
                         {
-                            stage.run_single(*a, world, &commands, b);
-                            stage.run_single(*b, world, &commands, a);
+                            if entities.contains(a) && entities.contains(b) {
+                                stage.run_single(*a, world, &commands, b);
+                                stage.run_single(*b, world, &commands, a);
+                            }
                         }
                     }
                     Collision::Stopped(a, b) => {

@@ -4,7 +4,7 @@ use ike_task::TaskPool;
 
 use crate::{
     Access, ChangeTick, ChangeTicks, Component, Entity, EntitySet, Mut, QueryFilter, QueryIter,
-    SystemAccess, World,
+    SystemAccess, TypeRegistry, World,
 };
 
 pub struct Query<'a, Q: WorldQuery, F: QueryFilter = ()> {
@@ -138,6 +138,8 @@ pub unsafe trait Fetch<'a>: Sized {
     ) -> Option<Self::Item>;
 
     fn release(_world: &World) {}
+
+    fn register_types(type_registry: &mut TypeRegistry);
 }
 
 pub unsafe trait ReadOnlyFetch<'a>: Fetch<'a> {}
@@ -159,12 +161,18 @@ unsafe impl<'a> Fetch<'a> for EntityFetch {
     }
 
     unsafe fn get(
-        _world: &'a World,
+        world: &'a World,
         entity: &Entity,
         _change_ticks: &ChangeTicks,
     ) -> Option<Self::Item> {
-        Some(*entity)
+        if world.entities().entities().contains(entity) {
+            Some(*entity)
+        } else {
+            None
+        }
     }
+
+    fn register_types(_type_registry: &mut TypeRegistry) {}
 }
 
 unsafe impl<'a> ReadOnlyFetch<'a> for EntityFetch {}
@@ -199,6 +207,10 @@ unsafe impl<'a, T: Component> Fetch<'a> for FetchRead<T> {
 
     fn release(world: &World) {
         world.entities().storage().release_storage::<T>();
+    }
+
+    fn register_types(type_registry: &mut TypeRegistry) {
+        type_registry.insert_registration::<T>(T::type_registration());
     }
 }
 
@@ -245,6 +257,10 @@ unsafe impl<'a, T: Component> Fetch<'a> for FetchWrite<T> {
     fn release(world: &World) {
         world.entities().storage().release_storage_mut::<T>();
     }
+
+    fn register_types(type_registry: &mut TypeRegistry) {
+        type_registry.insert_registration::<T>(T::type_registration());
+    }
 }
 
 unsafe impl<'a, T: Component> Fetch<'a> for FetchReadOnlyWrite<T> {
@@ -274,6 +290,10 @@ unsafe impl<'a, T: Component> Fetch<'a> for FetchReadOnlyWrite<T> {
 
     fn release(world: &World) {
         world.entities().storage().release_storage::<T>();
+    }
+
+    fn register_types(type_registry: &mut TypeRegistry) {
+        type_registry.insert_registration::<T>(T::type_registration());
     }
 }
 
@@ -311,6 +331,10 @@ unsafe impl<'a, T: Fetch<'a>> Fetch<'a> for OptionFetch<T> {
 
     fn release(world: &World) {
         T::release(world);
+    }
+
+    fn register_types(type_registry: &mut TypeRegistry) {
+        T::register_types(type_registry);
     }
 }
 
@@ -358,6 +382,10 @@ macro_rules! tuple_world_query {
 
             fn release(world: &World) {
                 $($name::release(world);)*
+            }
+
+            fn register_types(type_registry: &mut TypeRegistry) {
+                $($name::register_types(type_registry);)*
             }
         }
 

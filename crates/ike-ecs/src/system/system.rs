@@ -4,7 +4,7 @@ use std::{
     collections::BTreeMap,
 };
 
-use crate::{Component, Resource, World};
+use crate::{Component, Resource, TypeRegistry, World};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Access {
@@ -87,4 +87,6 @@ pub trait System: Send + Sync + 'static {
     fn init(&mut self, world: &mut World);
 
     fn apply(&mut self, world: &mut World);
+
+    fn register_types(&self, type_registry: &mut TypeRegistry);
 }

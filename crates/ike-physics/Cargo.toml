@@ -9,7 +9,6 @@ edition = "2021"
 # ike
 ike-app = { version = "0.1.0", path = "../ike-app" }
 ike-core = { version = "0.1.0", path = "../ike-core" }
-ike-debug = { version = "0.1.0", path = "../ike-debug", features = ["render"] }
 ike-ecs = { version = "0.1.0", path = "../ike-ecs" }
 ike-math = { version = "0.1.0", path = "../ike-math" }
 ike-task = { version = "0.1.0", path = "../ike-task" }

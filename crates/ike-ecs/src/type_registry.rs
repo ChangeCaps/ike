@@ -72,7 +72,7 @@ impl TypeRegistration {
     }
 }
 
-pub trait TypeData: Any {
+pub trait TypeData: Any + Send + Sync {
     fn clone_type_data(&self) -> Box<dyn TypeData>;
 }
 
