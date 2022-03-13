@@ -1,5 +1,5 @@
 use bytemuck::{cast_slice, cast_slice_mut, cast_vec};
-use ike_math::{Vec2, Vec3, Vec4, Vec4Swizzles};
+use ike_math::{Vec2, Vec3};
 use std::borrow::Cow;
 
 use crate::{Buffer, BufferInitDescriptor, BufferUsages, Color, RenderDevice};
@@ -7,9 +7,9 @@ use crate::{Buffer, BufferInitDescriptor, BufferUsages, Color, RenderDevice};
 #[derive(Clone, Debug)]
 pub enum VertexAttribute {
     Float32(Vec<f32>),
-    Float32x2(Vec<Vec2>),
-    Float32x3(Vec<Vec3>),
-    Float32x4(Vec<Vec4>),
+    Float32x2(Vec<[f32; 2]>),
+    Float32x3(Vec<[f32; 3]>),
+    Float32x4(Vec<[f32; 4]>),
 }
 
 impl VertexAttribute {
@@ -71,7 +71,6 @@ impl_as_vertex_attribute!([f32; 4], Float32x4);
 
 impl_as_vertex_attribute!(Vec2, Float32x2);
 impl_as_vertex_attribute!(Vec3, Float32x3);
-impl_as_vertex_attribute!(Vec4, Float32x4);
 
 impl_as_vertex_attribute!(Color, Float32x4);
 
@@ -161,7 +160,7 @@ impl Mesh {
         let positions = self.get_attribute(Mesh::POSITION).unwrap();
         let uvs = self.get_attribute(Mesh::UV_0).unwrap();
 
-        let mut tangents = vec![Vec4::ZERO; positions.len()];
+        let mut tangents = vec![[0.0; 4]; positions.len()];
 
         for i in 0..self.indices.len() / 3 {
             let i0 = self.indices[i * 3 + 0] as usize;
@@ -186,13 +185,28 @@ impl Mesh {
             let tangent = (dp1 * du2.y - dp2 * du1.y) * r;
             let tangent = tangent.extend(1.0);
 
-            tangents[i0] += tangent;
-            tangents[i1] += tangent;
-            tangents[i2] += tangent;
+            tangents[i0][0] += tangent.x;
+            tangents[i0][1] += tangent.y;
+            tangents[i0][2] += tangent.z;
+            tangents[i1][0] += tangent.x;
+            tangents[i1][1] += tangent.y;
+            tangents[i1][2] += tangent.z;
+            tangents[i2][0] += tangent.x;
+            tangents[i2][1] += tangent.y;
+            tangents[i2][2] += tangent.z;
         }
 
         for tangent in tangents.iter_mut() {
-            *tangent = tangent.xyz().normalize_or_zero().extend(1.0);
+            let length = f32::sqrt(tangent[0].powi(2) + tangent[1].powi(2) + tangent[2].powi(2));
+
+            if length == 0.0 {
+                continue;
+            }
+
+            tangent[0] /= length;
+            tangent[1] /= length;
+            tangent[2] /= length;
+            tangent[3] = 1.0;
         }
 
         self.insert_attribute(Mesh::TANGENT, tangents);
