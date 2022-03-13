@@ -1,6 +1,6 @@
 use ike_ecs::{
-    Children, Commands, Comp, CompMut, Component, Entity, Query, QueryFilter, Res, ResMut,
-    Resource, World, WorldQuery,
+    Children, Commands, Comp, CompMut, Component, Entity, EntityCommands, Query, QueryFilter, Res,
+    ResMut, Resource, World, WorldQuery,
 };
 
 pub struct Node<'w, 's> {
@@ -98,6 +98,10 @@ impl<'w, 's> Node<'w, 's> {
 
     pub fn entity(&self) -> &Entity {
         &self.entity
+    }
+
+    pub fn spawn(&self) -> EntityCommands {
+        self.commands.spawn()
     }
 
     pub fn despawn(self) {
