@@ -2,8 +2,7 @@ mod gltf_mesh;
 mod mesh_loader;
 
 pub use gltf_mesh::*;
-use ike_ecs::ParallelSystemCoercion;
-use ike_transform::TransformSystem;
+use ike_ecs::{ParallelSystemCoercion, UpdateParentSystem};
 pub use mesh_loader::*;
 
 use ike_app::{App, CoreStage, Plugin};
@@ -18,7 +17,7 @@ impl Plugin for GltfPlugin {
         app.add_asset_loader(GltfMeshLoader);
 
         app.add_system_to_stage(
-            gltf_mesh_system.before(TransformSystem::AddComponents),
+            gltf_mesh_system.before(UpdateParentSystem),
             CoreStage::PostUpdate,
         );
     }
