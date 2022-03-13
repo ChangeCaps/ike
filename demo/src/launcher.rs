@@ -54,19 +54,29 @@ impl Launcher {
         let time = node.resource::<Time>();
         self.timer += time.delta_seconds();
 
-        if self.timer > 0.05 {
+        if self.timer > 0.001 {
             self.timer = 0.0;
 
             let transform = node.component::<Transform>();
 
             let mut rigid_body = RigidBody::dynamic();
-            rigid_body.linear_velocity = transform.local_y() * 20.0;
+            rigid_body.linear_velocity = transform.local_y() * 17.2;
 
             let mesh = Handle::<GltfMesh>::new("assets/sphere.mesh.glb");
 
+            let position = random_circle(0.7);
+            let translation = transform.translation
+                + transform.local_x() * position.x
+                + transform.local_z() * position.y;
+
             node.spawn()
                 .insert(Sphere)
-                .insert(transform.clone().with_scale(Vec3::ONE * 0.2))
+                .insert(
+                    transform
+                        .clone()
+                        .with_translation(translation)
+                        .with_scale(Vec3::ONE * 0.2),
+                )
                 .insert(mesh)
                 .insert(rigid_body)
                 .insert(Collider::sphere(0.2));
