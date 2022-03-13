@@ -1,8 +1,8 @@
 use std::mem;
 
 use ike_ecs::{
-    update_parent_system, Events, FromWorld, IntoSystemDescriptor, Resource, Schedule, StageLabel,
-    TypeRegistry, World,
+    update_parent_system, Component, Events, FromWorld, IntoSystemDescriptor, Registerable,
+    Resource, Schedule, StageLabel, TypeRegistry, World,
 };
 
 use crate::{AppRunner, Plugin, RunOnce};
@@ -104,6 +104,12 @@ impl App {
     pub fn add_event<T: Resource>(&mut self) -> &mut Self {
         self.world.init_resource::<Events<T>>();
         self.add_system_to_stage(Events::<T>::update_system, CoreStage::Start);
+
+        self
+    }
+
+    pub fn register<T: Registerable>(&mut self) -> &mut Self {
+        self.world.resource_mut::<TypeRegistry>().register::<T>();
 
         self
     }
