@@ -97,3 +97,14 @@ pub fn random_circle(radius: f32) -> Vec2 {
 
 #[derive(Component)]
 pub struct Sphere;
+
+#[node]
+impl Sphere {
+    fn update(&mut self, node: Node) {
+        let transform = node.component::<Transform>();
+
+        if transform.translation.y < -1.0 {
+            node.despawn_recursive();
+        }
+    }
+}
