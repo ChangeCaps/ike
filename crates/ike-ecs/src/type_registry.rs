@@ -4,6 +4,20 @@ use std::{
     collections::HashMap,
 };
 
+use crate::Component;
+
+pub trait Registerable: Sized + 'static {
+    fn type_registration() -> TypeRegistration {
+        TypeRegistration::new::<Self>()
+    }
+}
+
+impl<T: Component> Registerable for T {
+    fn type_registration() -> TypeRegistration {
+        <T as Component>::type_registration()
+    }
+}
+
 #[derive(Default)]
 pub struct TypeRegistry {
     registrations: HashMap<TypeId, TypeRegistration>,
@@ -16,6 +30,10 @@ impl TypeRegistry {
             registrations: HashMap::new(),
             name_to_id: HashMap::new(),
         }
+    }
+
+    pub fn register<T: Registerable>(&mut self) {
+        self.insert_registration::<T>(T::type_registration());
     }
 
     pub fn insert_registration<T: 'static>(&mut self, registration: TypeRegistration) {
