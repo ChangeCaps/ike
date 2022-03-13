@@ -496,8 +496,8 @@ fn frag(in: FragmentInput) -> [[location(0)]] vec4<f32> {
 	var color = material.base_color.rgb * base_color.rgb;
 
 	var mr = textureSample(metallic_roughness_texture, metallic_roughness_sampler, in.uv).rg;
-	var roughness = material.roughness * mr.r;
-	var metallic = material.metallic * mr.g;	
+	var roughness = material.roughness * mr.g;
+	var metallic = material.metallic * mr.r;	
 
 	var f0 = vec3<f32>(0.04);
 	f0 = mix(f0, color, metallic);
