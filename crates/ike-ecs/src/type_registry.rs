@@ -18,22 +18,17 @@ impl TypeRegistry {
         }
     }
 
-    pub fn insert_registration<T: Send + Sync + 'static>(
-        &mut self,
-        registration: TypeRegistration,
-    ) {
+    pub fn insert_registration<T: 'static>(&mut self, registration: TypeRegistration) {
         self.registrations.insert(TypeId::of::<T>(), registration);
         self.name_to_id
             .insert(type_name::<T>().into(), TypeId::of::<T>());
     }
 
-    pub fn get_registration<T: Send + Sync + 'static>(&self) -> Option<&TypeRegistration> {
+    pub fn get_registration<T: 'static>(&self) -> Option<&TypeRegistration> {
         self.registrations.get(&TypeId::of::<T>())
     }
 
-    pub fn get_registration_mut<T: Send + Sync + 'static>(
-        &mut self,
-    ) -> Option<&mut TypeRegistration> {
+    pub fn get_registration_mut<T: 'static>(&mut self) -> Option<&mut TypeRegistration> {
         self.registrations.get_mut(&TypeId::of::<T>())
     }
 }
@@ -45,7 +40,7 @@ pub struct TypeRegistration {
 }
 
 impl TypeRegistration {
-    pub fn new<T: Send + Sync + 'static>() -> Self {
+    pub fn new<T: 'static>() -> Self {
         Self {
             type_id: TypeId::of::<T>(),
             data: HashMap::new(),
