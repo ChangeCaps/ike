@@ -73,14 +73,14 @@ impl Player {
         if window.cursor_locked() {
             self.look_angle -= window.cursor_delta() * 0.001;
             window.set_cursor_position(window.size() / 2.0);
-
-            let mut transform = node.component_mut::<Transform>();
-            transform.rotation = Quat::from_rotation_y(self.look_angle.x);
-
-            let child = node.child(0);
-            let mut transform = child.component_mut::<Transform>();
-            transform.rotation = Quat::from_rotation_x(self.look_angle.y);
         }
+
+        let mut transform = node.component_mut::<Transform>();
+        transform.rotation = Quat::from_rotation_y(self.look_angle.x);
+
+        let child = node.child(0);
+        let mut transform = child.component_mut::<Transform>();
+        transform.rotation = Quat::from_rotation_x(self.look_angle.y);
     }
 
     fn walk(&mut self, node: &Node) {
