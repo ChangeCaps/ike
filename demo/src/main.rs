@@ -2,7 +2,7 @@ mod launcher;
 mod player;
 
 use ike::prelude::*;
-use launcher::{Launcher, LauncherBuilder};
+use launcher::{Catcher, Launcher, LauncherBuilder, Sphere};
 use player::{Player, PlayerBuilder};
 
 fn main() {
@@ -10,6 +10,8 @@ fn main() {
         .add_plugin(DefaultPlugins)
         .register_node::<Player>()
         .register_node::<Launcher>()
+        .register_node::<Catcher>()
+        .register_node::<Sphere>()
         .add_startup_system(setup)
         .run();
 }
@@ -23,7 +25,7 @@ fn setup(
     let cube_mesh = meshes.add(Mesh::cube(Vec3::ONE));
     let floor_material = materials.add(PbrMaterial::default());
 
-    assert_server.load_untyped("assets/launcher.mesh.glb");
+    let launcher_mesh: Handle<GltfMesh> = assert_server.load("assets/launcher.mesh.glb");
     assert_server.load_untyped("assets/sphere.mesh.glb");
 
     // spawn floor
@@ -44,13 +46,26 @@ fn setup(
 
     // spawn launchers
 
-    for z in -1..=1 {
+    for z in -5..=5 {
+        let side = if z % 2 == 0 { 1.0 } else { -1.0 };
+
         LauncherBuilder::new()
             .transform(
-                Transform::from_xyz(-15.0, 1.0, z as f32 * 4.0)
-                    .with_rotation(Quat::from_rotation_z(-45.0f32.to_radians())),
+                Transform::from_xyz(-15.0 * side, 1.0, z as f32 * 4.0)
+                    .with_rotation(Quat::from_rotation_z(-45.0f32.to_radians() * side)),
             )
             .spawn(&commands);
+
+        commands
+            .spawn()
+            .insert(
+                Transform::from_xyz(15.0 * side, 1.0, z as f32 * 4.0)
+                    .with_rotation(Quat::from_rotation_z(45.0f32.to_radians() * side)),
+            )
+            .insert(launcher_mesh.clone())
+            .insert(Catcher)
+            .insert(RigidBody::kinematic())
+            .insert(Collider::sphere(1.0));
     }
 
     // spawn player

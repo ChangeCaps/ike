@@ -30,6 +30,20 @@ impl LauncherBuilder {
 }
 
 #[derive(Component, Default)]
+pub struct Catcher;
+
+#[node]
+impl Catcher {
+    fn collision_started(&mut self, node: Node, entity: &Entity) {
+        let collider = node.node(entity);
+
+        if collider.has_component::<Sphere>() {
+            collider.despawn_recursive();
+        }
+    }
+}
+
+#[derive(Component, Default)]
 pub struct Launcher {
     pub timer: f32,
 }
