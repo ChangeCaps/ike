@@ -102,6 +102,8 @@ impl<'a, 'b> GltfLoadContext<'a, 'b> {
 
     #[cfg(feature = "pbr")]
     pub fn load_materials(&mut self) {
+        use ike_render::Color;
+
         for material in self.document.materials() {
             let pbr = material.pbr_metallic_roughness();
 
@@ -115,7 +117,7 @@ impl<'a, 'b> GltfLoadContext<'a, 'b> {
                 metallic_roughness_texture: pbr
                     .metallic_roughness_texture()
                     .map(|info| self.textures[info.texture().index()].clone()),
-                emission: material.emissive_factor().into(),
+                emission: Color::from(material.emissive_factor()) * 10.0,
                 emission_texture: material
                     .emissive_texture()
                     .map(|info| self.textures[info.texture().index()].clone()),
