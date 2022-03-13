@@ -1,8 +1,8 @@
 use std::mem;
 
 use ike_ecs::{
-    update_parent_system, Events, FromWorld, IntoSystemDescriptor, Registerable, Resource,
-    Schedule, StageLabel, TypeRegistry, World,
+    update_parent_system, Events, FromWorld, IntoSystemDescriptor, ParallelSystemCoercion,
+    Registerable, Resource, Schedule, StageLabel, TypeRegistry, UpdateParentSystem, World,
 };
 
 use crate::{AppRunner, Plugin, RunOnce};
@@ -49,8 +49,14 @@ impl App {
 
         app.add_default_stages();
 
-        app.add_startup_system_to_stage(update_parent_system, StartupStage::PostStartup);
-        app.add_system_to_stage(update_parent_system, CoreStage::PostUpdate);
+        app.add_startup_system_to_stage(
+            update_parent_system.label(UpdateParentSystem),
+            StartupStage::PostStartup,
+        );
+        app.add_system_to_stage(
+            update_parent_system.label(UpdateParentSystem),
+            CoreStage::PostUpdate,
+        );
 
         app
     }

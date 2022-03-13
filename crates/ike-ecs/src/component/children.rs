@@ -3,7 +3,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::{Changed, Commands, Component, Entity, Query, With, Without};
+use crate::{Changed, Commands, Component, Entity, Query, SystemLabel, With, Without};
 
 #[derive(Component)]
 pub struct Parent {
@@ -57,6 +57,9 @@ impl Children {
         Self::default()
     }
 }
+
+#[derive(SystemLabel, Clone, Copy, Debug, Hash)]
+pub struct UpdateParentSystem;
 
 pub fn update_parent_system(
     commands: Commands,
