@@ -1,5 +1,7 @@
 use ike::prelude::*;
 
+use rand::random;
+
 #[derive(Default)]
 pub struct LauncherBuilder {
     pub transform: Transform,
@@ -54,6 +56,17 @@ impl Launcher {
                 .insert(mesh)
                 .insert(rigid_body)
                 .insert(Collider::sphere(0.2));
+        }
+    }
+}
+
+pub fn random_circle(radius: f32) -> Vec2 {
+    // NOTE: this is actually faster than doing angle-distance
+    loop {
+        let point = Vec2::new(random(), random()) * 2.0 - 1.0;
+
+        if point.length_squared() <= 1.0 {
+            break point * radius;
         }
     }
 }

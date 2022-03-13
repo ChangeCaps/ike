@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 ike = { version = "0.1.0", path = ".." }
+
+rand = "0.8"
