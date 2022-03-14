@@ -6,3 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# ike
+ike-math = { version = "0.1.0", path = "../ike-math" }
+
+# other
+serde = { version = "1.0", optional = true }
+erased-serde = { version = "0.3", optional = true }
+
+[features]
+default = ["serialize"]
+serialize = ["serde", "erased-serde"]
