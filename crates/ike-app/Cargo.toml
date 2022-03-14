@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 # ike
 ike-ecs = { version = "0.1.0", path = "../ike-ecs" }
+ike-type = { version = "0.1.0", path = "../ike-type" }
 ike-util = { version = "0.1.0", path = "../ike-util" }
 
 # other

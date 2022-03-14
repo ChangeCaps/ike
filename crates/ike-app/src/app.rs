@@ -2,8 +2,9 @@ use std::mem;
 
 use ike_ecs::{
     update_parent_system, Events, FromWorld, IntoSystemDescriptor, ParallelSystemCoercion,
-    Registerable, Resource, Schedule, StageLabel, TypeRegistry, UpdateParentSystem, World,
+    Registerable, Resource, Schedule, StageLabel, UpdateParentSystem, World,
 };
+use ike_type::TypeRegistry;
 
 use crate::{AppRunner, Plugin, RunOnce};
 

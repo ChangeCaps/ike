@@ -1,4 +1,4 @@
-use ike_ecs::{Component, SparseStorage};
+use ike_ecs::Component;
 use ike_math::{Mat4, Vec3, Vec4};
 
 #[derive(Clone, Copy, Debug)]
@@ -78,6 +78,7 @@ impl Orthographic {
     }
 }
 
+#[derive(Component)]
 pub struct Camera {
     projection: Box<dyn Projection + Send + Sync>,
 }
@@ -98,8 +99,4 @@ impl Camera {
     pub fn proj_matrix(&self, aspect: f32) -> Mat4 {
         self.projection.matrix(aspect)
     }
-}
-
-impl Component for Camera {
-    type Storage = SparseStorage;
 }
