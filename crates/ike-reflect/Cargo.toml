@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 # ike
+ike-macro = { version = "0.1.0", path = "../ike-macro" }
 ike-math = { version = "0.1.0", path = "../ike-math" }
 
 # other
@@ -15,4 +16,4 @@ erased-serde = { version = "0.3", optional = true }
 
 [features]
 default = ["serialize"]
-serialize = ["serde", "erased-serde"]
+serialize = ["serde", "erased-serde", "ike-math/serialize"]

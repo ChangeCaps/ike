@@ -4,6 +4,8 @@ use crate::{
     ReflectEnum, ReflectList, ReflectMap, ReflectSet, ReflectStruct, ReflectTuple, ReflectValue,
 };
 
+pub use ike_macro::Reflect;
+
 pub enum ReflectRef<'a> {
     Tuple(&'a dyn ReflectTuple),
     Struct(&'a dyn ReflectStruct),

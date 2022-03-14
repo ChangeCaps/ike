@@ -4,11 +4,17 @@ mod derive_component;
 mod get_ike;
 mod label;
 mod node;
+mod reflect;
 mod system_param;
 
 #[proc_macro_derive(Component)]
 pub fn derive_component(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     derive_component::derive_component(input)
+}
+
+#[proc_macro_derive(Reflect)]
+pub fn derive_reflect(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    reflect::derive_reflect(input)
 }
 
 #[proc_macro_attribute]

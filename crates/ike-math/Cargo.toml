@@ -11,3 +11,4 @@ glam = "0.20"
 [features]
 default = []
 bytemuck = ["glam/bytemuck"]
+serialize = ["glam/serde"]
