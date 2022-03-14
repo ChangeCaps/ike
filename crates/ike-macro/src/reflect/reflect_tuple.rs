@@ -1,3 +1,4 @@
+use super::attributes::{ignore_field, Attrs};
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned};
 use syn::{spanned::Spanned, DeriveInput, FieldsUnnamed, Index};
@@ -12,7 +13,7 @@ pub fn impl_reflect_tuple(input: &DeriveInput, fields: &FieldsUnnamed) -> TokenS
     let from_reflect = from_reflect(fields);
     let field = field(fields);
     let field_mut = field_mut(fields);
-    let field_len = fields.unnamed.len();
+    let field_len = fields.unnamed.iter().filter(ignore_field).count();
 
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
@@ -69,40 +70,56 @@ pub fn from_reflect(fields: &FieldsUnnamed) -> impl Iterator<Item = TokenStream>
         .iter()
         .enumerate()
         .map(move |(index, field)| {
+            let attrs = Attrs::new(&field.attrs);
+
             let ty = &field.ty;
 
-            quote_spanned! {ty.span()=>
-                <#ty as #ike_reflect::FromReflect>::from_reflect(
-                    reflect.field(#index).unwrap()
-                )?
+            if attrs.ignore {
+                quote!(::std::default::Default::default())
+            } else {
+                quote_spanned! {ty.span()=>
+                    <#ty as #ike_reflect::FromReflect>::from_reflect(
+                        reflect.field(#index).unwrap()
+                    )?
+                }
             }
         })
 }
 
 pub fn field(fields: &FieldsUnnamed) -> impl Iterator<Item = TokenStream> + '_ {
-    fields.unnamed.iter().enumerate().map(|(i, field)| {
-        let index = Index {
-            index: i as u32,
-            span: Span::call_site(),
-        };
-        let ty = &field.ty;
+    fields
+        .unnamed
+        .iter()
+        .filter(ignore_field)
+        .enumerate()
+        .map(|(i, field)| {
+            let index = Index {
+                index: i as u32,
+                span: Span::call_site(),
+            };
+            let ty = &field.ty;
 
-        quote_spanned! {ty.span()=>
-            #i => Some(&self.#index)
-        }
-    })
+            quote_spanned! {ty.span()=>
+                #i => Some(&self.#index)
+            }
+        })
 }
 
 pub fn field_mut(fields: &FieldsUnnamed) -> impl Iterator<Item = TokenStream> + '_ {
-    fields.unnamed.iter().enumerate().map(|(i, field)| {
-        let index = Index {
-            index: i as u32,
-            span: Span::call_site(),
-        };
-        let ty = &field.ty;
+    fields
+        .unnamed
+        .iter()
+        .filter(ignore_field)
+        .enumerate()
+        .map(|(i, field)| {
+            let index = Index {
+                index: i as u32,
+                span: Span::call_site(),
+            };
+            let ty = &field.ty;
 
-        quote_spanned! {ty.span()=>
-            #i => Some(&mut self.#index)
-        }
-    })
+            quote_spanned! {ty.span()=>
+                #i => Some(&mut self.#index)
+            }
+        })
 }

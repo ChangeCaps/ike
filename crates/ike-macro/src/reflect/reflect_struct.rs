@@ -1,3 +1,4 @@
+use super::attributes::{ignore_field, Attrs};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::{spanned::Spanned, DeriveInput, FieldsNamed};
@@ -98,20 +99,26 @@ pub fn from_reflect(fields: &FieldsNamed) -> impl Iterator<Item = TokenStream> +
     let ike_reflect = get_ike("reflect");
 
     fields.named.iter().map(move |field| {
+        let attrs = Attrs::new(&field.attrs);
+
         let ident = field.ident.as_ref().unwrap();
         let name = ident.to_string();
         let ty = &field.ty;
 
-        quote_spanned! {ty.span()=>
-            #ident: <#ty as #ike_reflect::FromReflect>::from_reflect(
-                reflect.field(#name).unwrap()
-            )?
+        if attrs.ignore {
+            quote!(#ident: ::std::default::Default::default())
+        } else {
+            quote_spanned! {ty.span()=>
+                #ident: <#ty as #ike_reflect::FromReflect>::from_reflect(
+                    reflect.field(#name).unwrap()
+                )?
+            }
         }
     })
 }
 
 pub fn field(fields: &FieldsNamed) -> impl Iterator<Item = TokenStream> + '_ {
-    fields.named.iter().map(|field| {
+    fields.named.iter().filter(ignore_field).map(|field| {
         let ident = field.ident.as_ref().unwrap();
         let name = ident.to_string();
         let ty = &field.ty;
@@ -123,7 +130,7 @@ pub fn field(fields: &FieldsNamed) -> impl Iterator<Item = TokenStream> + '_ {
 }
 
 pub fn field_mut(fields: &FieldsNamed) -> impl Iterator<Item = TokenStream> + '_ {
-    fields.named.iter().map(|field| {
+    fields.named.iter().filter(ignore_field).map(|field| {
         let ident = field.ident.as_ref().unwrap();
         let name = ident.to_string();
         let ty = &field.ty;
@@ -135,41 +142,56 @@ pub fn field_mut(fields: &FieldsNamed) -> impl Iterator<Item = TokenStream> + '_
 }
 
 pub fn field_at(fields: &FieldsNamed) -> impl Iterator<Item = TokenStream> + '_ {
-    fields.named.iter().enumerate().map(|(index, field)| {
-        let ident = field.ident.as_ref().unwrap();
-        let ty = &field.ty;
+    fields
+        .named
+        .iter()
+        .filter(ignore_field)
+        .enumerate()
+        .map(|(index, field)| {
+            let ident = field.ident.as_ref().unwrap();
+            let ty = &field.ty;
 
-        quote_spanned! {ty.span()=>
-            #index => ::std::option::Option::Some(&self.#ident)
-        }
-    })
+            quote_spanned! {ty.span()=>
+                #index => ::std::option::Option::Some(&self.#ident)
+            }
+        })
 }
 
 pub fn field_at_mut(fields: &FieldsNamed) -> impl Iterator<Item = TokenStream> + '_ {
-    fields.named.iter().enumerate().map(|(index, field)| {
-        let ident = field.ident.as_ref().unwrap();
-        let ty = &field.ty;
+    fields
+        .named
+        .iter()
+        .filter(ignore_field)
+        .enumerate()
+        .map(|(index, field)| {
+            let ident = field.ident.as_ref().unwrap();
+            let ty = &field.ty;
 
-        quote_spanned! {ty.span()=>
-            #index => ::std::option::Option::Some(&mut self.#ident)
-        }
-    })
+            quote_spanned! {ty.span()=>
+                #index => ::std::option::Option::Some(&mut self.#ident)
+            }
+        })
 }
 
 fn name_at(fields: &FieldsNamed) -> impl Iterator<Item = TokenStream> + '_ {
-    fields.named.iter().enumerate().map(|(index, field)| {
-        let ident = field.ident.as_ref().unwrap();
-        let name = ident.to_string();
-        let ty = &field.ty;
+    fields
+        .named
+        .iter()
+        .filter(ignore_field)
+        .enumerate()
+        .map(|(index, field)| {
+            let ident = field.ident.as_ref().unwrap();
+            let name = ident.to_string();
+            let ty = &field.ty;
 
-        quote_spanned! {ty.span()=>
-            #index => ::std::option::Option::Some(#name)
-        }
-    })
+            quote_spanned! {ty.span()=>
+                #index => ::std::option::Option::Some(#name)
+            }
+        })
 }
 
 fn field_len(fields: &FieldsNamed) -> TokenStream {
-    let len = fields.named.len();
+    let len = fields.named.iter().filter(ignore_field).count();
 
     quote!(#len)
 }

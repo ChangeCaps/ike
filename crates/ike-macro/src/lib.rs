@@ -12,7 +12,7 @@ pub fn derive_component(input: proc_macro::TokenStream) -> proc_macro::TokenStre
     derive_component::derive_component(input)
 }
 
-#[proc_macro_derive(Reflect)]
+#[proc_macro_derive(Reflect, attributes(reflect))]
 pub fn derive_reflect(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     reflect::derive_reflect(input)
 }

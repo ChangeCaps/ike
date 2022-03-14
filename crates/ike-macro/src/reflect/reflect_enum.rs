@@ -1,3 +1,4 @@
+use super::attributes::{ignore_field, Attrs};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, quote_spanned};
 use syn::{spanned::Spanned, DataEnum, DeriveInput, Fields, FieldsNamed, FieldsUnnamed};
@@ -155,6 +156,7 @@ fn ident_named(fields: &FieldsNamed) -> impl Iterator<Item = &Ident> {
     fields
         .named
         .iter()
+        .filter(ignore_field)
         .map(|field| field.ident.as_ref().unwrap())
 }
 
@@ -162,6 +164,7 @@ fn ident_unnamed(fields: &FieldsUnnamed) -> impl Iterator<Item = Ident> + '_ {
     fields
         .unnamed
         .iter()
+        .filter(ignore_field)
         .enumerate()
         .map(|(i, _)| Ident::new(&format!("_{}", i), Span::call_site()))
 }
@@ -213,14 +216,20 @@ fn from_reflect(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
         match variant.fields {
             Fields::Named(ref fields) => {
                 let fields = fields.named.iter().map(|field| {
+                    let attrs = Attrs::new(&field.attrs);
+
                     let ident = field.ident.as_ref().unwrap();
                     let name = ident.to_string();
                     let ty = &field.ty;
 
-                    quote! {
-                        #ident: <#ty as #ike_reflect::FromReflect>::from_reflect(
-                            reflect.field(#name).unwrap()
-                        )?
+                    if attrs.ignore {
+                        quote!(#ident: ::std::default::Default::default())
+                    } else {
+                        quote! {
+                            #ident: <#ty as #ike_reflect::FromReflect>::from_reflect(
+                                reflect.field(#name).unwrap()
+                            )?
+                        }
                     }
                 });
 
@@ -232,12 +241,18 @@ fn from_reflect(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
             }
             Fields::Unnamed(ref fields) => {
                 let fields = fields.unnamed.iter().enumerate().map(|(index, field)| {
+                    let attrs = Attrs::new(&field.attrs);
+
                     let ty = &field.ty;
 
-                    quote! {
-                        <#ty as #ike_reflect::FromReflect>::from_reflect(
-                            reflect.field(#index).unwrap()
-                        )?
+                    if attrs.ignore {
+                        quote!(#ident: ::std::default::Default::default())
+                    } else {
+                        quote! {
+                            <#ty as #ike_reflect::FromReflect>::from_reflect(
+                                reflect.field(#index).unwrap()
+                            )?
+                        }
                     }
                 });
 
@@ -255,7 +270,7 @@ fn from_reflect(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
 fn struct_field(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
     data.variants.iter().map(|variant| match variant.fields {
         Fields::Named(ref fields) => {
-            let field = fields.named.iter().map(|field| {
+            let field = fields.named.iter().filter(ignore_field).map(|field| {
                 let ident = field.ident.as_ref().unwrap();
                 let name = ident.to_string();
                 let ty = &field.ty;
@@ -279,14 +294,20 @@ fn struct_field(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
 fn struct_field_at(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
     data.variants.iter().map(|variant| match variant.fields {
         Fields::Named(ref fields) => {
-            let field = fields.named.iter().enumerate().map(|(index, field)| {
-                let ident = field.ident.as_ref().unwrap();
-                let ty = &field.ty;
+            let field =
+                fields
+                    .named
+                    .iter()
+                    .filter(ignore_field)
+                    .enumerate()
+                    .map(|(index, field)| {
+                        let ident = field.ident.as_ref().unwrap();
+                        let ty = &field.ty;
 
-                quote_spanned! {ty.span()=>
-                    #index => ::std::option::Option::Some(#ident)
-                }
-            });
+                        quote_spanned! {ty.span()=>
+                            #index => ::std::option::Option::Some(#ident)
+                        }
+                    });
 
             quote! {
                 match index {
@@ -302,15 +323,21 @@ fn struct_field_at(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
 fn struct_name_at(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
     data.variants.iter().map(|variant| match variant.fields {
         Fields::Named(ref fields) => {
-            let field = fields.named.iter().enumerate().map(|(index, field)| {
-                let ident = field.ident.as_ref().unwrap();
-                let name = ident.to_string();
-                let ty = &field.ty;
+            let field =
+                fields
+                    .named
+                    .iter()
+                    .filter(ignore_field)
+                    .enumerate()
+                    .map(|(index, field)| {
+                        let ident = field.ident.as_ref().unwrap();
+                        let name = ident.to_string();
+                        let ty = &field.ty;
 
-                quote_spanned! {ty.span()=>
-                    #index => ::std::option::Option::Some(#name)
-                }
-            });
+                        quote_spanned! {ty.span()=>
+                            #index => ::std::option::Option::Some(#name)
+                        }
+                    });
 
             quote! {
                 match index {
@@ -326,7 +353,7 @@ fn struct_name_at(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
 fn struct_field_len(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
     data.variants.iter().map(|variant| match variant.fields {
         Fields::Named(ref fields) => {
-            let len = fields.named.len();
+            let len = fields.named.iter().filter(ignore_field).count();
 
             quote!(#len)
         }
@@ -337,14 +364,20 @@ fn struct_field_len(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
 fn tuple_field(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
     data.variants.iter().map(|variant| match variant.fields {
         Fields::Unnamed(ref fields) => {
-            let field = fields.unnamed.iter().enumerate().map(|(index, field)| {
-                let ident = Ident::new(&format!("_{}", index), Span::call_site());
-                let ty = &field.ty;
+            let field =
+                fields
+                    .unnamed
+                    .iter()
+                    .filter(ignore_field)
+                    .enumerate()
+                    .map(|(index, field)| {
+                        let ident = Ident::new(&format!("_{}", index), Span::call_site());
+                        let ty = &field.ty;
 
-                quote_spanned! {ty.span()=>
-                    #index => ::std::option::Option::Some(#ident)
-                }
-            });
+                        quote_spanned! {ty.span()=>
+                            #index => ::std::option::Option::Some(#ident)
+                        }
+                    });
 
             quote! {
                 match index {
@@ -360,7 +393,7 @@ fn tuple_field(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
 fn tuple_field_len(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
     data.variants.iter().map(|variant| match variant.fields {
         Fields::Unnamed(ref fields) => {
-            let len = fields.unnamed.len();
+            let len = fields.unnamed.iter().filter(ignore_field).count();
 
             quote!(#len)
         }

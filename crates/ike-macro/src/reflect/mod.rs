@@ -1,3 +1,4 @@
+mod attributes;
 mod reflect_enum;
 mod reflect_struct;
 mod reflect_tuple;
