@@ -6,8 +6,8 @@ use std::{
 use crate::{FromReflect, Reflect, ReflectMut, ReflectRef};
 
 pub trait ReflectMap: Reflect {
-    fn get(&self, index: usize) -> Option<(&dyn Reflect, &dyn Reflect)>;
-    fn get_mut(&mut self, index: usize) -> Option<(&dyn Reflect, &mut dyn Reflect)>;
+    fn get_at(&self, index: usize) -> Option<(&dyn Reflect, &dyn Reflect)>;
+    fn get_at_mut(&mut self, index: usize) -> Option<(&dyn Reflect, &mut dyn Reflect)>;
     fn len(&self) -> usize;
     fn remove(&mut self, key: &dyn Reflect) -> Option<Box<dyn Reflect>>;
     fn insert(
@@ -28,11 +28,11 @@ impl<K: Reflect + Eq + Hash, V: Reflect> Reflect for HashMap<K, V> {
 }
 
 impl<K: Reflect + Eq + Hash, V: Reflect> ReflectMap for HashMap<K, V> {
-    fn get(&self, index: usize) -> Option<(&dyn Reflect, &dyn Reflect)> {
+    fn get_at(&self, index: usize) -> Option<(&dyn Reflect, &dyn Reflect)> {
         self.iter().nth(index).map(|(k, v)| (k as _, v as _))
     }
 
-    fn get_mut(&mut self, index: usize) -> Option<(&dyn Reflect, &mut dyn Reflect)> {
+    fn get_at_mut(&mut self, index: usize) -> Option<(&dyn Reflect, &mut dyn Reflect)> {
         self.iter_mut().nth(index).map(|(k, v)| (k as _, v as _))
     }
 
@@ -72,7 +72,7 @@ impl<K: FromReflect + Eq + Hash, V: FromReflect> FromReflect for HashMap<K, V> {
         let mut this = HashMap::new();
 
         for i in 0..map.len() {
-            let (k, v) = map.get(i)?;
+            let (k, v) = map.get_at(i)?;
             this.insert(K::from_reflect(k)?, V::from_reflect(v)?);
         }
 
@@ -91,11 +91,11 @@ impl<K: Reflect + Ord, V: Reflect> Reflect for BTreeMap<K, V> {
 }
 
 impl<K: Reflect + Ord, V: Reflect> ReflectMap for BTreeMap<K, V> {
-    fn get(&self, index: usize) -> Option<(&dyn Reflect, &dyn Reflect)> {
+    fn get_at(&self, index: usize) -> Option<(&dyn Reflect, &dyn Reflect)> {
         self.iter().nth(index).map(|(k, v)| (k as _, v as _))
     }
 
-    fn get_mut(&mut self, index: usize) -> Option<(&dyn Reflect, &mut dyn Reflect)> {
+    fn get_at_mut(&mut self, index: usize) -> Option<(&dyn Reflect, &mut dyn Reflect)> {
         self.iter_mut().nth(index).map(|(k, v)| (k as _, v as _))
     }
 
@@ -135,7 +135,7 @@ impl<K: FromReflect + Ord, V: FromReflect> FromReflect for BTreeMap<K, V> {
         let mut this = BTreeMap::new();
 
         for i in 0..map.len() {
-            let (k, v) = map.get(i)?;
+            let (k, v) = map.get_at(i)?;
             this.insert(K::from_reflect(k)?, V::from_reflect(v)?);
         }
 
