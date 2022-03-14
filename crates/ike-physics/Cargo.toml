@@ -11,6 +11,7 @@ ike-app = { version = "0.1.0", path = "../ike-app" }
 ike-core = { version = "0.1.0", path = "../ike-core" }
 ike-ecs = { version = "0.1.0", path = "../ike-ecs" }
 ike-math = { version = "0.1.0", path = "../ike-math" }
+ike-reflect = { version = "0.1.0", path = "../ike-reflect" }
 ike-task = { version = "0.1.0", path = "../ike-task" }
 ike-transform = { version = "0.1.0", path = "../ike-transform" }
 ike-util = { version = "0.1.0", path = "../ike-util" }

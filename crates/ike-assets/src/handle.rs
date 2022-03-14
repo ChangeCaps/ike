@@ -8,10 +8,11 @@ use std::{
 
 use ahash::AHasher;
 use ike_ecs::Component;
+use ike_reflect::Reflect;
 
 use crate::Asset;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Reflect, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PathId(u64);
 
 impl<T: AsRef<Path>> From<T> for PathId {
@@ -22,7 +23,7 @@ impl<T: AsRef<Path>> From<T> for PathId {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Reflect, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum HandleId {
     Path(PathId),
     Id(u64),
@@ -123,9 +124,10 @@ impl Drop for HandleTracker {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Reflect)]
 pub struct HandleUntyped {
     id: HandleId,
+    #[reflect(ignore)]
     tracker: Option<HandleTracker>,
 }
 
@@ -206,9 +208,11 @@ impl Hash for HandleUntyped {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
+#[reflect(bound = "T: Asset")]
 pub struct Handle<T: Asset> {
     inner: HandleUntyped,
+    #[reflect(ignore)]
     marker: PhantomData<&'static T>,
 }
 

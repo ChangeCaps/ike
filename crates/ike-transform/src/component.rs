@@ -2,8 +2,9 @@ use std::ops::{Deref, DerefMut, Mul};
 
 use ike_ecs::Component;
 use ike_math::{const_vec3, Mat3, Mat4, Quat, Vec3};
+use ike_reflect::Reflect;
 
-#[derive(Component, Clone, Copy, Debug, PartialEq)]
+#[derive(Component, Reflect, Clone, Copy, Debug, PartialEq)]
 pub struct Transform {
     pub translation: Vec3,
     pub rotation: Quat,
@@ -113,7 +114,7 @@ impl Mul<Transform> for Transform {
     }
 }
 
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Component, Reflect, Clone, Copy, Debug, Default, PartialEq)]
 pub struct GlobalTransform(pub Transform);
 
 impl GlobalTransform {

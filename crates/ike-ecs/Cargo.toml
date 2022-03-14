@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 # ike
 ike-macro = { version = "0.1.0", path = "../ike-macro" }
+ike-reflect = { version = "0.1.0", path = "../ike-reflect" }
 ike-task = { version = "0.1.0", path = "../ike-task" }
 ike-util = { version = "0.1.0", path = "../ike-util" }
 

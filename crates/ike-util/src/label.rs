@@ -4,14 +4,16 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+use ike_reflect::Reflect;
+
+#[derive(Clone, Debug, Reflect, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum RawLabelKind {
     Variant(Cow<'static, str>),
     Id(u64),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Reflect, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RawLabel {
     type_name: Cow<'static, str>,

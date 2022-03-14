@@ -1,5 +1,6 @@
 use ike_ecs::Component;
 use ike_math::Vec3;
+use ike_reflect::Reflect;
 use rapier3d::{na::Point3, prelude::SharedShape};
 
 #[derive(Component, Clone, Debug)]
@@ -8,14 +9,14 @@ pub struct RigidBodyHandle(pub(crate) rapier3d::prelude::RigidBodyHandle);
 #[derive(Component, Clone, Debug)]
 pub struct ColliderHandle(pub(crate) rapier3d::prelude::ColliderHandle);
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Reflect, Debug, Default)]
 pub struct LockAxis {
     pub x: bool,
     pub y: bool,
     pub z: bool,
 }
 
-#[derive(Component, Clone, Debug, Default)]
+#[derive(Component, Reflect, Clone, Debug, Default)]
 pub struct RigidBody {
     pub linear_velocity: Vec3,
     pub angular_velocity: Vec3,
@@ -70,7 +71,7 @@ impl RigidBody {
 #[derive(Component, Clone, Copy, Debug)]
 pub struct DebugCollider;
 
-#[derive(Component, Clone, Debug)]
+#[derive(Component, Reflect, Clone, Debug)]
 pub enum Collider {
     Cube { size: Vec3 },
     Sphere { radius: f32 },

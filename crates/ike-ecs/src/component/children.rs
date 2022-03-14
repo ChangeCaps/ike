@@ -4,8 +4,9 @@ use std::{
 };
 
 use crate::{Changed, Commands, Component, Entity, Query, SystemLabel, With, Without};
+use ike_reflect::Reflect;
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
 pub struct Parent {
     pub parent: Entity,
 }
@@ -33,7 +34,7 @@ impl DerefMut for Parent {
 #[derive(Component)]
 pub struct PreviousParent(Entity);
 
-#[derive(Component, Default)]
+#[derive(Component, Reflect, Default)]
 pub struct Children {
     pub children: Vec<Entity>,
 }

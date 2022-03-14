@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crossbeam::queue::SegQueue;
+use ike_reflect::Reflect;
 
 /// Entities act as an "index" into component storage.
 ///
@@ -8,7 +9,7 @@ use crossbeam::queue::SegQueue;
 /// When and old index is reallocated the generation of all future allocated entities increments.
 /// This is so indices can be reused which saves space and resizes.
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, Reflect, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Entity {
     index: u64,
     generation: u64,
