@@ -5,10 +5,11 @@ use std::{
 
 use crate::{
     Access, ChangeTick, CommandQueue, Commands, Fetch, FromWorld, Query, QueryFilter, Res, ResMut,
-    Resource, SystemAccess, TypeRegistry, World, WorldQuery,
+    Resource, SystemAccess, World, WorldQuery,
 };
 
 pub use ike_macro::SystemParam;
+use ike_type::TypeRegistry;
 
 pub trait SystemParam: Sized {
     type Fetch: for<'w, 's> SystemParamFetch<'w, 's>;

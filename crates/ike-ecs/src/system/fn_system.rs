@@ -1,6 +1,8 @@
 use std::{any::type_name, borrow::Cow};
 
-use crate::{ChangeTick, System, SystemAccess, SystemParam, SystemParamFetch, TypeRegistry, World};
+use ike_type::TypeRegistry;
+
+use crate::{ChangeTick, System, SystemAccess, SystemParam, SystemParamFetch, World};
 
 pub trait SystemParamFn<Params: SystemParam>: Send + Sync + 'static {
     fn access() -> SystemAccess;

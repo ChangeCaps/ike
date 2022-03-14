@@ -10,7 +10,8 @@ edition = "2021"
 ike-macro = { version = "0.1.0", path = "../ike-macro" }
 ike-reflect = { version = "0.1.0", path = "../ike-reflect" }
 ike-task = { version = "0.1.0", path = "../ike-task" }
-ike-util = { version = "0.1.0", path = "../ike-util" }
+ike-type = { version = "0.1.0", path = "../ike-type" }
+ike-util = { version = "0.1.0", path = "../ike-util" } 
 
 # other
 crossbeam = "0.8"

@@ -1,10 +1,11 @@
 use std::marker::PhantomData;
 
 use ike_task::TaskPool;
+use ike_type::TypeRegistry;
 
 use crate::{
     Access, ChangeTick, ChangeTicks, Component, Entity, EntitySet, Mut, QueryFilter, QueryIter,
-    SystemAccess, TypeRegistry, World,
+    SystemAccess, World,
 };
 
 pub struct Query<'a, Q: WorldQuery, F: QueryFilter = ()> {

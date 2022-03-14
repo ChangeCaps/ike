@@ -1,3 +1,5 @@
+#[cfg(feature = "serialize")]
+mod deserialize;
 mod reflect;
 mod reflect_enum;
 mod reflect_list;
@@ -9,6 +11,8 @@ mod reflect_value;
 #[cfg(feature = "serialize")]
 mod serialize;
 
+#[cfg(feature = "serialize")]
+pub use deserialize::*;
 pub use reflect::*;
 pub use reflect_enum::*;
 pub use reflect_list::*;

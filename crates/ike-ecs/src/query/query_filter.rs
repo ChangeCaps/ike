@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 
-use crate::{ChangeTick, ChangeTicks, Component, Entity, EntitySet, TypeRegistry, World};
+use ike_type::TypeRegistry;
+
+use crate::{ChangeTick, ChangeTicks, Component, Entity, EntitySet, World};
 
 pub trait QueryFilter {
     fn entities(world: &World) -> Option<&EntitySet>;

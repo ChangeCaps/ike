@@ -4,7 +4,9 @@ use std::{
     collections::BTreeMap,
 };
 
-use crate::{Component, Resource, TypeRegistry, World};
+use ike_type::TypeRegistry;
+
+use crate::{Component, Resource, World};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Access {

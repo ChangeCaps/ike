@@ -172,13 +172,10 @@ impl<T: Default> FromWorld for T {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Component, SparseStorage};
+    use crate::Component;
 
+    #[derive(Component)]
     struct Foo {}
-
-    impl Component for Foo {
-        type Storage = SparseStorage;
-    }
 
     #[test]
     fn world_query() {}

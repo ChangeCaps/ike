@@ -12,6 +12,7 @@ pub fn derive_system_param(input: proc_macro::TokenStream) -> proc_macro::TokenS
     let vis = input.vis;
 
     let ike_ecs = get_ike("ecs");
+    let ike_type = get_ike("type");
 
     let fetch_fields = fetch_fields(&input.data);
     let fetch_init = fetch_init(&input.data);
@@ -68,7 +69,7 @@ pub fn derive_system_param(input: proc_macro::TokenStream) -> proc_macro::TokenS
 
             fn apply(self, world: &mut #ike_ecs::World) {}
 
-            fn register_types(type_registry: &mut #ike_ecs::TypeRegistry) {
+            fn register_types(type_registry: &mut #ike_type::TypeRegistry) {
                 #register_types
             }
         }

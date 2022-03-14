@@ -205,30 +205,20 @@ impl ComponentStorages {
 
 #[cfg(test)]
 mod tests {
-    use crate::SparseStorage;
-
     use super::*;
 
-    #[derive(Default)]
+    #[derive(Component, Default)]
     #[allow(unused)]
     struct Foo {
         a: i32,
         b: f64,
     }
 
-    impl Component for Foo {
-        type Storage = SparseStorage;
-    }
-
-    #[derive(Default)]
+    #[derive(Component, Default)]
     #[allow(unused)]
     struct Bar {
         a: i64,
         b: Vec<u32>,
-    }
-
-    impl Component for Bar {
-        type Storage = SparseStorage;
     }
 
     #[test]

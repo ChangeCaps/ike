@@ -4,20 +4,17 @@ use std::{
     mem, ptr,
 };
 
-use crate::{AtomicBorrow, ChangeTick, ComponentTicks, TypeRegistration};
+use crate::{AtomicBorrow, ChangeTick, ComponentTicks};
 pub use ike_macro::Component;
+use ike_type::Registerable;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComponentStorageKind {
     Sparse,
 }
 
-pub trait Component: Sized + Send + Sync + 'static {
+pub trait Component: Registerable + Sized + Send + Sync + 'static {
     type Storage: ComponentStorage;
-
-    fn type_registration() -> TypeRegistration {
-        TypeRegistration::new::<Self>()
-    }
 }
 
 pub trait ComponentStorage {

@@ -1,6 +1,8 @@
+use ike_type::TypeRegistry;
+
 use crate::{
     ExclusiveSystem, ExclusiveSystemDescriptor, ExclusiveSystemFn, IntoSystem, ParallelSystem,
-    SystemLabel, SystemParam, SystemParamFetch, TypeRegistry, World,
+    SystemLabel, SystemParam, SystemParamFetch, World,
 };
 
 pub enum SystemDescriptor {
