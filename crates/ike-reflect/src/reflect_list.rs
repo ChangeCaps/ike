@@ -4,6 +4,24 @@ pub trait ReflectList: Reflect {
     fn get(&self, index: usize) -> Option<&dyn Reflect>;
     fn get_mut(&mut self, index: usize) -> Option<&mut dyn Reflect>;
     fn len(&self) -> usize;
+
+    fn partial_eq(&self, other: &dyn ReflectList) -> bool {
+        if self.type_name() != other.type_name() || self.len() != other.len() {
+            return false;
+        }
+
+        for index in 0..self.len() {
+            if let (Some(a), Some(b)) = (self.get(index), other.get(index)) {
+                if !a.partial_eq(b) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+
+        true
+    }
 }
 
 impl<T: Reflect> Reflect for Vec<T> {

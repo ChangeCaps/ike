@@ -6,6 +6,22 @@ pub trait ReflectEnum: Reflect {
     fn variant_name(&self) -> &str;
     fn variant_ref(&self) -> VariantRef;
     fn variant_mut(&mut self) -> VariantMut;
+
+    fn partial_eq(&self, other: &dyn ReflectEnum) -> bool {
+        if self.type_name() != other.type_name() || self.variant_name() != other.variant_name() {
+            return false;
+        }
+
+        match (self.variant_ref(), other.variant_ref()) {
+            (VariantRef::Tuple(this), VariantRef::Tuple(other)) => {
+                ReflectTuple::partial_eq(this, other)
+            }
+            (VariantRef::Struct(this), VariantRef::Struct(other)) => {
+                ReflectStruct::partial_eq(this, other)
+            }
+            _ => false,
+        }
+    }
 }
 
 pub enum VariantRef<'a> {

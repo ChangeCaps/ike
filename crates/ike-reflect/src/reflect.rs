@@ -26,13 +26,36 @@ pub enum ReflectMut<'a> {
     Value(&'a mut dyn ReflectValue),
 }
 
-pub trait Reflect: FromReflect + Any {
+pub trait Reflect: Any {
     fn type_name(&self) -> &str {
         type_name::<Self>()
     }
 
     fn reflect_ref(&self) -> ReflectRef;
     fn reflect_mut(&mut self) -> ReflectMut;
+
+    fn partial_eq(&self, other: &dyn Reflect) -> bool {
+        match (self.reflect_ref(), other.reflect_ref()) {
+            (ReflectRef::Tuple(this), ReflectRef::Tuple(other)) => {
+                ReflectTuple::partial_eq(this, other)
+            }
+            (ReflectRef::Struct(this), ReflectRef::Struct(other)) => {
+                ReflectStruct::partial_eq(this, other)
+            }
+            (ReflectRef::Enum(this), ReflectRef::Enum(other)) => {
+                ReflectEnum::partial_eq(this, other)
+            }
+            (ReflectRef::List(this), ReflectRef::List(other)) => {
+                ReflectList::partial_eq(this, other)
+            }
+            (ReflectRef::Set(this), ReflectRef::Set(other)) => ReflectSet::partial_eq(this, other),
+            (ReflectRef::Map(this), ReflectRef::Map(other)) => ReflectMap::partial_eq(this, other),
+            (ReflectRef::Value(this), ReflectRef::Value(other)) => {
+                ReflectValue::partial_eq(this, other)
+            }
+            _ => false,
+        }
+    }
 }
 
 pub trait FromReflect {

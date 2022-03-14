@@ -6,6 +6,7 @@ use std::{
 use crate::{FromReflect, Reflect, ReflectMut, ReflectRef};
 
 pub trait ReflectMap: Reflect {
+    fn get(&self, key: &dyn Reflect) -> Option<&dyn Reflect>;
     fn get_at(&self, index: usize) -> Option<(&dyn Reflect, &dyn Reflect)>;
     fn get_at_mut(&mut self, index: usize) -> Option<(&dyn Reflect, &mut dyn Reflect)>;
     fn len(&self) -> usize;
@@ -15,6 +16,26 @@ pub trait ReflectMap: Reflect {
         key: Box<dyn Reflect>,
         value: Box<dyn Reflect>,
     ) -> Result<(), (Box<dyn Reflect>, Box<dyn Reflect>)>;
+
+    fn partial_eq(&self, other: &dyn ReflectMap) -> bool {
+        if self.type_name() != other.type_name() || self.len() != other.len() {
+            return false;
+        }
+
+        for index in 0..self.len() {
+            let (key, value) = self.get_at(index).unwrap();
+
+            if let Some(other_value) = other.get(key) {
+                if !value.partial_eq(other_value) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+
+        true
+    }
 }
 
 impl<K: Reflect + Eq + Hash, V: Reflect> Reflect for HashMap<K, V> {
@@ -28,6 +49,12 @@ impl<K: Reflect + Eq + Hash, V: Reflect> Reflect for HashMap<K, V> {
 }
 
 impl<K: Reflect + Eq + Hash, V: Reflect> ReflectMap for HashMap<K, V> {
+    fn get(&self, key: &dyn Reflect) -> Option<&dyn Reflect> {
+        let key = key.downcast_ref()?;
+
+        self.get(key).map(|value| value as _)
+    }
+
     fn get_at(&self, index: usize) -> Option<(&dyn Reflect, &dyn Reflect)> {
         self.iter().nth(index).map(|(k, v)| (k as _, v as _))
     }
@@ -91,6 +118,12 @@ impl<K: Reflect + Ord, V: Reflect> Reflect for BTreeMap<K, V> {
 }
 
 impl<K: Reflect + Ord, V: Reflect> ReflectMap for BTreeMap<K, V> {
+    fn get(&self, key: &dyn Reflect) -> Option<&dyn Reflect> {
+        let key = key.downcast_ref()?;
+
+        self.get(key).map(|value| value as _)
+    }
+
     fn get_at(&self, index: usize) -> Option<(&dyn Reflect, &dyn Reflect)> {
         self.iter().nth(index).map(|(k, v)| (k as _, v as _))
     }
