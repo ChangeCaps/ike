@@ -5,7 +5,10 @@ use std::{
 
 #[cfg(feature = "serialize")]
 use erased_serde::Serialize;
-use ike_math::{Mat2, Mat3, Mat3A, Mat4, Quat, Vec2, Vec3, Vec3A, Vec4};
+use ike_math::{
+    IVec2, IVec3, IVec4, Mat2, Mat3, Mat3A, Mat4, Quat, UVec2, UVec3, UVec4, Vec2, Vec3, Vec3A,
+    Vec4,
+};
 
 use crate::{FromReflect, Reflect, ReflectMut, ReflectRef};
 
@@ -95,12 +98,14 @@ impl_reflect_value!(u16);
 impl_reflect_value!(u32);
 impl_reflect_value!(u64);
 impl_reflect_value!(u128);
+impl_reflect_value!(usize);
 
 impl_reflect_value!(i8);
 impl_reflect_value!(i16);
 impl_reflect_value!(i32);
 impl_reflect_value!(i64);
 impl_reflect_value!(i128);
+impl_reflect_value!(isize);
 
 impl_reflect_value!(f32);
 impl_reflect_value!(f64);
@@ -109,6 +114,14 @@ impl_reflect_value!(bool);
 
 impl_reflect_value!(Cow<'static, str>);
 impl_reflect_value!(String);
+
+impl_reflect_value!(UVec2);
+impl_reflect_value!(UVec3);
+impl_reflect_value!(UVec4);
+
+impl_reflect_value!(IVec2);
+impl_reflect_value!(IVec3);
+impl_reflect_value!(IVec4);
 
 impl_reflect_value!(Vec2);
 impl_reflect_value!(Vec3);

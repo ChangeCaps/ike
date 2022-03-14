@@ -24,6 +24,50 @@ pub trait ReflectList: Reflect {
     }
 }
 
+#[derive(Default)]
+pub struct DynamicList {
+    name: String,
+    entries: Vec<Box<dyn Reflect>>,
+}
+
+impl DynamicList {
+    pub fn set_name(&mut self, name: impl Into<String>) {
+        self.name = name.into();
+    }
+
+    pub fn push_boxed(&mut self, entry: Box<dyn Reflect>) {
+        self.entries.push(entry);
+    }
+}
+
+impl ReflectList for DynamicList {
+    fn get(&self, index: usize) -> Option<&dyn Reflect> {
+        self.entries.get(index).map(|entry| entry.as_ref())
+    }
+
+    fn get_mut(&mut self, index: usize) -> Option<&mut dyn Reflect> {
+        self.entries.get_mut(index).map(|entry| entry.as_mut())
+    }
+
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+}
+
+impl Reflect for DynamicList {
+    fn type_name(&self) -> &str {
+        &self.name
+    }
+
+    fn reflect_ref(&self) -> ReflectRef {
+        ReflectRef::List(self)
+    }
+
+    fn reflect_mut(&mut self) -> ReflectMut {
+        ReflectMut::List(self)
+    }
+}
+
 impl<T: Reflect> Reflect for Vec<T> {
     fn reflect_ref(&self) -> ReflectRef {
         ReflectRef::List(self)

@@ -34,6 +34,65 @@ pub enum VariantMut<'a> {
     Struct(&'a mut dyn ReflectStruct),
 }
 
+pub enum DynamicVariant {
+    Tuple(Box<dyn ReflectTuple>),
+    Struct(Box<dyn ReflectStruct>),
+}
+
+pub struct DynamicEnum {
+    name: String,
+    variant_name: String,
+    variant: DynamicVariant,
+}
+
+impl DynamicEnum {
+    pub fn new(variant_name: impl Into<String>, variant: DynamicVariant) -> Self {
+        Self {
+            name: String::new(),
+            variant_name: variant_name.into(),
+            variant,
+        }
+    }
+
+    pub fn set_name(&mut self, name: impl Into<String>) {
+        self.name = name.into();
+    }
+}
+
+impl ReflectEnum for DynamicEnum {
+    fn variant_name(&self) -> &str {
+        &self.variant_name
+    }
+
+    fn variant_ref(&self) -> VariantRef {
+        match self.variant {
+            DynamicVariant::Tuple(ref reflect) => VariantRef::Tuple(reflect.as_ref()),
+            DynamicVariant::Struct(ref reflect) => VariantRef::Struct(reflect.as_ref()),
+        }
+    }
+
+    fn variant_mut(&mut self) -> VariantMut {
+        match self.variant {
+            DynamicVariant::Tuple(ref mut reflect) => VariantMut::Tuple(reflect.as_mut()),
+            DynamicVariant::Struct(ref mut reflect) => VariantMut::Struct(reflect.as_mut()),
+        }
+    }
+}
+
+impl Reflect for DynamicEnum {
+    fn type_name(&self) -> &str {
+        &self.name
+    }
+
+    fn reflect_ref(&self) -> ReflectRef {
+        ReflectRef::Enum(self)
+    }
+
+    fn reflect_mut(&mut self) -> ReflectMut {
+        ReflectMut::Enum(self)
+    }
+}
+
 impl<'a> VariantRef<'a> {
     pub fn get_tuple(&self) -> Option<&'a dyn ReflectTuple> {
         match *self {

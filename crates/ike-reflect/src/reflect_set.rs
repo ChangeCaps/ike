@@ -45,6 +45,68 @@ impl DynamicSet {
     }
 }
 
+impl ReflectSet for DynamicSet {
+    fn get(&self, key: &dyn Reflect) -> bool {
+        self.entries
+            .iter()
+            .find(|entry| entry.partial_eq(key))
+            .is_some()
+    }
+
+    fn get_at(&self, index: usize) -> Option<&dyn Reflect> {
+        self.entries.get(index).map(|entry| entry.as_ref())
+    }
+
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    fn remove(&mut self, key: &dyn Reflect) -> bool {
+        let index = self.entries.iter().position(|entry| entry.partial_eq(key));
+
+        if let Some(index) = index {
+            self.entries.remove(index);
+
+            true
+        } else {
+            false
+        }
+    }
+
+    fn insert(&mut self, key: Box<dyn Reflect>) -> Result<(), Box<dyn Reflect>> {
+        let index = self
+            .entries
+            .iter()
+            .position(|entry| entry.partial_eq(key.as_ref()));
+
+        if let Some(index) = index {
+            let removed = self.entries.remove(index);
+
+            self.entries.push(key);
+
+            Err(removed)
+        } else {
+            self.entries.push(key);
+
+            Ok(())
+        }
+    }
+}
+
+impl Reflect for DynamicSet {
+    fn type_name(&self) -> &str {
+        &self.name
+    }
+
+    fn reflect_ref(&self) -> ReflectRef {
+        ReflectRef::Set(self)
+    }
+
+    fn reflect_mut(&mut self) -> ReflectMut {
+        ReflectMut::Set(self)
+    }
+}
+
 impl<T: Reflect + Eq + Hash> Reflect for HashSet<T> {
     fn reflect_ref(&self) -> ReflectRef {
         ReflectRef::Set(self)

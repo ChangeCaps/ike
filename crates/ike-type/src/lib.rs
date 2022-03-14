@@ -41,6 +41,24 @@ impl TypeRegistry {
     pub fn get_registration_mut<T: 'static>(&mut self) -> Option<&mut TypeRegistration> {
         self.registrations.get_mut(&TypeId::of::<T>())
     }
+
+    pub fn get_mut_or_insert<T: 'static>(&mut self) -> &mut TypeRegistration {
+        if !self.registrations.contains_key(&TypeId::of::<T>()) {
+            self.insert_registration::<T>(TypeRegistration::new::<T>());
+        }
+
+        self.get_registration_mut::<T>().unwrap()
+    }
+
+    pub fn get_name(&self, name: impl AsRef<str>) -> Option<&TypeRegistration> {
+        let type_id = self.name_to_id.get(name.as_ref())?;
+        self.registrations.get(type_id)
+    }
+
+    pub fn get_name_mut(&mut self, name: impl AsRef<str>) -> Option<&mut TypeRegistration> {
+        let type_id = self.name_to_id.get(name.as_ref())?;
+        self.registrations.get_mut(type_id)
+    }
 }
 
 pub struct TypeRegistration {
@@ -107,4 +125,8 @@ impl dyn TypeData {
             None
         }
     }
+}
+
+pub trait FromType<T> {
+    fn from_type() -> Self;
 }

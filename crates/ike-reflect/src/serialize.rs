@@ -125,7 +125,7 @@ impl Serialize for dyn ReflectSet {
         let mut state = serializer.serialize_seq(Some(self.len()))?;
 
         for i in 0..self.len() {
-            state.serialize_element(self.get(i).unwrap())?;
+            state.serialize_element(self.get_at(i).unwrap())?;
         }
 
         state.end()

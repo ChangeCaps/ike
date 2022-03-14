@@ -38,6 +38,96 @@ pub trait ReflectMap: Reflect {
     }
 }
 
+struct DynamicEntry {
+    key: Box<dyn Reflect>,
+    value: Box<dyn Reflect>,
+}
+
+#[derive(Default)]
+pub struct DynamicMap {
+    name: String,
+    entries: Vec<DynamicEntry>,
+}
+
+impl DynamicMap {
+    pub fn set_name(&mut self, name: impl Into<String>) {
+        self.name = name.into();
+    }
+
+    pub fn push_boxed(&mut self, key: Box<dyn Reflect>, value: Box<dyn Reflect>) {
+        self.entries.push(DynamicEntry { key, value });
+    }
+}
+
+impl ReflectMap for DynamicMap {
+    fn get(&self, key: &dyn Reflect) -> Option<&dyn Reflect> {
+        let index = self
+            .entries
+            .iter()
+            .position(|entry| entry.key.partial_eq(key))?;
+
+        Some(self.entries[index].value.as_ref())
+    }
+
+    fn get_at(&self, index: usize) -> Option<(&dyn Reflect, &dyn Reflect)> {
+        self.entries
+            .get(index)
+            .map(|entry| (entry.key.as_ref(), entry.value.as_ref()))
+    }
+
+    fn get_at_mut(&mut self, index: usize) -> Option<(&dyn Reflect, &mut dyn Reflect)> {
+        self.entries
+            .get_mut(index)
+            .map(|entry| (entry.key.as_ref(), entry.value.as_mut()))
+    }
+
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    fn remove(&mut self, key: &dyn Reflect) -> Option<Box<dyn Reflect>> {
+        let index = self
+            .entries
+            .iter()
+            .position(|entry| entry.key.partial_eq(key))?;
+
+        Some(self.entries.remove(index).value)
+    }
+
+    fn insert(
+        &mut self,
+        key: Box<dyn Reflect>,
+        value: Box<dyn Reflect>,
+    ) -> Result<(), (Box<dyn Reflect>, Box<dyn Reflect>)> {
+        let index = self
+            .entries
+            .iter()
+            .position(|entry| entry.key.partial_eq(key.as_ref()));
+
+        if index.is_some() {
+            Err((key, value))
+        } else {
+            self.push_boxed(key, value);
+
+            Ok(())
+        }
+    }
+}
+
+impl Reflect for DynamicMap {
+    fn type_name(&self) -> &str {
+        &self.name
+    }
+
+    fn reflect_ref(&self) -> ReflectRef {
+        ReflectRef::Map(self)
+    }
+
+    fn reflect_mut(&mut self) -> ReflectMut {
+        ReflectMut::Map(self)
+    }
+}
+
 impl<K: Reflect + Eq + Hash, V: Reflect> Reflect for HashMap<K, V> {
     fn reflect_ref(&self) -> ReflectRef {
         ReflectRef::Map(self)
