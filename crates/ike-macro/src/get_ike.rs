@@ -2,11 +2,15 @@ use proc_macro2::{Ident, Span, TokenStream};
 use proc_macro_crate::{crate_name, FoundCrate};
 use quote::quote;
 
-pub fn get_ike(sub: &str) -> TokenStream {
+pub fn get_ike(mut sub: &str) -> TokenStream {
     if let Ok(found) = crate_name(&format!("ike-{}", sub)) {
         get_crate(found)
     } else if let Ok(found) = crate_name("ike") {
         let path = get_crate(found);
+
+        if sub == "type" {
+            sub = "types";
+        }
 
         let ident = Ident::new(sub, Span::call_site());
 
