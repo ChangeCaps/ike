@@ -10,6 +10,7 @@ use syn::{parse_macro_input, parse_quote, Data, DeriveInput, Fields, Generics, T
 use crate::get_ike::get_ike;
 
 use self::{
+    attributes::ContainerAttrs,
     reflect_enum::impl_reflect_enum,
     reflect_struct::{impl_reflect_struct, impl_reflect_unit_struct},
     reflect_tuple::impl_reflect_tuple,
@@ -21,7 +22,21 @@ pub fn derive_reflect(input: proc_macro::TokenStream) -> proc_macro::TokenStream
     let ident = &input.ident;
 
     let ike_reflect = get_ike("reflect");
-    add_trait_bound(&mut input.generics, parse_quote!(#ike_reflect::Reflect));
+
+    let container_attrs = ContainerAttrs::new(&input.attrs);
+    if let Some(bound) = container_attrs.bound {
+        for param in input.generics.lifetimes_mut() {
+            param.bounds.clear();
+        }
+
+        for param in input.generics.type_params_mut() {
+            param.bounds.clear();
+        }
+
+        input.generics.make_where_clause().predicates = bound;
+    } else {
+        add_trait_bound(&mut input.generics, parse_quote!(#ike_reflect::Reflect));
+    }
 
     let reflect_impl = reflect_impl(&input);
 

@@ -1,4 +1,4 @@
-use super::attributes::{ignore_field, Attrs};
+use super::attributes::{ignore_field, FieldAttrs};
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned};
 use syn::{spanned::Spanned, DeriveInput, FieldsUnnamed, Index};
@@ -70,7 +70,7 @@ pub fn from_reflect(fields: &FieldsUnnamed) -> impl Iterator<Item = TokenStream>
         .iter()
         .enumerate()
         .map(move |(index, field)| {
-            let attrs = Attrs::new(&field.attrs);
+            let attrs = FieldAttrs::new(&field.attrs);
 
             let ty = &field.ty;
 

@@ -1,4 +1,4 @@
-use super::attributes::{ignore_field, Attrs};
+use super::attributes::{ignore_field, FieldAttrs};
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::{spanned::Spanned, DeriveInput, FieldsNamed};
@@ -99,7 +99,7 @@ pub fn from_reflect(fields: &FieldsNamed) -> impl Iterator<Item = TokenStream> +
     let ike_reflect = get_ike("reflect");
 
     fields.named.iter().map(move |field| {
-        let attrs = Attrs::new(&field.attrs);
+        let attrs = FieldAttrs::new(&field.attrs);
 
         let ident = field.ident.as_ref().unwrap();
         let name = ident.to_string();

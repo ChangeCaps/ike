@@ -1,4 +1,4 @@
-use super::attributes::{ignore_field, Attrs};
+use super::attributes::{ignore_field, FieldAttrs};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, quote_spanned};
 use syn::{spanned::Spanned, DataEnum, DeriveInput, Fields, FieldsNamed, FieldsUnnamed};
@@ -216,7 +216,7 @@ fn from_reflect(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
         match variant.fields {
             Fields::Named(ref fields) => {
                 let fields = fields.named.iter().map(|field| {
-                    let attrs = Attrs::new(&field.attrs);
+                    let attrs = FieldAttrs::new(&field.attrs);
 
                     let ident = field.ident.as_ref().unwrap();
                     let name = ident.to_string();
@@ -241,7 +241,7 @@ fn from_reflect(data: &DataEnum) -> impl Iterator<Item = TokenStream> + '_ {
             }
             Fields::Unnamed(ref fields) => {
                 let fields = fields.unnamed.iter().enumerate().map(|(index, field)| {
-                    let attrs = Attrs::new(&field.attrs);
+                    let attrs = FieldAttrs::new(&field.attrs);
 
                     let ty = &field.ty;
 
