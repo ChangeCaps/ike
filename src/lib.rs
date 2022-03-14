@@ -16,6 +16,7 @@ pub use ike_pbr as pbr;
 pub use ike_physics as physics;
 #[cfg(feature = "post-processing")]
 pub use ike_post_processing as post_processing;
+pub use ike_reflect as reflect;
 #[cfg(feature = "render")]
 pub use ike_render as render;
 pub use ike_task as task;

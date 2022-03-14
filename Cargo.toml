@@ -28,6 +28,7 @@ ike-node = { version = "0.1.0", path = "crates/ike-node" }
 ike-pbr = { version = "0.1.0", path = "crates/ike-pbr", optional = true }
 ike-physics = { version = "0.1.0", path = "crates/ike-physics", optional = true }
 ike-post-processing = { version = "0.1.0", path = "crates/ike-post-processing", optional = true }
+ike-reflect = { version = "0.1.0", path = "crates/ike-reflect" }
 ike-render = { version = "0.1.0", path = "crates/ike-render", optional = true }
 ike-task = { version = "0.1.0", path = "crates/ike-task" }
 ike-transform = { version = "0.1.0", path = "crates/ike-transform" }
