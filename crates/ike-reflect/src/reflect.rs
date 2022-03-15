@@ -33,29 +33,6 @@ pub trait Reflect: Any {
 
     fn reflect_ref(&self) -> ReflectRef;
     fn reflect_mut(&mut self) -> ReflectMut;
-
-    fn partial_eq(&self, other: &dyn Reflect) -> bool {
-        match (self.reflect_ref(), other.reflect_ref()) {
-            (ReflectRef::Tuple(this), ReflectRef::Tuple(other)) => {
-                ReflectTuple::partial_eq(this, other)
-            }
-            (ReflectRef::Struct(this), ReflectRef::Struct(other)) => {
-                ReflectStruct::partial_eq(this, other)
-            }
-            (ReflectRef::Enum(this), ReflectRef::Enum(other)) => {
-                ReflectEnum::partial_eq(this, other)
-            }
-            (ReflectRef::List(this), ReflectRef::List(other)) => {
-                ReflectList::partial_eq(this, other)
-            }
-            (ReflectRef::Set(this), ReflectRef::Set(other)) => ReflectSet::partial_eq(this, other),
-            (ReflectRef::Map(this), ReflectRef::Map(other)) => ReflectMap::partial_eq(this, other),
-            (ReflectRef::Value(this), ReflectRef::Value(other)) => {
-                ReflectValue::partial_eq(this, other)
-            }
-            _ => false,
-        }
-    }
 }
 
 pub trait FromReflect {
@@ -99,6 +76,33 @@ impl dyn Reflect {
             unsafe { Some(&mut *(self as *mut _ as *mut T)) }
         } else {
             None
+        }
+    }
+
+    pub fn partial_eq(&self, other: &dyn Reflect) -> bool {
+        match (self.reflect_ref(), other.reflect_ref()) {
+            (ReflectRef::Tuple(this), ReflectRef::Tuple(other)) => this.partial_eq(other),
+            (ReflectRef::Struct(this), ReflectRef::Struct(other)) => this.partial_eq(other),
+            (ReflectRef::Enum(this), ReflectRef::Enum(other)) => this.partial_eq(other),
+            (ReflectRef::List(this), ReflectRef::List(other)) => this.partial_eq(other),
+            (ReflectRef::Set(this), ReflectRef::Set(other)) => this.partial_eq(other),
+            (ReflectRef::Map(this), ReflectRef::Map(other)) => this.partial_eq(other),
+            (ReflectRef::Value(this), ReflectRef::Value(other)) => {
+                ReflectValue::partial_eq(this, other)
+            }
+            _ => false,
+        }
+    }
+
+    pub fn clone_dynamic(&self) -> Box<dyn Reflect> {
+        match self.reflect_ref() {
+            ReflectRef::Tuple(reflect) => Box::new(reflect.clone_dynamic()),
+            ReflectRef::Struct(reflect) => Box::new(reflect.clone_dynamic()),
+            ReflectRef::Enum(reflect) => Box::new(reflect.clone_dynamic()),
+            ReflectRef::List(reflect) => Box::new(reflect.clone_dynamic()),
+            ReflectRef::Set(reflect) => Box::new(reflect.clone_dynamic()),
+            ReflectRef::Map(reflect) => Box::new(reflect.clone_dynamic()),
+            ReflectRef::Value(reflect) => reflect.value_clone(),
         }
     }
 }

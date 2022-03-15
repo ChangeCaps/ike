@@ -6,21 +6,31 @@ pub trait ReflectEnum: Reflect {
     fn variant_name(&self) -> &str;
     fn variant_ref(&self) -> VariantRef;
     fn variant_mut(&mut self) -> VariantMut;
+}
 
-    fn partial_eq(&self, other: &dyn ReflectEnum) -> bool {
+impl dyn ReflectEnum {
+    pub fn partial_eq(&self, other: &dyn ReflectEnum) -> bool {
         if self.type_name() != other.type_name() || self.variant_name() != other.variant_name() {
             return false;
         }
 
         match (self.variant_ref(), other.variant_ref()) {
-            (VariantRef::Tuple(this), VariantRef::Tuple(other)) => {
-                ReflectTuple::partial_eq(this, other)
-            }
-            (VariantRef::Struct(this), VariantRef::Struct(other)) => {
-                ReflectStruct::partial_eq(this, other)
-            }
+            (VariantRef::Tuple(this), VariantRef::Tuple(other)) => this.partial_eq(other),
+            (VariantRef::Struct(this), VariantRef::Struct(other)) => this.partial_eq(other),
             _ => false,
         }
+    }
+
+    pub fn clone_dynamic(&self) -> DynamicEnum {
+        let variant = match self.variant_ref() {
+            VariantRef::Tuple(reflect) => DynamicVariant::Tuple(Box::new(reflect.clone_dynamic())),
+            VariantRef::Struct(reflect) => {
+                DynamicVariant::Struct(Box::new(reflect.clone_dynamic()))
+            }
+        };
+        let mut this = DynamicEnum::new(self.variant_name(), variant);
+        this.set_name(self.type_name());
+        this
     }
 }
 
