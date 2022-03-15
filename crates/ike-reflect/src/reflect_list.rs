@@ -4,8 +4,10 @@ pub trait ReflectList: Reflect {
     fn get(&self, index: usize) -> Option<&dyn Reflect>;
     fn get_mut(&mut self, index: usize) -> Option<&mut dyn Reflect>;
     fn len(&self) -> usize;
+}
 
-    fn partial_eq(&self, other: &dyn ReflectList) -> bool {
+impl dyn ReflectList {
+    pub fn partial_eq(&self, other: &dyn ReflectList) -> bool {
         if self.type_name() != other.type_name() || self.len() != other.len() {
             return false;
         }
@@ -21,6 +23,18 @@ pub trait ReflectList: Reflect {
         }
 
         true
+    }
+
+    pub fn clone_dynamic(&self) -> DynamicList {
+        let mut this = DynamicList::default();
+        this.set_name(self.type_name());
+
+        for index in 0..self.len() {
+            let entry = self.get(index).unwrap();
+            this.push_boxed(entry.clone_dynamic());
+        }
+
+        this
     }
 }
 

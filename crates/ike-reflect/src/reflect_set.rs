@@ -11,8 +11,10 @@ pub trait ReflectSet: Reflect {
     fn len(&self) -> usize;
     fn remove(&mut self, key: &dyn Reflect) -> bool;
     fn insert(&mut self, key: Box<dyn Reflect>) -> Result<(), Box<dyn Reflect>>;
+}
 
-    fn partial_eq(&self, other: &dyn ReflectSet) -> bool {
+impl dyn ReflectSet {
+    pub fn partial_eq(&self, other: &dyn ReflectSet) -> bool {
         if self.type_name() != other.type_name() || self.len() != other.len() {
             return false;
         }
@@ -26,6 +28,18 @@ pub trait ReflectSet: Reflect {
         }
 
         true
+    }
+
+    pub fn clone_dynamic(&self) -> DynamicSet {
+        let mut this = DynamicSet::default();
+        this.set_name(self.type_name());
+
+        for index in 0..self.len() {
+            let entry = self.get_at(index).unwrap();
+            let _ = this.insert(entry.clone_dynamic());
+        }
+
+        this
     }
 }
 
@@ -107,7 +121,7 @@ impl Reflect for DynamicSet {
     }
 }
 
-impl<T: Reflect + Eq + Hash> Reflect for HashSet<T> {
+impl<T: Reflect + FromReflect + Eq + Hash> Reflect for HashSet<T> {
     fn reflect_ref(&self) -> ReflectRef {
         ReflectRef::Set(self)
     }
@@ -117,7 +131,7 @@ impl<T: Reflect + Eq + Hash> Reflect for HashSet<T> {
     }
 }
 
-impl<T: Reflect + Eq + Hash> ReflectSet for HashSet<T> {
+impl<T: Reflect + FromReflect + Eq + Hash> ReflectSet for HashSet<T> {
     fn get(&self, key: &dyn Reflect) -> bool {
         if let Some(key) = key.downcast_ref() {
             self.contains(key)
@@ -143,7 +157,7 @@ impl<T: Reflect + Eq + Hash> ReflectSet for HashSet<T> {
     }
 
     fn insert(&mut self, key: Box<dyn Reflect>) -> Result<(), Box<dyn Reflect>> {
-        self.insert(*key.downcast()?);
+        self.insert(T::from_reflect(key.as_ref()).ok_or(key)?);
 
         Ok(())
     }
@@ -164,7 +178,7 @@ impl<T: FromReflect + Eq + Hash> FromReflect for HashSet<T> {
     }
 }
 
-impl<T: Reflect + Ord> Reflect for BTreeSet<T> {
+impl<T: Reflect + FromReflect + Ord> Reflect for BTreeSet<T> {
     fn reflect_ref(&self) -> ReflectRef {
         ReflectRef::Set(self)
     }
@@ -174,7 +188,7 @@ impl<T: Reflect + Ord> Reflect for BTreeSet<T> {
     }
 }
 
-impl<T: Reflect + Ord> ReflectSet for BTreeSet<T> {
+impl<T: Reflect + FromReflect + Ord> ReflectSet for BTreeSet<T> {
     fn get(&self, key: &dyn Reflect) -> bool {
         if let Some(key) = key.downcast_ref() {
             self.contains(key)
@@ -200,7 +214,7 @@ impl<T: Reflect + Ord> ReflectSet for BTreeSet<T> {
     }
 
     fn insert(&mut self, key: Box<dyn Reflect>) -> Result<(), Box<dyn Reflect>> {
-        self.insert(*key.downcast()?);
+        self.insert(T::from_reflect(key.as_ref()).ok_or(key)?);
 
         Ok(())
     }

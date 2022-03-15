@@ -7,8 +7,10 @@ pub trait ReflectStruct: Reflect {
     fn field_at_mut(&mut self, index: usize) -> Option<&mut dyn Reflect>;
     fn name_at(&self, index: usize) -> Option<&str>;
     fn field_len(&self) -> usize;
+}
 
-    fn partial_eq(&self, other: &dyn ReflectStruct) -> bool {
+impl dyn ReflectStruct {
+    pub fn partial_eq(&self, other: &dyn ReflectStruct) -> bool {
         if self.type_name() != other.type_name() {
             return false;
         }
@@ -24,6 +26,19 @@ pub trait ReflectStruct: Reflect {
         }
 
         true
+    }
+
+    pub fn clone_dynamic(&self) -> DynamicStruct {
+        let mut this = DynamicStruct::default();
+        this.set_name(self.type_name());
+
+        for index in 0..self.field_len() {
+            let name = self.name_at(index).unwrap();
+            let field = self.field_at(index).unwrap();
+            this.push_boxed(name, field.clone_dynamic());
+        }
+
+        this
     }
 }
 

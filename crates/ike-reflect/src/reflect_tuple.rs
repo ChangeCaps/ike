@@ -4,8 +4,10 @@ pub trait ReflectTuple: Reflect {
     fn field(&self, index: usize) -> Option<&dyn Reflect>;
     fn field_mut(&mut self, index: usize) -> Option<&mut dyn Reflect>;
     fn field_len(&self) -> usize;
+}
 
-    fn partial_eq(&self, other: &dyn ReflectTuple) -> bool {
+impl dyn ReflectTuple {
+    pub fn partial_eq(&self, other: &dyn ReflectTuple) -> bool {
         if self.type_name() != other.type_name() {
             return false;
         }
@@ -21,6 +23,18 @@ pub trait ReflectTuple: Reflect {
         }
 
         true
+    }
+
+    pub fn clone_dynamic(&self) -> DynamicTuple {
+        let mut this = DynamicTuple::default();
+        this.set_name(self.type_name());
+
+        for index in 0..self.field_len() {
+            let field = self.field(index).unwrap();
+            this.push_boxed(field.clone_dynamic());
+        }
+
+        this
     }
 }
 

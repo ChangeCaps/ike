@@ -16,8 +16,10 @@ pub trait ReflectMap: Reflect {
         key: Box<dyn Reflect>,
         value: Box<dyn Reflect>,
     ) -> Result<(), (Box<dyn Reflect>, Box<dyn Reflect>)>;
+}
 
-    fn partial_eq(&self, other: &dyn ReflectMap) -> bool {
+impl dyn ReflectMap {
+    pub fn partial_eq(&self, other: &dyn ReflectMap) -> bool {
         if self.type_name() != other.type_name() || self.len() != other.len() {
             return false;
         }
@@ -35,6 +37,18 @@ pub trait ReflectMap: Reflect {
         }
 
         true
+    }
+
+    pub fn clone_dynamic(&self) -> DynamicMap {
+        let mut this = DynamicMap::default();
+        this.set_name(self.type_name());
+
+        for index in 0..self.len() {
+            let (key, value) = self.get_at(index).unwrap();
+            let _ = this.insert(key.clone_dynamic(), value.clone_dynamic());
+        }
+
+        this
     }
 }
 
@@ -128,7 +142,7 @@ impl Reflect for DynamicMap {
     }
 }
 
-impl<K: Reflect + Eq + Hash, V: Reflect> Reflect for HashMap<K, V> {
+impl<K: Reflect + FromReflect + Eq + Hash, V: Reflect + FromReflect> Reflect for HashMap<K, V> {
     fn reflect_ref(&self) -> ReflectRef {
         ReflectRef::Map(self)
     }
@@ -138,7 +152,7 @@ impl<K: Reflect + Eq + Hash, V: Reflect> Reflect for HashMap<K, V> {
     }
 }
 
-impl<K: Reflect + Eq + Hash, V: Reflect> ReflectMap for HashMap<K, V> {
+impl<K: Reflect + FromReflect + Eq + Hash, V: Reflect + FromReflect> ReflectMap for HashMap<K, V> {
     fn get(&self, key: &dyn Reflect) -> Option<&dyn Reflect> {
         let key = key.downcast_ref()?;
 
@@ -168,14 +182,13 @@ impl<K: Reflect + Eq + Hash, V: Reflect> ReflectMap for HashMap<K, V> {
         key: Box<dyn Reflect>,
         value: Box<dyn Reflect>,
     ) -> Result<(), (Box<dyn Reflect>, Box<dyn Reflect>)> {
-        if key.as_ref().is::<K>() && value.as_ref().is::<V>() {
-            if let (Ok(key), Ok(value)) = (key.downcast(), value.downcast()) {
-                self.insert(*key, *value);
+        if let (Some(key), Some(value)) = (
+            K::from_reflect(key.as_ref()),
+            V::from_reflect(value.as_ref()),
+        ) {
+            self.insert(key, value);
 
-                Ok(())
-            } else {
-                unreachable!()
-            }
+            Ok(())
         } else {
             Err((key, value))
         }
@@ -197,7 +210,7 @@ impl<K: FromReflect + Eq + Hash, V: FromReflect> FromReflect for HashMap<K, V> {
     }
 }
 
-impl<K: Reflect + Ord, V: Reflect> Reflect for BTreeMap<K, V> {
+impl<K: Reflect + FromReflect + Ord, V: Reflect + FromReflect> Reflect for BTreeMap<K, V> {
     fn reflect_ref(&self) -> ReflectRef {
         ReflectRef::Map(self)
     }
@@ -207,7 +220,7 @@ impl<K: Reflect + Ord, V: Reflect> Reflect for BTreeMap<K, V> {
     }
 }
 
-impl<K: Reflect + Ord, V: Reflect> ReflectMap for BTreeMap<K, V> {
+impl<K: Reflect + FromReflect + Ord, V: Reflect + FromReflect> ReflectMap for BTreeMap<K, V> {
     fn get(&self, key: &dyn Reflect) -> Option<&dyn Reflect> {
         let key = key.downcast_ref()?;
 
@@ -237,14 +250,13 @@ impl<K: Reflect + Ord, V: Reflect> ReflectMap for BTreeMap<K, V> {
         key: Box<dyn Reflect>,
         value: Box<dyn Reflect>,
     ) -> Result<(), (Box<dyn Reflect>, Box<dyn Reflect>)> {
-        if key.as_ref().is::<K>() && value.as_ref().is::<V>() {
-            if let (Ok(key), Ok(value)) = (key.downcast(), value.downcast()) {
-                self.insert(*key, *value);
+        if let (Some(key), Some(value)) = (
+            K::from_reflect(key.as_ref()),
+            V::from_reflect(value.as_ref()),
+        ) {
+            self.insert(key, value);
 
-                Ok(())
-            } else {
-                unreachable!()
-            }
+            Ok(())
         } else {
             Err((key, value))
         }
