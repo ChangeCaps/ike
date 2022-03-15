@@ -1,15 +1,27 @@
 use syn::parse_quote;
 
-mod derive_component;
+mod component;
 mod get_ike;
 mod label;
 mod node;
 mod reflect;
 mod system_param;
+mod type_uuid;
 
-#[proc_macro_derive(Component)]
-pub fn derive_component(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    derive_component::derive_component(input)
+#[proc_macro_attribute]
+pub fn component(
+    _: proc_macro::TokenStream,
+    input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    component::component(input)
+}
+
+#[proc_macro_attribute]
+pub fn uuid(
+    args: proc_macro::TokenStream,
+    input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    type_uuid::type_uuid(args, input)
 }
 
 #[proc_macro_derive(Reflect, attributes(reflect))]

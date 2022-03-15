@@ -10,6 +10,7 @@ use ike_reflect::Reflect;
 /// This is so indices can be reused which saves space and resizes.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Reflect, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Entity {
     index: u64,
     generation: u64,

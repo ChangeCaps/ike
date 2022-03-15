@@ -172,9 +172,9 @@ impl<T: Default> FromWorld for T {
 
 #[cfg(test)]
 mod tests {
-    use crate::Component;
+    use crate::component;
 
-    #[derive(Component)]
+    #[component]
     struct Foo {}
 
     #[test]

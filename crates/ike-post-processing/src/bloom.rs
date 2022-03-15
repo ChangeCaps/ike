@@ -479,7 +479,7 @@ impl RenderNode for BloomNode {
             0,
             bytes_of(&BloomUniforms {
                 threshold: 2.5,
-                knee: 0.2,
+                knee: 0.5,
                 scale: Self::scale_factor(target.width(), target.height(), mips),
             }),
         );

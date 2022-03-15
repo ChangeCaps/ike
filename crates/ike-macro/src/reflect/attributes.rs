@@ -6,6 +6,7 @@ use syn::{
 
 syn::custom_keyword!(bound);
 syn::custom_keyword!(ignore);
+syn::custom_keyword!(Component);
 
 #[derive(Default)]
 pub struct FieldAttrs {
@@ -59,6 +60,7 @@ impl Parse for BoundAttr {
 #[derive(Default)]
 pub struct ContainerAttrs {
     pub bound: Option<Punctuated<WherePredicate, Token![,]>>,
+    pub component: bool,
 }
 
 impl ContainerAttrs {
@@ -76,6 +78,10 @@ impl ContainerAttrs {
                         .unwrap();
 
                         this.bound = Some(bound);
+                    }
+
+                    if parser.parse::<Component>().is_ok() {
+                        this.component = true;
                     }
 
                     Ok(())

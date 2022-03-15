@@ -59,10 +59,19 @@ impl TypeRegistry {
         let type_id = self.name_to_id.get(name.as_ref())?;
         self.registrations.get_mut(type_id)
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &TypeRegistration> {
+        self.registrations.values()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut TypeRegistration> {
+        self.registrations.values_mut()
+    }
 }
 
 pub struct TypeRegistration {
     type_id: TypeId,
+    type_name: &'static str,
     data: HashMap<TypeId, Box<dyn TypeData>>,
     name_to_id: HashMap<Cow<'static, str>, TypeId>,
 }
@@ -71,9 +80,14 @@ impl TypeRegistration {
     pub fn new<T: 'static>() -> Self {
         Self {
             type_id: TypeId::of::<T>(),
+            type_name: type_name::<T>(),
             data: HashMap::new(),
             name_to_id: HashMap::new(),
         }
+    }
+
+    pub fn type_name(&self) -> &str {
+        self.type_name
     }
 
     pub fn type_id(&self) -> TypeId {
@@ -107,7 +121,7 @@ impl<T: Clone + Send + Sync + 'static> TypeData for T {
 
 impl dyn TypeData {
     pub fn downcast_ref<T: TypeData>(&self) -> Option<&T> {
-        if (*self).type_id() == TypeId::of::<T>() {
+        if Any::type_id(self) == TypeId::of::<T>() {
             let data = unsafe { &*(self as *const _ as *const T) };
 
             Some(data)
@@ -117,7 +131,7 @@ impl dyn TypeData {
     }
 
     pub fn downcast_mut<T: TypeData>(&mut self) -> Option<&mut T> {
-        if (*self).type_id() == TypeId::of::<T>() {
+        if Any::type_id(self) == TypeId::of::<T>() {
             let data = unsafe { &mut *(self as *mut _ as *mut T) };
 
             Some(data)

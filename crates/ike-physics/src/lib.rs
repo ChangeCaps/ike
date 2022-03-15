@@ -38,6 +38,9 @@ pub struct PhysicsPlugin;
 
 impl Plugin for PhysicsPlugin {
     fn build(self, app: &mut App) {
+        app.register::<RigidBody>();
+        app.register::<Collider>();
+
         app.insert_resource(PhysicsWorld::new());
         app.insert_resource(QueryPipeline::new());
         app.insert_resource(RigidBodySet::new());

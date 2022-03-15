@@ -18,6 +18,9 @@ pub struct TransformPlugin;
 
 impl Plugin for TransformPlugin {
     fn build(self, app: &mut App) {
+        app.register::<Transform>();
+        app.register::<GlobalTransform>();
+
         app.add_startup_system_to_stage(
             system::transform_propagate_system,
             StartupStage::PostStartup,

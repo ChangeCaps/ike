@@ -1,9 +1,11 @@
 use bytemuck::{Pod, Zeroable};
-use ike_ecs::Component;
+use ike_ecs::component;
 use ike_math::{Mat4, Vec3};
+use ike_reflect::Reflect;
 use ike_render::{Color, Orthographic};
 
-#[derive(Component, Clone)]
+#[component]
+#[derive(Reflect, Clone)]
 pub struct DirectionalLight {
     pub illuminance: f32,
     pub direction: Vec3,

@@ -25,8 +25,8 @@ pub use reflect_value::*;
 pub use serialize::*;
 
 #[cfg(feature = "serialize")]
-pub mod field_type {
-    pub const TYPE: &str = "field_type";
+pub mod type_field {
+    pub const TYPE: &str = "type";
     pub const VARIANT: &str = "variant";
 
     pub const TUPLE: &str = "tuple";

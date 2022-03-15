@@ -19,22 +19,24 @@ pub use ike_post_processing as post_processing;
 pub use ike_reflect as reflect;
 #[cfg(feature = "render")]
 pub use ike_render as render;
+pub use ike_scene as scene;
 pub use ike_task as task;
 pub use ike_transform as transform;
+pub use ike_type as types;
 pub use ike_util as util;
 pub use ike_winit as winit;
 
 pub mod prelude {
     pub use crate::DefaultPlugins;
-    pub use ike_app::{App, AppRunner, Plugin};
+    pub use ike_app::{App, AppRunner, CoreStage, Plugin, StartupStage};
     pub use ike_assets::{AddAsset, AssetServer, Assets, Handle};
     pub use ike_core::Time;
     pub use ike_debug::DebugLine;
     pub use ike_ecs::{
-        Added, Changed, Children, Commands, Component, Entities, Entity, EventReader, EventWriter,
-        Events, ExclusiveSystemCoercion, FromWorld, Mut, Or, ParallelSystemCoercion, Parent, Query,
-        Res, ResMut, Resources, Schedule, SparseStorage, StageLabel, SystemLabel, With, Without,
-        World,
+        component, Added, Changed, Children, Commands, Component, Entities, Entity, EventReader,
+        EventWriter, Events, ExclusiveSystemCoercion, FromWorld, IntoExclusiveSystem, Mut, Or,
+        ParallelSystemCoercion, Parent, Query, Res, ResMut, Resources, Schedule, SparseStorage,
+        StageLabel, SystemLabel, With, Without, World,
     };
     #[cfg(feature = "gltf")]
     pub use ike_gltf::GltfMesh;
@@ -45,14 +47,17 @@ pub mod prelude {
     #[cfg(feature = "pbr")]
     pub use ike_pbr::PbrMaterial;
     #[cfg(feature = "physics")]
-    pub use ike_physics::{Collider, Collision, Gravity, RigidBody};
+    pub use ike_physics::{Collider, Collision, Gravity, PhysicsStage, RigidBody};
+    pub use ike_reflect::Reflect;
     #[cfg(feature = "render")]
     pub use ike_render::{
         Camera, Color, Mesh, RawCamera, RenderContext, RenderDevice, RenderGraph,
-        RenderGraphContext, RenderGraphResult, RenderNode, RenderQueue, SlotInfo,
+        RenderGraphContext, RenderGraphResult, RenderNode, RenderQueue, RenderStage, SlotInfo,
     };
+    pub use ike_scene::Scene;
     pub use ike_task::{Task, TaskPool};
     pub use ike_transform::{GlobalTransform, Transform, TransformPlugin};
+    pub use ike_type::TypeRegistry;
     pub use ike_winit::Window;
 }
 

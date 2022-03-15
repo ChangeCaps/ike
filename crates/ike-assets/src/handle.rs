@@ -7,7 +7,7 @@ use std::{
 };
 
 use ahash::AHasher;
-use ike_ecs::Component;
+use ike_ecs::component;
 use ike_reflect::Reflect;
 
 use crate::Asset;
@@ -208,7 +208,8 @@ impl Hash for HandleUntyped {
     }
 }
 
-#[derive(Component, Reflect)]
+#[component]
+#[derive(Reflect)]
 #[reflect(bound = "T: Asset")]
 pub struct Handle<T: Asset> {
     inner: HandleUntyped,

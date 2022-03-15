@@ -34,6 +34,7 @@ pub trait AddAsset: Sized {
 
 impl AddAsset for App {
     fn add_asset<T: Asset>(&mut self) -> &mut Self {
+        self.register::<Handle<T>>();
         self.add_system_to_stage(
             Assets::<T>::update_storage_system,
             AssetStage::UpdateStorage,

@@ -1,0 +1,16 @@
+[package]
+name = "ike-scene"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# ike
+ike-app = { version = "0.1.0", path = "../ike-app" }
+ike-ecs = { version = "0.1.0", path = "../ike-ecs", features = ["serde"] }
+ike-reflect = { version = "0.1.0", path = "../ike-reflect" }
+ike-type = { version = "0.1.0", path = "../ike-type" }
+
+# other
+serde = { version = "1.0", features = ["derive"] }

@@ -5,7 +5,7 @@ use serde::{
 };
 
 use crate::{
-    field_type, DynamicEnum, DynamicList, DynamicMap, DynamicSet, DynamicStruct, DynamicTuple,
+    type_field, DynamicEnum, DynamicList, DynamicMap, DynamicSet, DynamicStruct, DynamicTuple,
     DynamicVariant, Reflect,
 };
 
@@ -74,12 +74,12 @@ impl<'a, 'de> Visitor<'de> for ReflectVisitor<'a> {
 
         while let Some(key) = map.next_key()? {
             match key {
-                field_type::TYPE => {
+                type_field::TYPE => {
                     type_name = Some(map.next_value::<String>()?);
                 }
-                field_type::TUPLE => {
+                type_field::TUPLE => {
                     let type_name =
-                        type_name.ok_or_else(|| Error::missing_field(field_type::TYPE))?;
+                        type_name.ok_or_else(|| Error::missing_field(type_field::TYPE))?;
 
                     let mut value = map.next_value_seed(TupleDeserializer(self.0))?;
 
@@ -87,9 +87,9 @@ impl<'a, 'de> Visitor<'de> for ReflectVisitor<'a> {
 
                     return Ok(Box::new(value));
                 }
-                field_type::STRUCT => {
+                type_field::STRUCT => {
                     let type_name =
-                        type_name.ok_or_else(|| Error::missing_field(field_type::TYPE))?;
+                        type_name.ok_or_else(|| Error::missing_field(type_field::TYPE))?;
 
                     let mut value = map.next_value_seed(StructDeserializer(self.0))?;
 
@@ -97,9 +97,9 @@ impl<'a, 'de> Visitor<'de> for ReflectVisitor<'a> {
 
                     return Ok(Box::new(value));
                 }
-                field_type::ENUM => {
+                type_field::ENUM => {
                     let type_name =
-                        type_name.ok_or_else(|| Error::missing_field(field_type::TYPE))?;
+                        type_name.ok_or_else(|| Error::missing_field(type_field::TYPE))?;
 
                     let mut value = map.next_value_seed(EnumDeserializer(self.0))?;
 
@@ -107,9 +107,9 @@ impl<'a, 'de> Visitor<'de> for ReflectVisitor<'a> {
 
                     return Ok(Box::new(value));
                 }
-                field_type::LIST => {
+                type_field::LIST => {
                     let type_name =
-                        type_name.ok_or_else(|| Error::missing_field(field_type::TYPE))?;
+                        type_name.ok_or_else(|| Error::missing_field(type_field::TYPE))?;
 
                     let mut value = map.next_value_seed(ListDeserializer(self.0))?;
 
@@ -117,9 +117,9 @@ impl<'a, 'de> Visitor<'de> for ReflectVisitor<'a> {
 
                     return Ok(Box::new(value));
                 }
-                field_type::SET => {
+                type_field::SET => {
                     let type_name =
-                        type_name.ok_or_else(|| Error::missing_field(field_type::TYPE))?;
+                        type_name.ok_or_else(|| Error::missing_field(type_field::TYPE))?;
 
                     let mut value = map.next_value_seed(SetDeserializer(self.0))?;
 
@@ -127,9 +127,9 @@ impl<'a, 'de> Visitor<'de> for ReflectVisitor<'a> {
 
                     return Ok(Box::new(value));
                 }
-                field_type::MAP => {
+                type_field::MAP => {
                     let type_name =
-                        type_name.ok_or_else(|| Error::missing_field(field_type::TYPE))?;
+                        type_name.ok_or_else(|| Error::missing_field(type_field::TYPE))?;
 
                     let mut value = map.next_value_seed(MapDeserializer(self.0))?;
 
@@ -137,9 +137,9 @@ impl<'a, 'de> Visitor<'de> for ReflectVisitor<'a> {
 
                     return Ok(Box::new(value));
                 }
-                field_type::VALUE => {
+                type_field::VALUE => {
                     let type_name =
-                        type_name.ok_or_else(|| Error::missing_field(field_type::TYPE))?;
+                        type_name.ok_or_else(|| Error::missing_field(type_field::TYPE))?;
 
                     if let Some(registration) = self.0.get_name(&type_name) {
                         if let Some(deserialize) = registration.data::<ReflectDeserialize>() {
@@ -161,14 +161,14 @@ impl<'a, 'de> Visitor<'de> for ReflectVisitor<'a> {
                     return Err(Error::unknown_field(
                         key,
                         &[
-                            field_type::TYPE,
-                            field_type::TUPLE,
-                            field_type::STRUCT,
-                            field_type::ENUM,
-                            field_type::LIST,
-                            field_type::SET,
-                            field_type::MAP,
-                            field_type::VALUE,
+                            type_field::TYPE,
+                            type_field::TUPLE,
+                            type_field::STRUCT,
+                            type_field::ENUM,
+                            type_field::LIST,
+                            type_field::SET,
+                            type_field::MAP,
+                            type_field::VALUE,
                         ],
                     ))
                 }
@@ -283,12 +283,12 @@ impl<'a, 'de> Visitor<'de> for EnumVisitor<'a> {
 
         while let Some(key) = map.next_key()? {
             match key {
-                field_type::VARIANT => {
+                type_field::VARIANT => {
                     variant_name = Some(map.next_value::<String>()?);
                 }
-                field_type::TUPLE => {
+                type_field::TUPLE => {
                     let variant_name =
-                        variant_name.ok_or_else(|| Error::missing_field(field_type::VARIANT))?;
+                        variant_name.ok_or_else(|| Error::missing_field(type_field::VARIANT))?;
 
                     let value = map.next_value_seed(TupleDeserializer(self.0))?;
 
@@ -297,9 +297,9 @@ impl<'a, 'de> Visitor<'de> for EnumVisitor<'a> {
                         DynamicVariant::Tuple(Box::new(value)),
                     ));
                 }
-                field_type::STRUCT => {
+                type_field::STRUCT => {
                     let variant_name =
-                        variant_name.ok_or_else(|| Error::missing_field(field_type::VARIANT))?;
+                        variant_name.ok_or_else(|| Error::missing_field(type_field::VARIANT))?;
 
                     let value = map.next_value_seed(StructDeserializer(self.0))?;
 
@@ -311,7 +311,7 @@ impl<'a, 'de> Visitor<'de> for EnumVisitor<'a> {
                 _ => {
                     return Err(Error::unknown_field(
                         key,
-                        &[field_type::VARIANT, field_type::TUPLE, field_type::STRUCT],
+                        &[type_field::VARIANT, type_field::TUPLE, type_field::STRUCT],
                     ))
                 }
             }

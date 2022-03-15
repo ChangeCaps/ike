@@ -1,8 +1,9 @@
 use std::mem;
 
 use ike_ecs::{
-    update_parent_system, Events, FromWorld, IntoSystemDescriptor, ParallelSystemCoercion,
-    Registerable, Resource, Schedule, StageLabel, UpdateParentSystem, World,
+    update_parent_system, Children, Events, FromWorld, IntoSystemDescriptor,
+    ParallelSystemCoercion, Parent, Registerable, Resource, Schedule, StageLabel,
+    UpdateParentSystem, World,
 };
 use ike_type::TypeRegistry;
 
@@ -47,6 +48,9 @@ impl App {
         let mut app = Self::empty();
 
         app.init_resource::<TypeRegistry>();
+
+        app.register::<Parent>();
+        app.register::<Children>();
 
         app.add_default_stages();
 

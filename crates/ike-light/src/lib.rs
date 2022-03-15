@@ -27,6 +27,8 @@ pub struct LightPlugin;
 
 impl Plugin for LightPlugin {
     fn build(self, app: &mut App) {
+        app.register::<DirectionalLight>();
+
         app.init_resource::<LightBindings>();
         app.init_resource::<LightPipeline>();
         app.init_resource::<AmbientLight>();

@@ -3,10 +3,11 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::{Changed, Commands, Component, Entity, Query, SystemLabel, With, Without};
+use crate::{component, Changed, Commands, Entity, Query, SystemLabel, With, Without};
 use ike_reflect::Reflect;
 
-#[derive(Component, Reflect)]
+#[component]
+#[derive(Reflect)]
 pub struct Parent {
     pub parent: Entity,
 }
@@ -31,10 +32,11 @@ impl DerefMut for Parent {
     }
 }
 
-#[derive(Component)]
+#[component]
 pub struct PreviousParent(Entity);
 
-#[derive(Component, Reflect, Default)]
+#[component]
+#[derive(Reflect, Default)]
 pub struct Children {
     pub children: Vec<Entity>,
 }

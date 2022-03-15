@@ -1,5 +1,7 @@
 use std::{
+    mem,
     ops::{Deref, DerefMut},
+    ptr,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -53,13 +55,13 @@ impl AtomicBorrow {
     }
 }
 
-pub struct Comp<'a, T> {
+pub struct Comp<'a, T: ?Sized> {
     item: &'a T,
     component: &'a AtomicBorrow,
     storage: &'a AtomicBorrow,
 }
 
-impl<'a, T> Comp<'a, T> {
+impl<'a, T: ?Sized> Comp<'a, T> {
     pub fn new(
         item: &'a T,
         component: &'a AtomicBorrow,
@@ -80,9 +82,22 @@ impl<'a, T> Comp<'a, T> {
             storage,
         })
     }
+
+    /// This acts as a fix since implementing coercion is still unstable.
+    pub fn map_inner<U: ?Sized>(self, f: impl FnOnce(&'a T) -> &'a U) -> Comp<'a, U> {
+        let comp = Comp {
+            item: f(self.item),
+            component: self.component,
+            storage: self.storage,
+        };
+
+        mem::forget(self);
+
+        comp
+    }
 }
 
-impl<'a, T> Deref for Comp<'a, T> {
+impl<'a, T: ?Sized> Deref for Comp<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -90,14 +105,14 @@ impl<'a, T> Deref for Comp<'a, T> {
     }
 }
 
-impl<'a, T> Drop for Comp<'a, T> {
+impl<'a, T: ?Sized> Drop for Comp<'a, T> {
     fn drop(&mut self) {
         self.component.release();
         self.storage.release();
     }
 }
 
-pub struct CompMut<'a, T> {
+pub struct CompMut<'a, T: ?Sized> {
     item: &'a mut T,
     component: &'a AtomicBorrow,
     storage: &'a AtomicBorrow,
@@ -105,7 +120,7 @@ pub struct CompMut<'a, T> {
     change_tick: ChangeTick,
 }
 
-impl<'a, T> CompMut<'a, T> {
+impl<'a, T: ?Sized> CompMut<'a, T> {
     pub fn new(
         item: &'a mut T,
         component: &'a AtomicBorrow,
@@ -130,9 +145,31 @@ impl<'a, T> CompMut<'a, T> {
             change_tick,
         })
     }
+
+    /// This acts as a fix since implementing coercion is still unstable.
+    ///
+    /// # Note
+    /// - This _does not_ mark component as changed.
+    pub fn map_inner<U: ?Sized>(self, f: impl FnOnce(&'a mut T) -> &'a mut U) -> CompMut<'a, U> {
+        // SAFETY:
+        // self.item will never be dereferenced after this
+        let item = unsafe { ptr::read(&self.item as *const _) };
+
+        let comp = CompMut {
+            item: f(item),
+            component: self.component,
+            storage: self.storage,
+            component_change_tick: self.component_change_tick,
+            change_tick: self.change_tick,
+        };
+
+        mem::forget(self);
+
+        comp
+    }
 }
 
-impl<'a, T> Deref for CompMut<'a, T> {
+impl<'a, T: ?Sized> Deref for CompMut<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -140,7 +177,7 @@ impl<'a, T> Deref for CompMut<'a, T> {
     }
 }
 
-impl<'a, T> DerefMut for CompMut<'a, T> {
+impl<'a, T: ?Sized> DerefMut for CompMut<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.component_change_tick
             .store(self.change_tick, Ordering::Release);
@@ -149,20 +186,20 @@ impl<'a, T> DerefMut for CompMut<'a, T> {
     }
 }
 
-impl<'a, T> Drop for CompMut<'a, T> {
+impl<'a, T: ?Sized> Drop for CompMut<'a, T> {
     fn drop(&mut self) {
         self.component.release_mut();
         self.storage.release();
     }
 }
 
-pub struct Mut<'a, T> {
+pub struct Mut<'a, T: ?Sized> {
     item: &'a mut T,
     component_change_tick: &'a AtomicU64,
     change_tick: ChangeTick,
 }
 
-impl<'a, T> Mut<'a, T> {
+impl<'a, T: ?Sized> Mut<'a, T> {
     pub fn new(
         item: &'a mut T,
         component_change_tick: &'a AtomicU64,
@@ -181,7 +218,7 @@ impl<'a, T> Mut<'a, T> {
     }
 }
 
-impl<'a, T> Deref for Mut<'a, T> {
+impl<'a, T: ?Sized> Deref for Mut<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -189,7 +226,7 @@ impl<'a, T> Deref for Mut<'a, T> {
     }
 }
 
-impl<'a, T> DerefMut for Mut<'a, T> {
+impl<'a, T: ?Sized> DerefMut for Mut<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.component_change_tick
             .store(self.change_tick, Ordering::Release);
@@ -198,12 +235,12 @@ impl<'a, T> DerefMut for Mut<'a, T> {
     }
 }
 
-pub struct Res<'a, T> {
+pub struct Res<'a, T: ?Sized> {
     item: &'a T,
     borrow: &'a AtomicBorrow,
 }
 
-impl<'a, T> Res<'a, T> {
+impl<'a, T: ?Sized> Res<'a, T> {
     pub fn new(item: &'a T, borrow: &'a AtomicBorrow) -> Option<Self> {
         if borrow.borrow() {
             Some(Self { item, borrow })
@@ -213,7 +250,7 @@ impl<'a, T> Res<'a, T> {
     }
 }
 
-impl<'a, T> Deref for Res<'a, T> {
+impl<'a, T: ?Sized> Deref for Res<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -221,18 +258,18 @@ impl<'a, T> Deref for Res<'a, T> {
     }
 }
 
-impl<'a, T> Drop for Res<'a, T> {
+impl<'a, T: ?Sized> Drop for Res<'a, T> {
     fn drop(&mut self) {
         self.borrow.release();
     }
 }
 
-pub struct ResMut<'a, T> {
+pub struct ResMut<'a, T: ?Sized> {
     item: &'a mut T,
     borrow: &'a AtomicBorrow,
 }
 
-impl<'a, T> Deref for ResMut<'a, T> {
+impl<'a, T: ?Sized> Deref for ResMut<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -240,13 +277,13 @@ impl<'a, T> Deref for ResMut<'a, T> {
     }
 }
 
-impl<'a, T> DerefMut for ResMut<'a, T> {
+impl<'a, T: ?Sized> DerefMut for ResMut<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.item
     }
 }
 
-impl<'a, T> ResMut<'a, T> {
+impl<'a, T: ?Sized> ResMut<'a, T> {
     pub fn new(item: &'a mut T, borrow: &'a AtomicBorrow) -> Option<Self> {
         if borrow.borrow_mut() {
             Some(Self { item, borrow })
@@ -256,7 +293,7 @@ impl<'a, T> ResMut<'a, T> {
     }
 }
 
-impl<'a, T> Drop for ResMut<'a, T> {
+impl<'a, T: ?Sized> Drop for ResMut<'a, T> {
     fn drop(&mut self) {
         self.borrow.release_mut();
     }

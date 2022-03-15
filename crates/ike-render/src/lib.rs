@@ -62,6 +62,8 @@ pub struct RenderPlugin;
 
 impl Plugin for RenderPlugin {
     fn build(self, app: &mut App) {
+        app.register::<Camera>();
+
         app.init_resource::<RenderSettings>();
 
         app.add_asset::<Mesh>();

@@ -1,5 +1,6 @@
-use ike_ecs::Component;
+use ike_ecs::component;
 use ike_math::{Mat4, Vec3, Vec4};
+use ike_reflect::Reflect;
 
 #[derive(Clone, Copy, Debug)]
 pub struct RawCamera {
@@ -30,20 +31,10 @@ impl RawCamera {
     }
 }
 
-pub trait Projection {
-    fn matrix(&self, aspect: f32) -> Mat4;
-}
-
-#[derive(Clone)]
+#[derive(Clone, Reflect)]
 pub struct Perspective {
     pub fov: f32,
     pub near: f32,
-}
-
-impl Projection for Perspective {
-    fn matrix(&self, aspect: f32) -> Mat4 {
-        Mat4::perspective_infinite_rh(self.fov, aspect, self.near)
-    }
 }
 
 impl Default for Perspective {
@@ -55,7 +46,13 @@ impl Default for Perspective {
     }
 }
 
-#[derive(Clone)]
+impl Perspective {
+    pub fn matrix(&self, aspect: f32) -> Mat4 {
+        Mat4::perspective_infinite_rh(self.fov, aspect, self.near)
+    }
+}
+
+#[derive(Clone, Reflect)]
 pub struct Orthographic {
     pub left: f32,
     pub right: f32,
@@ -78,9 +75,37 @@ impl Orthographic {
     }
 }
 
-#[derive(Component)]
+#[derive(Reflect)]
+pub enum Projection {
+    Perspective(Perspective),
+    Orthographic(Orthographic),
+}
+
+impl From<Perspective> for Projection {
+    fn from(perspective: Perspective) -> Self {
+        Self::Perspective(perspective)
+    }
+}
+
+impl From<Orthographic> for Projection {
+    fn from(orthographic: Orthographic) -> Self {
+        Self::Orthographic(orthographic)
+    }
+}
+
+impl Projection {
+    pub fn matrix(&self, aspect: f32) -> Mat4 {
+        match self {
+            Self::Perspective(projection) => projection.matrix(aspect),
+            Self::Orthographic(projection) => projection.matrix(),
+        }
+    }
+}
+
+#[component]
+#[derive(Reflect)]
 pub struct Camera {
-    projection: Box<dyn Projection + Send + Sync>,
+    projection: Projection,
 }
 
 impl Default for Camera {
@@ -90,9 +115,9 @@ impl Default for Camera {
 }
 
 impl Camera {
-    pub fn new(projection: impl Projection + Send + Sync + 'static) -> Self {
+    pub fn new(projection: impl Into<Projection>) -> Self {
         Self {
-            projection: Box::new(projection),
+            projection: projection.into(),
         }
     }
 

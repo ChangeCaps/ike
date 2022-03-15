@@ -4,10 +4,12 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+use crate::uuid;
 use ike_reflect::Reflect;
 
 #[derive(Clone, Debug, Reflect, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[uuid("7b8cb912-fad3-410e-a483-008c70e3423f")]
 pub enum RawLabelKind {
     Variant(Cow<'static, str>),
     Id(u64),
@@ -15,6 +17,7 @@ pub enum RawLabelKind {
 
 #[derive(Clone, Debug, Reflect, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[uuid("ba4659f2-b951-4899-847f-777fe745d679")]
 pub struct RawLabel {
     type_name: Cow<'static, str>,
     kind: RawLabelKind,

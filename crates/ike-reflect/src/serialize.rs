@@ -1,5 +1,5 @@
 use crate::{
-    field_type, Reflect, ReflectEnum, ReflectList, ReflectMap, ReflectRef, ReflectSet,
+    type_field, Reflect, ReflectEnum, ReflectList, ReflectMap, ReflectRef, ReflectSet,
     ReflectStruct, ReflectTuple, VariantRef,
 };
 use serde::{
@@ -16,32 +16,32 @@ impl Serialize for dyn Reflect {
 
         match self.reflect_ref() {
             ReflectRef::Tuple(reflect) => {
-                state.serialize_entry(field_type::TYPE, reflect.type_name())?;
-                state.serialize_entry(field_type::TUPLE, reflect)?;
+                state.serialize_entry(type_field::TYPE, reflect.type_name())?;
+                state.serialize_entry(type_field::TUPLE, reflect)?;
             }
             ReflectRef::Struct(reflect) => {
-                state.serialize_entry(field_type::TYPE, reflect.type_name())?;
-                state.serialize_entry(field_type::STRUCT, reflect)?;
+                state.serialize_entry(type_field::TYPE, reflect.type_name())?;
+                state.serialize_entry(type_field::STRUCT, reflect)?;
             }
             ReflectRef::Enum(reflect) => {
-                state.serialize_entry(field_type::TYPE, reflect.type_name())?;
-                state.serialize_entry(field_type::ENUM, reflect)?;
+                state.serialize_entry(type_field::TYPE, reflect.type_name())?;
+                state.serialize_entry(type_field::ENUM, reflect)?;
             }
             ReflectRef::List(reflect) => {
-                state.serialize_entry(field_type::TYPE, reflect.type_name())?;
-                state.serialize_entry(field_type::LIST, reflect)?;
+                state.serialize_entry(type_field::TYPE, reflect.type_name())?;
+                state.serialize_entry(type_field::LIST, reflect)?;
             }
             ReflectRef::Set(reflect) => {
-                state.serialize_entry(field_type::TYPE, reflect.type_name())?;
-                state.serialize_entry(field_type::SET, reflect)?;
+                state.serialize_entry(type_field::TYPE, reflect.type_name())?;
+                state.serialize_entry(type_field::SET, reflect)?;
             }
             ReflectRef::Map(reflect) => {
-                state.serialize_entry(field_type::TYPE, reflect.type_name())?;
-                state.serialize_entry(field_type::MAP, reflect)?;
+                state.serialize_entry(type_field::TYPE, reflect.type_name())?;
+                state.serialize_entry(type_field::MAP, reflect)?;
             }
             ReflectRef::Value(reflect) => {
-                state.serialize_entry(field_type::TYPE, reflect.type_name())?;
-                state.serialize_entry(field_type::VALUE, reflect.serialize())?;
+                state.serialize_entry(type_field::TYPE, reflect.type_name())?;
+                state.serialize_entry(type_field::VALUE, reflect.serialize())?;
             }
         }
 
@@ -87,14 +87,14 @@ impl Serialize for dyn ReflectEnum {
     {
         let mut state = serializer.serialize_map(Some(2))?;
 
-        state.serialize_entry(field_type::VARIANT, self.variant_name())?;
+        state.serialize_entry(type_field::VARIANT, self.variant_name())?;
 
         match self.variant_ref() {
             VariantRef::Tuple(reflect) => {
-                state.serialize_entry(field_type::TUPLE, reflect)?;
+                state.serialize_entry(type_field::TUPLE, reflect)?;
             }
             VariantRef::Struct(reflect) => {
-                state.serialize_entry(field_type::STRUCT, reflect)?;
+                state.serialize_entry(type_field::STRUCT, reflect)?;
             }
         }
 

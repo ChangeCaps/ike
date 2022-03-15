@@ -1,13 +1,14 @@
 use ike::prelude::*;
-use ike_assets::AssetServer;
 
-#[derive(Component, Default)]
+#[component]
+#[derive(Reflect, Default)]
 pub struct Player {
     pub camera_angle: Vec2,
     pub selected: Option<Entity>,
 }
 
-#[derive(Component)]
+#[component]
+#[derive(Reflect)]
 pub struct GravityPoint(f32);
 
 pub struct Materials {
@@ -15,7 +16,8 @@ pub struct Materials {
     pub rock: Handle<PbrMaterial>,
 }
 
-#[derive(Component)]
+#[component]
+#[derive(Reflect)]
 pub struct Garbage;
 
 #[node]
@@ -132,9 +134,21 @@ fn main() {
     App::new()
         .add_plugin(DefaultPlugins)
         .register_node::<Player>()
+        .register::<Player>()
         .add_startup_system(setup)
+        .add_startup_system_to_stage(
+            serialize_world.exclusive_system(),
+            StartupStage::PostStartup,
+        )
         .add_system(gravity_point_system)
         .run();
+}
+
+fn serialize_world(world: &mut World) {
+    let scene = Scene::from_world(world);
+
+    let file = std::fs::File::create("test.scene.ron").unwrap();
+    ron::ser::to_writer_pretty(&file, &scene, Default::default()).unwrap();
 }
 
 fn setup(

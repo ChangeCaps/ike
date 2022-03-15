@@ -1,9 +1,10 @@
 use std::ops::Mul;
 
 use bytemuck::{Pod, Zeroable};
+use ike_reflect::Reflect;
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd, Pod, Zeroable)]
+#[derive(Clone, Copy, Reflect, Debug, Default, PartialEq, PartialOrd, Pod, Zeroable)]
 pub struct Color {
     pub r: f32,
     pub g: f32,

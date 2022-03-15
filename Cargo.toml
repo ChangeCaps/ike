@@ -30,10 +30,15 @@ ike-physics = { version = "0.1.0", path = "crates/ike-physics", optional = true 
 ike-post-processing = { version = "0.1.0", path = "crates/ike-post-processing", optional = true }
 ike-reflect = { version = "0.1.0", path = "crates/ike-reflect" }
 ike-render = { version = "0.1.0", path = "crates/ike-render", optional = true }
+ike-scene = { version = "0.1.0", path = "crates/ike-scene" }
 ike-task = { version = "0.1.0", path = "crates/ike-task" }
 ike-transform = { version = "0.1.0", path = "crates/ike-transform" }
+ike-type = { version = "0.1.0", path = "crates/ike-type" }
 ike-util = { version = "0.1.0", path = "crates/ike-util" }
 ike-winit = { version = "0.1.0", path = "crates/ike-winit" }
+
+[dev-dependencies]
+ron = "0.7"
 
 [features]
 default = ["rayon", "gltf", "physics", "render", "pbr"] 

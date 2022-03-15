@@ -205,16 +205,20 @@ impl ComponentStorages {
 
 #[cfg(test)]
 mod tests {
+    use crate::component;
+
     use super::*;
 
-    #[derive(Component, Default)]
+    #[component]
+    #[derive(Default)]
     #[allow(unused)]
     struct Foo {
         a: i32,
         b: f64,
     }
 
-    #[derive(Component, Default)]
+    #[component]
+    #[derive(Default)]
     #[allow(unused)]
     struct Bar {
         a: i64,
