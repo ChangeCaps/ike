@@ -1,0 +1,15 @@
+[package]
+name = "ike-app"
+version = "0.1.0-alpha.0"
+edition = "2021"
+description = "A simple framework for building apps with ike"
+repository = "https://github.com/ChangeCaps/ike"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ike-ecs = { path = "../ike-ecs", version = "0.1.0-alpha.0" }
+
+downcast-rs = "1.2"

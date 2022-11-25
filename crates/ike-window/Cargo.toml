@@ -1,0 +1,24 @@
+[package]
+name = "ike-window"
+version = "0.1.0-alpha.0"
+edition = "2021"
+description = "Windowing for ike"
+repository = "https://github.com/ChangeCaps/ike"
+license = "MIT OR Apache-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ike-app = { path = "../ike-app", version = "0.1.0-alpha.0" }
+ike-ecs = { path = "../ike-ecs", version = "0.1.0-alpha.0" }
+ike-input = { path = "../ike-input", version = "0.1.0-alpha.0" }
+
+deref-derive = "0.1"
+downcast-rs = "1.2"
+glam = "0.22"
+raw-window-handle = "0.5"
+
+winit = { version = "0.27", optional = true }
+
+[features]
+default = ["winit"]

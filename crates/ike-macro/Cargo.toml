@@ -1,0 +1,16 @@
+[package]
+name = "ike-macro"
+version = "0.1.0-alpha.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+proc-macro = true
+
+[dependencies]
+shiv-macro-impl = "0.1.0-alpha.3"
+proc-macro2 = "1.0"
+proc-macro-crate = "1.2"
+quote = "1.0"
+syn = "1.0"
