@@ -1,6 +1,6 @@
 [package]
 name = "ike-app"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha0.0"
 edition = "2021"
 description = "A simple framework for building apps with ike"
 repository = "https://github.com/ChangeCaps/ike"

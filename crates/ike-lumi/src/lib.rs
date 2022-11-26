@@ -12,13 +12,13 @@ use ike_window::{WindowRedrawRequested, Windows};
 
 use lumi::{
     core::{Device, Queue, RenderTarget},
-    renderer::{Camera, CameraTarget, Renderer},
+    renderer::{Camera, CameraTarget, Renderer, RendererPlugin},
     DefaultPlugin,
 };
 
 pub use lumi::*;
 
-pub fn lumi_extract_system(world: &mut World) {
+fn lumi_extract_system(world: &mut World) {
     let device = world.remove_resource::<Device>().unwrap();
     let queue = world.remove_resource::<Queue>().unwrap();
     let mut renderer = world.remove_resource::<Renderer>().unwrap();
@@ -30,7 +30,7 @@ pub fn lumi_extract_system(world: &mut World) {
     world.insert_resource(renderer);
 }
 
-pub fn lumi_render_system(
+fn lumi_render_system(
     mut redraw_events: EventReader<WindowRedrawRequested>,
     mut renderer: ResMut<Renderer>,
     device: Res<Device>,
@@ -44,7 +44,17 @@ pub fn lumi_render_system(
         .map(|e| e.window_id)
         .collect::<Vec<_>>();
 
+    let mut priorities = Vec::new();
+
     for (entity, camera) in camera_query.iter() {
+        priorities.push((entity, camera.priority));
+    }
+
+    priorities.sort_by_key(|&(_, priority)| priority);
+
+    for (entity, _) in priorities {
+        let (_, camera) = camera_query.get(entity).unwrap();
+
         match camera.target {
             CameraTarget::Texture(ref texture) => {
                 let target = RenderTarget {
@@ -78,6 +88,36 @@ pub fn lumi_render_system(
                 texture.present();
             }
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RenderPlugin<T: RendererPlugin>(pub T);
+
+impl<T: RendererPlugin + Send + Sync + 'static> Plugin for RenderPlugin<T> {
+    fn build(&self, app: &mut App) {
+        let mut renderer = app.world.resource_mut::<Renderer>();
+        renderer.add_plugin(&self.0);
+    }
+
+    fn dependencies(&self, plugins: &mut Plugins) {
+        plugins.add(LumiPlugin);
+    }
+}
+
+pub trait RenderPluginAppExt {
+    fn add_render_plugin<T: RendererPlugin + Send + Sync + 'static>(
+        &mut self,
+        plugin: T,
+    ) -> &mut Self;
+}
+
+impl RenderPluginAppExt for App {
+    fn add_render_plugin<T: RendererPlugin + Send + Sync + 'static>(
+        &mut self,
+        plugin: T,
+    ) -> &mut Self {
+        self.add_plugin(RenderPlugin(plugin))
     }
 }
 

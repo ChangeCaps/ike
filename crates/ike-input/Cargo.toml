@@ -1,6 +1,6 @@
 [package]
 name = "ike-input"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha0.0"
 edition = "2021"
 description = "Input handling for ike"
 repository = "https://github.com/ChangeCaps/ike"

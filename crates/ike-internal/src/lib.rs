@@ -10,7 +10,7 @@ pub mod prelude {
     pub use crate::app::{App, AppExit, AppRunner, CoreStage, Plugin, Plugins, StartupStage};
     pub use crate::ecs::prelude::*;
     pub use crate::input::*;
-    pub use crate::lumi::prelude::*;
+    pub use crate::lumi::{prelude::*, LumiPlugin, RenderPlugin, RenderPluginAppExt, RenderStage};
     pub use crate::transform::{GlobalTransform, Transform, TransformBundle, TransformPlugin};
     pub use crate::window::{Window, WindowClosed, WindowId, WindowPlugin, Windows};
     pub use crate::DefaultPlugins;
@@ -19,6 +19,8 @@ pub mod prelude {
 use app::{App, Plugin, Plugins};
 use lumi::LumiPlugin;
 use transform::TransformPlugin;
+use wgpu::WgpuPlugin;
+use window::WindowPlugin;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct DefaultPlugins;
@@ -28,6 +30,8 @@ impl Plugin for DefaultPlugins {
 
     fn dependencies(&self, plugins: &mut Plugins) {
         plugins.add(TransformPlugin);
+        plugins.add(WindowPlugin);
+        plugins.add(WgpuPlugin);
         plugins.add(LumiPlugin);
     }
 }

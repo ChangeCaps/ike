@@ -1,5 +1,5 @@
 pub use ike_internal::*;
 
-#[cfg(feature = "dynamic")]
+#[cfg(any(all(debug_assertions, feature = "debug-dynamic"), feature = "dynamic"))]
 #[allow(unused_imports)]
 use ike_dylib;

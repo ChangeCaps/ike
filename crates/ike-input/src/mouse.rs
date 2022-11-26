@@ -30,11 +30,11 @@ impl Mouse {
             mouse.position = position.position;
         }
 
-        if let Some(motion) = motion.iter().last() {
+        for motion in motion.iter() {
             mouse.motion += motion.delta;
         }
 
-        if let Some(scroll) = scroll.iter().last() {
+        for scroll in scroll.iter() {
             mouse.scroll += scroll.delta;
         }
     }

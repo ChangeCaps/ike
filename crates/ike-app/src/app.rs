@@ -85,7 +85,7 @@ impl App {
         app
     }
 
-    /// Adds a [`Plugin`] to the [`App`].
+    /// Adds a [`Plugin`] to the [`App`], and builds it and it's [`Plugin::dependencies`].
     pub fn add_plugin(&mut self, plugin: impl Plugin) -> &mut Self {
         self.plugins.add(plugin);
 

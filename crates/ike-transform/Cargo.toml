@@ -1,6 +1,6 @@
 [package]
 name = "ike-transform"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha0.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,4 +9,4 @@ edition = "2021"
 ike-app = { path = "../ike-app", version = "0.1.0-alpha.0" }
 ike-ecs = { path = "../ike-ecs", version = "0.1.0-alpha.0" }
 
-shiv-transform = "0.1.0-alpha.3"
+shiv-transform = "0.1.0-alpha.4"
