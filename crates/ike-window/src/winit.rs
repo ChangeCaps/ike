@@ -298,7 +298,7 @@ impl Plugin for WinitPlugin {
         windows.insert(window_id, Arc::new(WinitWindow::new(window)));
 
         app.send_event(WindowCreated { window_id });
-        app.insert_resource(windows);
+        app.add_resource(windows);
 
         let runner = WinitRunner {
             event_loop,

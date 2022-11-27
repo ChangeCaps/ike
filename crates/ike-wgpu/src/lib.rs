@@ -156,11 +156,11 @@ impl Plugin for WgpuPlugin {
         let mut window_surfaces = WindowSurfaces::default();
         window_surfaces.insert(windows.primary_id(), window_surface);
 
-        app.insert_resource(window_surfaces);
-        app.insert_resource(instance);
-        app.insert_resource(adapter);
-        app.insert_resource(device);
-        app.insert_resource(queue);
+        app.add_resource(window_surfaces);
+        app.add_resource(instance);
+        app.add_resource(adapter);
+        app.add_resource(device);
+        app.add_resource(queue);
 
         app.add_system_to_stage(
             DefaultStage::First,

@@ -1,11 +1,10 @@
 [package]
-name = "ike-ecs"
+name = "ike-core"
 version = "0.1.0-alpha0.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ike-macro = { path = "../ike-macro", version = "0.1.0-alpha.0" }
-
-shiv = "0.1.0-alpha.8"
+ike-app = { path = "../ike-app", version = "0.1.0-alpha0.0" }
+ike-ecs = { path = "../ike-ecs", version = "0.1.0-alpha0.0" }

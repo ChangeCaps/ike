@@ -158,7 +158,7 @@ impl Plugin for LumiPlugin {
         let mut renderer = Renderer::new();
         renderer.add_plugin(DefaultPlugin);
 
-        app.insert_resource(renderer);
+        app.add_resource(renderer);
 
         app.add_system_to_stage(
             RenderStage::PreRender,

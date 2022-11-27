@@ -103,7 +103,7 @@ impl App {
     }
 
     /// Inserts a [`Resource`] into [`App::world`].
-    pub fn insert_resource<T: Resource>(&mut self, resource: T) -> &mut Self {
+    pub fn add_resource<T: Resource>(&mut self, resource: T) -> &mut Self {
         self.world.insert_resource(resource);
         self
     }

@@ -2,11 +2,15 @@ use ike::prelude::*;
 
 fn main() {
     App::new()
+        .add_resource(Gravity::default())
         .add_plugin(DefaultPlugins)
         .add_startup_system(setup)
         .add_system(grab_cursor_system)
         .add_system(rotate_system)
         .add_system(move_camera_system)
+        .add_system(spawn_sphere)
+        .add_system(despawn_sphere)
+        .add_system(collision_system)
         .run();
 }
 
@@ -32,13 +36,28 @@ fn setup(mut commands: Commands) {
     let mut transform = Transform::from_xyz(0.0, -5.0, 0.0);
     transform.scale = Vec3::new(20.0, 1.0, 20.0);
 
-    commands.spawn().insert(MaterialBundle {
-        material: StandardMaterial::default(),
-        mesh: mesh.clone(),
-        transform,
-        ..Default::default()
-    });
+    commands
+        .spawn()
+        .insert(MaterialBundle {
+            material: StandardMaterial::default(),
+            mesh: mesh.clone(),
+            transform,
+            ..Default::default()
+        })
+        .insert(RigidBody::Kinematic)
+        .insert(Collider::cuboid(Vec3::new(10.0, 0.5, 10.0)));
+}
 
+#[derive(Component)]
+struct Rotate;
+
+#[derive(Component, Default)]
+struct CameraRotate {
+    pub x: f32,
+    pub y: f32,
+}
+
+fn spawn_sphere(mut commands: Commands) {
     commands
         .spawn()
         .insert(MaterialBundle {
@@ -49,27 +68,19 @@ fn setup(mut commands: Commands) {
             mesh: shape::uv_sphere(0.75, 32),
             ..Default::default()
         })
-        .insert(Rotate)
-        .with_children(|parent| {
-            parent
-                .spawn()
-                .insert(MaterialBundle {
-                    material: StandardMaterial::default(),
-                    mesh: mesh.clone(),
-                    transform: Transform::from_xyz(2.0, 0.0, 0.0),
-                    ..Default::default()
-                })
-                .insert(Rotate);
-        });
+        .insert(RigidBody::default())
+        .insert(Collider::cuboid(Vec3::new(0.5, 0.5, 0.5)));
 }
 
-#[derive(Component)]
-struct Rotate;
-
-#[derive(Component, Default)]
-struct CameraRotate {
-    pub x: f32,
-    pub y: f32,
+fn despawn_sphere(
+    mut commands: Commands,
+    query: Query<(Entity, &GlobalTransform), With<RigidBody>>,
+) {
+    for (entity, transform) in query.iter() {
+        if transform.translation.y < -10.0 {
+            commands.entity(entity).despawn();
+        }
+    }
 }
 
 fn grab_cursor_system(
@@ -133,6 +144,8 @@ fn move_camera_system(
         transform.translation += direction.normalize_or_zero() * 0.1;
     }
 }
+
+fn collision_system(mut collisions: EventReader<Collision>) {}
 
 fn rotate_system(mut query: Query<&mut Transform, With<Rotate>>) {
     for mut transform in query.iter_mut() {
