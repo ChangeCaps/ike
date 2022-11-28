@@ -10,7 +10,6 @@ fn main() {
         .add_system(move_camera_system)
         .add_system(spawn_sphere)
         .add_system(despawn_sphere)
-        .add_system(collision_system)
         .run();
 }
 
@@ -33,8 +32,11 @@ fn setup(mut commands: Commands) {
 
     let mesh = shape::cube(1.0, 1.0, 1.0);
 
-    let mut transform = Transform::from_xyz(0.0, -5.0, 0.0);
-    transform.scale = Vec3::new(20.0, 1.0, 20.0);
+    let transform = Transform::from_xyz(0.0, -5.0, 0.0)
+        .with_rotation(Quat::from_rotation_x(0.1))
+        .with_scale(Vec3::new(20.0, 1.0, 20.0));
+
+    commands.insert_resource(shape::uv_sphere(0.75, 32));
 
     commands
         .spawn()
@@ -57,7 +59,11 @@ struct CameraRotate {
     pub y: f32,
 }
 
-fn spawn_sphere(mut commands: Commands) {
+fn spawn_sphere(mut commands: Commands, keyboard: Res<Input<Key>>, mesh: Res<Mesh>) {
+    if !keyboard.is_pressed(&Key::E) {
+        return;
+    }
+
     commands
         .spawn()
         .insert(MaterialBundle {
@@ -65,11 +71,11 @@ fn spawn_sphere(mut commands: Commands) {
                 transmission: 1.0,
                 ..Default::default()
             },
-            mesh: shape::uv_sphere(0.75, 32),
+            mesh: mesh.clone(),
             ..Default::default()
         })
         .insert(RigidBody::default())
-        .insert(Collider::cuboid(Vec3::new(0.5, 0.5, 0.5)));
+        .insert(Collider::sphere(0.75));
 }
 
 fn despawn_sphere(
@@ -77,7 +83,7 @@ fn despawn_sphere(
     query: Query<(Entity, &GlobalTransform), With<RigidBody>>,
 ) {
     for (entity, transform) in query.iter() {
-        if transform.translation.y < -10.0 {
+        if transform.translation.length() > 20.0 {
             commands.entity(entity).despawn();
         }
     }
@@ -144,8 +150,6 @@ fn move_camera_system(
         transform.translation += direction.normalize_or_zero() * 0.1;
     }
 }
-
-fn collision_system(mut collisions: EventReader<Collision>) {}
 
 fn rotate_system(mut query: Query<&mut Transform, With<Rotate>>) {
     for mut transform in query.iter_mut() {

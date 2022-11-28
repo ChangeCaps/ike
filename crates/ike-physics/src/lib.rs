@@ -50,7 +50,9 @@ fn step_stage() -> SystemStage {
 }
 
 fn update_ike() -> SystemStage {
-    SystemStage::parallel().with_system(systems::update_ike_position_system)
+    SystemStage::parallel()
+        .with_system(systems::update_ike_position_system)
+        .with_system(systems::update_ike_velocity_system)
 }
 
 fn step() -> Schedule {

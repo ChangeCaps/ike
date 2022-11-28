@@ -35,7 +35,7 @@ pub(crate) fn from_vec3(v: Vec3) -> Vector3<f32> {
 }
 
 #[inline]
-pub(crate) fn _to_vec3(v: Vector3<f32>) -> Vec3 {
+pub(crate) fn to_vec3(v: Vector3<f32>) -> Vec3 {
     Vec3::new(v.x, v.y, v.z)
 }
 
@@ -137,6 +137,18 @@ pub(crate) fn update_rapier_rigid_body_system(
     }
 }
 
+pub(crate) fn update_ike_velocity_system(
+    mut query: Query<(&RigidBodyHandle, &mut Velocity)>,
+    bodies: Res<RigidBodySet>,
+) {
+    for (handle, mut velocity) in query.iter_mut() {
+        if let Some(body) = bodies.get(handle.0) {
+            velocity.linear = to_vec3(*body.linvel());
+            velocity.angular = to_vec3(*body.angvel());
+        }
+    }
+}
+
 pub(crate) fn update_ike_position_system(
     bodies: Res<RigidBodySet>,
     mut query: Query<(
@@ -173,6 +185,8 @@ pub(crate) fn update_ike_position_system(
                 local.rotation =
                     rotation * (global_rotation * local.rotation.conjugate()).conjugate();
             }
+
+            local.rotation = local.rotation.normalize();
         }
 
         global.translation = translation;

@@ -151,7 +151,7 @@ impl EventManager {
             if let (Some(body_a), Some(body_b)) = (body_a, body_b) {
                 if let Some(pair) = narrow_phase.contact_pair(handle_a, handle_b) {
                     for manifold in pair.manifolds.iter() {
-                        let impulse = manifold.points.iter().map(|point| point.data.impulse).sum();
+                        let impulse: f32 = manifold.points.iter().map(|p| p.data.impulse).sum();
                         let normal = Vec3::new(
                             manifold.data.normal.x,
                             manifold.data.normal.y,
@@ -163,7 +163,7 @@ impl EventManager {
                             a: CollisionData {
                                 rigid_body: from_user_data(body_a.user_data),
                                 collider: from_user_data(collider_a.user_data),
-                                impulse,
+                                impulse: -impulse,
                                 normal: -normal,
                             },
                             b: CollisionData {
