@@ -6,7 +6,10 @@ pub mod winit;
 pub use event::*;
 pub use window::*;
 
-use ike_app::{App, AppExit, Plugin, Plugins};
+use ike_app::{
+    app::{App, AppExit},
+    plugin::{Plugin, Plugins},
+};
 use ike_ecs::{
     event::{EventReader, EventWriter},
     schedule::{DefaultStage, IntoSystemDescriptor, ShouldRun, SystemLabel},

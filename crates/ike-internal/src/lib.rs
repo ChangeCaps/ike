@@ -22,7 +22,10 @@ pub mod prelude {
     pub use crate::DefaultPlugins;
 }
 
-use app::{App, Plugin, Plugins};
+use app::{
+    app::App,
+    plugin::{Plugin, Plugins},
+};
 use ike_core::CorePlugin;
 use lumi::LumiPlugin;
 use physics::PhysicsPlugin;

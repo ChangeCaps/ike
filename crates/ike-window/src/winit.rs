@@ -3,7 +3,7 @@ use std::sync::{
     Arc,
 };
 
-use ike_app::{App, AppRunner, Plugin};
+use ike_app::{app::App, plugin::Plugin, runner::AppRunner};
 use ike_ecs::hash_map::HashMap;
 use ike_input::{
     InputEvent, InputState, Key, MouseButton, MouseMotion, MousePosition, MouseScroll,

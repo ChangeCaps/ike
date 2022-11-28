@@ -1,5 +1,9 @@
-use ike_app::{App, CoreStage, Plugin, StartupStage};
+use ike_app::{
+    app::{App, CoreStage, StartupStage},
+    plugin::Plugin,
+};
 use ike_ecs::schedule::IntoSystemDescriptor;
+
 use shiv_transform::{transform_system, TransformSystem};
 
 pub use shiv_transform::{GlobalTransform, Transform, TransformBundle};

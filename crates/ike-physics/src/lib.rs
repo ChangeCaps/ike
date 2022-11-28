@@ -7,7 +7,10 @@ pub mod systems;
 #[cfg(feature = "3d")]
 use rapier3d as rapier;
 
-use ike_app::{App, CoreStage, Plugin, Plugins};
+use ike_app::{
+    app::{App, CoreStage},
+    plugin::{Plugin, Plugins},
+};
 use ike_ecs::schedule::{Schedule, StageLabel, SystemStage};
 use ike_transform::TransformPlugin;
 

@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use ike_app::{App, Plugin, Plugins};
+use ike_app::{
+    app::App,
+    plugin::{Plugin, Plugins},
+};
 use ike_ecs::{
     hash_map::HashMap,
     prelude::EventReader,

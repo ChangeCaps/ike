@@ -1,7 +1,7 @@
 pub mod random;
 pub mod time;
 
-use ike_app::{App, Plugin};
+use ike_app::{app::App, plugin::Plugin};
 use ike_ecs::schedule::DefaultStage;
 
 #[derive(Clone, Copy, Debug, Default)]

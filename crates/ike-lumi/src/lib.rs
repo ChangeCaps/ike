@@ -1,4 +1,7 @@
-use ike_app::{App, CoreStage, Plugin, Plugins};
+use ike_app::{
+    app::{App, CoreStage},
+    plugin::{Plugin, Plugins},
+};
 use ike_ecs::{
     event::EventReader,
     query::Query,
