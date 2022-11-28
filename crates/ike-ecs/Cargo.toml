@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 ike-macro = { path = "../ike-macro", version = "0.1.0-alpha.0" }
 
-shiv = "0.1.0-alpha.8"
+shiv = "0.1.0-alpha.10"
