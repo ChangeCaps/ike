@@ -1,3 +1,4 @@
+pub mod random;
 pub mod time;
 
 use ike_app::{App, Plugin};
@@ -12,4 +13,10 @@ impl Plugin for CorePlugin {
 
         app.add_system_to_stage(DefaultStage::First, time::Time::update_system);
     }
+}
+
+pub mod prelude {
+    pub use crate::random::{random, random_range, Rng};
+    pub use crate::time::Time;
+    pub use crate::CorePlugin;
 }

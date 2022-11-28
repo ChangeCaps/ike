@@ -99,3 +99,11 @@ impl Plugin for PhysicsPlugin {
         plugins.add(TransformPlugin);
     }
 }
+
+pub mod prelude {
+    pub use crate::components::{Collider, RigidBody, Velocity};
+    pub use crate::events::{Collision, CollisionData};
+    pub use crate::pipeline::PhysicsWorld;
+    pub use crate::resources::Gravity;
+    pub use crate::{PhysicsPlugin, PhysicsStage};
+}

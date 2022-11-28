@@ -2,7 +2,7 @@ use std::{any::TypeId, ops::Deref};
 
 use downcast_rs::{impl_downcast, Downcast};
 
-use crate::App;
+use crate::app::App;
 
 /// An id for a [`Plugin`]. By default, this is the [`TypeId`] of the plugin.
 pub trait PluginId: Downcast + Send + Sync {
@@ -249,7 +249,7 @@ mod tests {
 
         impl Plugin for PluginA {
             fn build(&self, app: &mut App) {
-                app.insert_resource(5i32);
+                app.add_resource(5i32);
             }
         }
 

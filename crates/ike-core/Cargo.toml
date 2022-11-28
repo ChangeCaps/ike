@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 ike-app = { path = "../ike-app", version = "0.1.0-alpha0.0" }
 ike-ecs = { path = "../ike-ecs", version = "0.1.0-alpha0.0" }
+
+rand = { version = "0.8", features = ["small_rng"] }

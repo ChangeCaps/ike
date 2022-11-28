@@ -1,4 +1,4 @@
-use crate::App;
+use crate::app::App;
 
 pub trait AppRunner: 'static {
     fn run(self: Box<Self>, app: App);

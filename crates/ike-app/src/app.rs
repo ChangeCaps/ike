@@ -1,6 +1,9 @@
 use std::mem;
 
-use crate::{AppRunner, Plugin, Plugins, RunLoop, RunOnce};
+use crate::{
+    plugin::{Plugin, Plugins},
+    runner::{AppRunner, RunLoop, RunOnce},
+};
 
 use ike_ecs::{
     prelude::{Event, Events},

@@ -10,21 +10,15 @@ pub use ike_wgpu as wgpu;
 pub use ike_window as window;
 
 pub mod prelude {
-    pub use crate::app::{App, AppExit, AppRunner, CoreStage, Plugin, Plugins, StartupStage};
-    pub use crate::core::{time::Time, CorePlugin};
+    pub use crate::app::prelude::*;
+    pub use crate::core::prelude::*;
     pub use crate::ecs::prelude::*;
     pub use crate::input::*;
     pub use crate::lumi::{prelude::*, LumiPlugin, RenderPlugin, RenderPluginAppExt, RenderStage};
     pub use crate::math::*;
-    pub use crate::physics::{
-        components::{Collider, RigidBody, Velocity},
-        events::{Collision, CollisionData},
-        pipeline::PhysicsWorld,
-        resources::Gravity,
-        PhysicsPlugin, PhysicsStage,
-    };
-    pub use crate::transform::{GlobalTransform, Transform, TransformBundle, TransformPlugin};
-    pub use crate::window::{Window, WindowClosed, WindowId, WindowPlugin, Windows};
+    pub use crate::physics::prelude::*;
+    pub use crate::transform::prelude::*;
+    pub use crate::window::prelude::*;
     pub use crate::DefaultPlugins;
 }
 

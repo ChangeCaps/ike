@@ -20,3 +20,8 @@ impl Plugin for TransformPlugin {
         );
     }
 }
+
+pub mod prelude {
+    pub use crate::TransformPlugin;
+    pub use shiv_transform::{GlobalTransform, Transform, TransformBundle};
+}

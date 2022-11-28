@@ -69,3 +69,9 @@ impl Plugin for WindowPlugin {
         plugins.add(InputPlugin);
     }
 }
+
+pub mod prelude {
+    pub use crate::event::*;
+    pub use crate::window::*;
+    pub use crate::WindowPlugin;
+}
